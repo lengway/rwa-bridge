@@ -1,61 +1,78 @@
 "use client";
 
+import { useState } from "react";
 import { useWallet } from "@crossmint/client-sdk-react-ui";
-import { coinbaseOnrampAppId, isCrossmintConfigured, isOnrampConfigured } from "@/lib/config";
-
-/**
- * Builds a Coinbase Onramp "one-click-buy" URL for the connected wallet.
- * Docs: https://docs.cdp.coinbase.com/onramp/docs/generating-onramp-url
- * This constructs the link client-side (fine for a demo); a production build should
- * generate it server-side with a session token instead of a bare appId.
- */
-function buildOnrampUrl(address: string) {
-  const addresses = encodeURIComponent(JSON.stringify({ [address]: ["solana"] }));
-  const params = new URLSearchParams({
-    appId: coinbaseOnrampAppId,
-    defaultAsset: "USDC",
-    defaultPaymentMethod: "CARD",
-    presetFiatAmount: "50",
-    fiatCurrency: "USD",
-  });
-  return `https://pay.coinbase.com/buy/select-asset?addresses=${addresses}&${params.toString()}`;
-}
+import { useBalance } from "@/lib/mockBalance";
+import { isCrossmintConfigured } from "@/lib/config";
+import { ONRAMP_OPTIONS, buildMercuryoUrl, isMercuryoConfigured } from "@/lib/onramps";
 
 export function OnrampButton() {
-  if (!isCrossmintConfigured) {
-    return <OnrampButtonInner address={undefined} />;
-  }
-  return <OnrampButtonWithWallet />;
+  if (!isCrossmintConfigured) return <OnrampPicker address={undefined} />;
+  return <OnrampPickerWithWallet />;
 }
 
-function OnrampButtonWithWallet() {
+function OnrampPickerWithWallet() {
   const { wallet } = useWallet();
-  return <OnrampButtonInner address={wallet?.address} />;
+  return <OnrampPicker address={wallet?.address} />;
 }
 
-function OnrampButtonInner({ address }: { address: string | undefined }) {
-  const disabledReason = !isOnrampConfigured
-    ? "добавь NEXT_PUBLIC_COINBASE_ONRAMP_APP_ID"
-    : !address
-      ? "сначала войди — нужен адрес кошелька"
-      : null;
+function OnrampPicker({ address }: { address: string | undefined }) {
+  const { addFunds } = useBalance();
+  const [selected, setSelected] = useState(ONRAMP_OPTIONS[0].id);
+  const [loading, setLoading] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
-  if (disabledReason) {
-    return (
-      <button disabled className="rounded-full border border-zinc-300 dark:border-zinc-700 px-5 py-3 text-sm text-zinc-400 cursor-not-allowed">
-        Пополнить баланс — {disabledReason}
-      </button>
-    );
-  }
+  const option = ONRAMP_OPTIONS.find((o) => o.id === selected) ?? ONRAMP_OPTIONS[0];
+  const realFlow = option.id === "mercuryo" && isMercuryoConfigured && !!address;
+
+  const handleClick = () => {
+    if (realFlow) {
+      window.open(buildMercuryoUrl(address!), "_blank", "noopener,noreferrer");
+      setNote("Открыли виджет провайдера. Реальное зачисление придёт на кошелёк, демо-баланс ниже не меняется.");
+      return;
+    }
+    setLoading(true);
+    setNote(null);
+    setTimeout(() => {
+      addFunds(50);
+      setLoading(false);
+      setNote(
+        option.id === "mercuryo"
+          ? "Демо-зачисление: ключ провайдера или вход пока не настроены."
+          : "Демо-зачисление: этот способ показан как концепт, реальной интеграции нет.",
+      );
+    }, 500);
+  };
 
   return (
-    <a
-      href={buildOnrampUrl(address!)}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="rounded-full bg-foreground text-background px-5 py-3 text-sm font-medium hover:opacity-90 transition-opacity inline-block"
-    >
-      Пополнить баланс картой (Coinbase Onramp)
-    </a>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        {ONRAMP_OPTIONS.map((o) => (
+          <label
+            key={o.id}
+            className={`rounded-xl border p-3 flex gap-3 cursor-pointer text-sm ${
+              selected === o.id ? "border-foreground" : "border-zinc-200 dark:border-zinc-800"
+            }`}
+          >
+            <input type="radio" name="onramp" checked={selected === o.id} onChange={() => setSelected(o.id)} />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">
+                {o.name}
+                {o.kind === "concept" && <span className="ml-2 text-xs text-amber-600 dark:text-amber-500">концепт</span>}
+              </span>
+              <span className="text-xs text-zinc-500">{o.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="rounded-full bg-foreground text-background px-5 py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 self-start"
+      >
+        {loading ? "зачисляем..." : realFlow ? "Пополнить через провайдера" : "Пополнить на $50 (демо)"}
+      </button>
+      {note && <p className="text-xs text-zinc-500">{note}</p>}
+    </div>
   );
 }

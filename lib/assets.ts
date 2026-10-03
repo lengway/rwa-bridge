@@ -12,6 +12,8 @@ export type BridgeAsset = {
   logoEmoji: string;
   /** Whether a buy flow is actually wired up in this build, or just a card for now. */
   buyFlow: "onramp-plus-swap" | "crossmint-checkout" | "not-wired";
+  /** Demo price in mock USDC, spent from the mock balance on purchase. */
+  demoPriceUsd: number;
 };
 
 /**
@@ -34,6 +36,7 @@ export const XSTOCKS_DEMO_ASSET: BridgeAsset = {
   // Neither the swap route nor the mint address is verified yet, so this card is
   // intentionally not wired to a working transaction in this build.
   buyFlow: "not-wired",
+  demoPriceUsd: 25,
 };
 
 /**
@@ -54,6 +57,7 @@ export const AIFC_MOCK_ASSET: BridgeAsset = {
   mintAddress: null,
   logoEmoji: "🏢",
   buyFlow: "crossmint-checkout",
+  demoPriceUsd: 40,
 };
 
 export const DEMO_ASSETS: BridgeAsset[] = [AIFC_MOCK_ASSET, XSTOCKS_DEMO_ASSET];

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useWallet } from "@crossmint/client-sdk-react-ui";
 import type { BridgeAsset } from "@/lib/assets";
 import { isCrossmintConfigured } from "@/lib/config";
+import { useBalance } from "@/lib/mockBalance";
 
 export function AssetCard({ asset }: { asset: BridgeAsset }) {
   return (
@@ -16,6 +17,7 @@ export function AssetCard({ asset }: { asset: BridgeAsset }) {
             <p className="text-xs text-zinc-500">{asset.ticker} · {asset.sourceLabel}</p>
           </div>
         </div>
+        <p className="text-sm font-medium tabular-nums">${asset.demoPriceUsd}</p>
       </div>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">{asset.description}</p>
       <AssetAction asset={asset} />
@@ -66,10 +68,16 @@ function MintDemoButtonReady({
   setMessage: (m: string | null) => void;
 }) {
   const { wallet } = useWallet();
+  const { usdc, spend } = useBalance();
 
   const handleBuy = async () => {
     if (!wallet) {
       setMessage("сначала войди через кнопку выше");
+      setState("error");
+      return;
+    }
+    if (!spend(asset.demoPriceUsd)) {
+      setMessage(`не хватает баланса (есть $${usdc}, нужно $${asset.demoPriceUsd}) — сначала пополни`);
       setState("error");
       return;
     }
