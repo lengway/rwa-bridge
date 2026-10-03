@@ -19,9 +19,9 @@ export const ONRAMP_OPTIONS: OnrampOption[] = [
     kind: "live",
   },
   {
-    id: "binance-link",
-    name: "Binance Kazakhstan (Link)",
-    hint: "Концепт: лицензия AFSA, white-label крипто-сервис для финансовых организаций",
+    id: "freedom",
+    name: "Freedom (счёт в тенге)",
+    hint: "Концепт: пополнение со счёта Freedom, как это выглядело бы при партнёрстве",
     kind: "concept",
   },
   {
