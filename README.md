@@ -1,5 +1,8 @@
 # RWA Bridge — фундамент для хакатона
 
+**Полный ресерч рынка, конкурентов, регуляторных рисков и плана запуска:**
+[reports/Web3 asset onramp layer.md](../reports/Web3%20asset%20onramp%20layer.md)
+
 Один вход (email, без seed-фразы) → пополнение баланса картой → портфель из
 токенизированных активов из разных источников на одном экране. Контекст и полный
 план — в документе «RWA-агрегатор — план проекта» (см. родительский репозиторий).
@@ -8,7 +11,10 @@
 
 - **Вход и кошелёк** — Crossmint embedded wallet (email login, без seed-фразы),
   Solana. Staging-ключ = devnet, бесплатно.
-- **Пополнение баланса** — кнопка ведёт в Coinbase Onramp (карта → USDC).
+- **Пополнение баланса** — выбор способа: Mercuryo (карта → USDC, живой по ключу),
+  Freedom и Kaspi — концепт. Без ключа любой способ зачисляет демо-баланс.
+- **Доход на долларах** — наша собственная yield-стратегия (в разработке). Пока демо:
+  начисление в браузере, 1 секунда = 1 день, ставка подписана как демо (см. `lib/yields.ts`).
 - **Покупка демо-актива** — `AIFC_MOCK_ASSET` минтится как NFT в кошелёк
   пользователя через Crossmint Minting API (реальная транзакция на devnet, просто
   вместо настоящего RWA-токена — заглушка, пока нет лицензированного партнёра).
@@ -40,24 +46,29 @@ npm run dev
 2. **`CROSSMINT_SERVER_API_KEY` + `CROSSMINT_COLLECTION_ID`** — staging server key
    (scope Minting API) и id коллекции, которую нужно создать в том же консоли.
    Включает кнопку «купить долю» на демо-активе.
-3. **`NEXT_PUBLIC_COINBASE_ONRAMP_APP_ID`** — App ID с
-   [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com/products/onramp).
-   Включает кнопку пополнения баланса.
+3. **`NEXT_PUBLIC_MERCURYO_WIDGET_ID`** (+ `NEXT_PUBLIC_MERCURYO_WIDGET_HOST` для
+   песочницы) — из кабинета Mercuryo. Включает реальное пополнение картой.
 
 ## Структура
 
 ```
 app/
   page.tsx              — вход
-  portfolio/page.tsx     — портфель, два шага: пополнить → купить
+  portfolio/page.tsx     — портфель: пополнить → зарабатывать → купить
+  demo-bank/page.tsx     — фейковый банк, плитка «Токены» открывает мост внутри
   api/mint-demo-asset/   — сервер-роут, минтит демо-RWA-токен через Crossmint
 components/
   providers.tsx          — обёртка Crossmint (рендерится и без ключа)
   LoginPanel.tsx          — вход/выход, адрес кошелька
-  OnrampButton.tsx        — ссылка на Coinbase Onramp
+  OnrampButton.tsx        — выбор способа пополнения
+  YieldCard.tsx           — хранилище с доходом: вложить, начисление, вывести
   AssetCard.tsx           — карточка актива + кнопка покупки
+  BalanceBadge.tsx        — демо-баланс
 lib/
   assets.ts               — список активов (что реально, что мок)
+  yields.ts               — наши yield-стратегии и демо-начисление
+  onramps.ts              — способы пополнения (Mercuryo, Freedom, Kaspi)
+  mockBalance.tsx         — демо-баланс и yield-позиции в памяти
   config.ts                — чтение env, флаги "настроено ли"
 ```
 

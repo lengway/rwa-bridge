@@ -5,6 +5,8 @@ import { AssetCard } from "@/components/AssetCard";
 import { BalanceBadge } from "@/components/BalanceBadge";
 import { BalanceProvider } from "@/lib/mockBalance";
 import { DEMO_ASSETS } from "@/lib/assets";
+import { YieldCard } from "@/components/YieldCard";
+import { YIELD_STRATEGIES } from "@/lib/yields";
 
 export default function PortfolioPage() {
   return (
@@ -31,7 +33,14 @@ export default function PortfolioPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <p className="text-sm text-zinc-500">шаг 2 — купить долю в активе</p>
+            <p className="text-sm text-zinc-500">шаг 2 — зарабатывать на долларах</p>
+            {YIELD_STRATEGIES.map((strategy) => (
+              <YieldCard key={strategy.id} strategy={strategy} />
+            ))}
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <p className="text-sm text-zinc-500">шаг 3 — купить долю в активе</p>
             <div className="grid gap-4 sm:grid-cols-2">
               {DEMO_ASSETS.map((asset) => (
                 <AssetCard key={asset.id} asset={asset} />
