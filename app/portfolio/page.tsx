@@ -33,7 +33,7 @@ export default function PortfolioPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <p className="text-sm text-zinc-500">шаг 2 — зарабатывать на долларах</p>
+            <p className="text-sm text-zinc-500">шаг 2 — доход на реальных активах</p>
             {YIELD_STRATEGIES.map((strategy) => (
               <YieldCard key={strategy.id} strategy={strategy} />
             ))}

@@ -41,16 +41,41 @@ export function YieldCard({ strategy }: { strategy: YieldStrategy }) {
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">{strategy.name}</p>
+          <p className="font-medium">
+            {strategy.name}
+            {strategy.kind === "demo" && (
+              <span className="ml-2 text-xs font-normal text-amber-600 dark:text-amber-500">демо</span>
+            )}
+          </p>
           <p className="text-xs text-zinc-500">
-            {strategy.protocol} · Solana · {strategy.apyLabel}
+            {strategy.ticker} · {strategy.issuer} · {strategy.apyLabel}
           </p>
         </div>
       </div>
       <p className="text-sm text-zinc-600 dark:text-zinc-400">{strategy.description}</p>
       <dl className="text-xs text-zinc-500 grid gap-1">
-        <div><dt className="inline">Комиссия: </dt><dd className="inline">{strategy.feeLabel}</dd></div>
         <div><dt className="inline">Риск: </dt><dd className="inline">{strategy.riskLabel}</dd></div>
+        <div><dt className="inline">Кому доступно: </dt><dd className="inline">{strategy.eligibilityLabel}</dd></div>
+        {strategy.mintAddress && strategy.sourceUrl && (
+          <div>
+            <dt className="inline">Токен: </dt>
+            <dd className="inline">
+              <a
+                href={`https://solscan.io/token/${strategy.mintAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono underline underline-offset-2 break-all"
+              >
+                {strategy.mintAddress}
+              </a>{" "}
+              (
+              <a href={strategy.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                адрес из документации эмитента
+              </a>
+              )
+            </dd>
+          </div>
+        )}
       </dl>
 
       {position ? (
