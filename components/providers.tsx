@@ -17,7 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <TooltipProvider>
         <AppStoreProvider>
           {children}
-          <Toaster />
+          <Toaster position="top-center" />
         </AppStoreProvider>
       </TooltipProvider>
     </ThemeProvider>

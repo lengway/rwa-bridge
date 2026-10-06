@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <div className="grid grid-cols-5">
             {tabs.map(({ href, label, icon: Icon }) => {
-              const active = pathname === href || (href === "/earn" && isDetail);
+              const active = pathname === href || pathname.startsWith(`${href}/`);
               return (
                 <Link
                   key={href}

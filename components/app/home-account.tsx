@@ -76,12 +76,16 @@ export function BalanceCard({
             </p>
           ) : <Skeleton className="mt-2 h-10 w-44" />}
         </div>
-        <div className="flex rounded-full bg-muted p-1" aria-label="Валюта отображения">
+        <div
+          role="group"
+          aria-label="Валюта отображения"
+          className="flex rounded-full bg-muted p-1"
+        >
           {(["USD", "KZT"] as const).map((value) => (
             <Button
               key={value}
               size="sm"
-              variant={value === currency ? "secondary" : "ghost"}
+              variant={value === currency ? "default" : "ghost"}
               className="h-7 rounded-full px-3 text-xs"
               aria-label={`Показать в ${value}`}
               aria-pressed={value === currency}

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { formatApy } from "@/lib/format";
+import { formatApy, formatMoney } from "@/lib/format";
 import { KZ_BOND_DEMO, ONDO_USDY } from "@/lib/yields";
 
 const questions = [
@@ -66,7 +66,9 @@ export default function LandingPage() {
               <span className="text-sm text-muted-foreground">Ваш капитал</span>
               <span className="size-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
             </div>
-            <p className="text-4xl font-semibold tracking-tight tabular-nums">$1 250.00</p>
+            <p className="text-4xl font-semibold tracking-tight tabular-nums">
+              {formatMoney(1250)}
+            </p>
             <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
               <ChartNoAxesCombined className="size-4" />
               Пример демо-портфеля

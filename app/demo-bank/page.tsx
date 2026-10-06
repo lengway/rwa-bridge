@@ -65,7 +65,7 @@ export default function DemoBankPage() {
         <SheetContent
           side="bottom"
           showCloseButton={false}
-          className="h-dvh max-h-dvh gap-0 rounded-none p-0"
+          className="data-[side=bottom]:h-dvh max-h-dvh gap-0 rounded-none p-0"
         >
           <SheetHeader className="flex-row items-center border-b px-4 py-3 text-left">
             <div className="min-w-0 flex-1">
@@ -84,7 +84,7 @@ export default function DemoBankPage() {
           <iframe
             src="/home"
             title="RWA Bridge внутри демо-банка"
-            className="h-full min-h-0 w-full flex-1 border-0"
+            className="min-h-0 w-full flex-1 border-0"
           />
         </SheetContent>
       </Sheet>
