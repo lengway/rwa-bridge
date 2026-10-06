@@ -1,0 +1,48 @@
+import { NextResponse } from "next/server";
+
+// Circle devnet USDC, as listed in Crossmint's onramp quickstart.
+const USDC_DEVNET_LOCATOR = "solana:4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
+/**
+ * Creates a Crossmint onramp order: card -> USDC delivered to the user's own wallet.
+ * Docs: https://docs.crossmint.com/onramp/quickstarts/react
+ * Staging keys only reach devnet; production needs a signed order form + KYB with Crossmint.
+ */
+export async function POST(request: Request) {
+  const serverApiKey = process.env.CROSSMINT_SERVER_API_KEY;
+  if (!serverApiKey) {
+    return NextResponse.json({ error: "добавь CROSSMINT_SERVER_API_KEY в .env.local" }, { status: 501 });
+  }
+  if (!serverApiKey.startsWith("sk_staging_")) {
+    return NextResponse.json({ error: "в демо разрешён только staging-ключ" }, { status: 400 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const walletAddress: string | undefined = body?.walletAddress;
+  const email: string | undefined = body?.email;
+  const amount = Number(body?.amount);
+  if (!walletAddress || !email || !Number.isFinite(amount) || amount <= 0 || amount > 1000) {
+    return NextResponse.json({ error: "нужны walletAddress, email и сумма от 1 до 1000" }, { status: 400 });
+  }
+
+  const res = await fetch("https://staging.crossmint.com/api/2022-06-09/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": serverApiKey },
+    body: JSON.stringify({
+      lineItems: [
+        {
+          tokenLocator: USDC_DEVNET_LOCATOR,
+          executionParameters: { mode: "exact-in", amount: String(amount) },
+        },
+      ],
+      payment: { method: "card", receiptEmail: email },
+      recipient: { walletAddress },
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return NextResponse.json({ error: data?.message ?? "Crossmint не создал заказ" }, { status: 502 });
+  }
+  return NextResponse.json({ orderId: data?.order?.orderId, clientSecret: data?.clientSecret });
+}

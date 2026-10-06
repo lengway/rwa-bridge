@@ -1,60 +1,49 @@
 import { NextResponse } from "next/server";
+import { Connection, Keypair, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
 import { AIFC_MOCK_ASSET } from "@/lib/assets";
 
+const DECIMALS = 6;
+
 /**
- * Mints one demo NFT into the recipient's Crossmint wallet, standing in for a real
- * AIFC-issued RWA token. Uses Crossmint's Minting API server-side:
- * https://docs.crossmint.com/nft-minting-api/introduction
- *
- * Needs CROSSMINT_SERVER_API_KEY + CROSSMINT_COLLECTION_ID (see .env.example).
- * Point CROSSMINT_SERVER_API_KEY at a *staging* key so this mints on devnet.
+ * Issues ICT-DEMO SPL tokens (1 token = $1 of the demo asset) into the buyer's wallet
+ * on Solana devnet. Stands in for a real AIFC-issued token; devnet only, no value.
+ * Mint and authority come from `node scripts/setup-demo-token.mjs`.
  */
 export async function POST(request: Request) {
-  const serverApiKey = process.env.CROSSMINT_SERVER_API_KEY;
-  const collectionId = process.env.CROSSMINT_COLLECTION_ID;
-
-  if (!serverApiKey || !collectionId) {
+  const mintAddress = process.env.DEMO_TOKEN_MINT;
+  const authoritySecret = process.env.DEMO_TOKEN_AUTHORITY_SECRET;
+  if (!mintAddress || !authoritySecret) {
     return NextResponse.json(
-      {
-        error:
-          "добавь CROSSMINT_SERVER_API_KEY и CROSSMINT_COLLECTION_ID в .env.local — см. комментарий в .env.example",
-      },
+      { error: "запусти node scripts/setup-demo-token.mjs и добавь DEMO_TOKEN_MINT и DEMO_TOKEN_AUTHORITY_SECRET в .env.local" },
       { status: 501 },
     );
   }
 
   const body = await request.json().catch(() => null);
-  const recipientAddress: string | undefined = body?.recipientAddress;
-  if (!recipientAddress) {
-    return NextResponse.json({ error: "recipientAddress обязателен" }, { status: 400 });
+  let recipient: PublicKey;
+  try {
+    recipient = new PublicKey(body?.recipientAddress);
+  } catch {
+    return NextResponse.json({ error: "некорректный recipientAddress" }, { status: 400 });
   }
 
-  const isStaging = serverApiKey.startsWith("sk_staging_");
-  const apiBase = isStaging ? "https://staging.crossmint.com" : "https://www.crossmint.com";
+  const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
+  const authority = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(authoritySecret)));
+  const mint = new PublicKey(mintAddress);
 
-  const res = await fetch(`${apiBase}/api/2022-06-09/collections/${collectionId}/nfts`, {
-    method: "POST",
-    headers: {
-      "X-API-KEY": serverApiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      recipient: `solana:${recipientAddress}`,
-      metadata: {
-        name: AIFC_MOCK_ASSET.name,
-        description: AIFC_MOCK_ASSET.description,
-        image: "https://www.crossmint.com/assets/crossmint/logo.png",
-      },
-    }),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return NextResponse.json({ error: data?.message ?? "Crossmint mint вернул ошибку" }, { status: 502 });
+  try {
+    // allowOwnerOffCurve: Crossmint smart wallets can be PDAs rather than on-curve keys.
+    const ata = await getOrCreateAssociatedTokenAccount(connection, authority, mint, recipient, true);
+    const amount = BigInt(AIFC_MOCK_ASSET.demoPriceUsd) * BigInt(10 ** DECIMALS);
+    const signature = await mintTo(connection, authority, mint, ata.address, authority, amount);
+    return NextResponse.json({
+      message: `${AIFC_MOCK_ASSET.demoPriceUsd} ${AIFC_MOCK_ASSET.ticker} отправлены в кошелёк (devnet)`,
+      signature,
+      explorer: `https://explorer.solana.com/tx/${signature}?cluster=devnet`,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "ошибка выпуска токена";
+    return NextResponse.json({ error: message }, { status: 502 });
   }
-
-  return NextResponse.json({
-    message: `${AIFC_MOCK_ASSET.ticker} отправлен в кошелёк (${isStaging ? "devnet" : "mainnet"})`,
-    action: data,
-  });
 }

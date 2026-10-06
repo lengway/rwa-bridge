@@ -13,9 +13,15 @@ export const isMercuryoConfigured = mercuryoWidgetId.length > 0;
 
 export const ONRAMP_OPTIONS: OnrampOption[] = [
   {
+    id: "crossmint",
+    name: "Банковская карта (Crossmint)",
+    hint: "Основной: USDC сразу на твой кошелёк, проверка личности внутри",
+    kind: "live",
+  },
+  {
     id: "mercuryo",
     name: "Банковская карта (Mercuryo)",
-    hint: "Реальный провайдер, в списке поддерживаемых валют есть тенге",
+    hint: "Запасной: в списке валют есть тенге, вывод только в USD/EUR",
     kind: "live",
   },
   {

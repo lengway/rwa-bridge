@@ -33,7 +33,7 @@ function AssetAction({ asset }: { asset: BridgeAsset }) {
       </p>
     );
   }
-  if (asset.buyFlow === "crossmint-checkout") {
+  if (asset.buyFlow === "spl-demo-mint") {
     return <MintDemoButton asset={asset} />;
   }
   return null;
@@ -90,7 +90,7 @@ function MintDemoButtonReady({
         body: JSON.stringify({ recipientAddress: wallet.address, assetId: asset.id }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "ошибка минта");
+      if (!res.ok) throw new Error(data.error ?? "ошибка выпуска токена");
       setState("done");
       setMessage(data.message ?? "готово");
     } catch (err) {
@@ -106,7 +106,7 @@ function MintDemoButtonReady({
         disabled={state === "loading"}
         className="rounded-full bg-foreground text-background px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
-        {state === "loading" ? "отправляем..." : "купить долю (демо-минт)"}
+        {state === "loading" ? "отправляем..." : "купить долю (демо-токен)"}
       </button>
       {message && (
         <p className={`text-xs ${state === "error" ? "text-red-500" : "text-emerald-600 dark:text-emerald-500"}`}>

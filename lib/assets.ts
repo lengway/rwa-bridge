@@ -11,7 +11,7 @@ export type BridgeAsset = {
   mintAddress: string | null;
   logoEmoji: string;
   /** Whether a buy flow is actually wired up in this build, or just a card for now. */
-  buyFlow: "onramp-plus-swap" | "crossmint-checkout" | "not-wired";
+  buyFlow: "onramp-plus-swap" | "spl-demo-mint" | "not-wired";
   /** Demo price in mock USDC, spent from the mock balance on purchase. */
   demoPriceUsd: number;
 };
@@ -42,8 +42,8 @@ export const XSTOCKS_DEMO_ASSET: BridgeAsset = {
 /**
  * Local rail: a stand-in for a future AIFC-issued token (e.g. the kind of commercial
  * real-estate pilot referenced in the project's research, such as Iconic Tower /
- * Birlik). No real AIFC partner or contract exists yet, so this mints a demo NFT via
- * Crossmint's own checkout on Solana devnet — a fully real, testable flow, just
+ * Birlik). No real AIFC partner or contract exists yet, so this issues our own ICT-DEMO
+ * SPL token on Solana devnet (1 token = $1 of the share) — a real, testable transfer,
  * standing in for what a licensed AFSA partner's token would later be.
  */
 export const AIFC_MOCK_ASSET: BridgeAsset = {
@@ -56,7 +56,7 @@ export const AIFC_MOCK_ASSET: BridgeAsset = {
     "Мок-актив вместо реального казахстанского RWA-токена. Показывает, как будет выглядеть покупка доли местной недвижимости, когда появится лицензированный партнёр.",
   mintAddress: null,
   logoEmoji: "🏢",
-  buyFlow: "crossmint-checkout",
+  buyFlow: "spl-demo-mint",
   demoPriceUsd: 40,
 };
 
