@@ -71,6 +71,7 @@ export const YIELD_STRATEGIES: YieldStrategy[] = [ONDO_USDY, KZ_BOND_DEMO];
 export const DEMO_DAY_MS = 1000;
 
 export function accrued(principal: number, since: number, apy: number, now: number) {
-  const days = (now - since) / DEMO_DAY_MS;
-  return principal * apy * (days / 365);
+  if (![principal, since, apy, now].every(Number.isFinite)) return 0;
+  const days = Math.max(0, (now - since) / DEMO_DAY_MS);
+  return Math.max(0, principal * apy * (days / 365));
 }

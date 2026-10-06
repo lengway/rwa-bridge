@@ -6,19 +6,23 @@ import {
   CrossmintEmbeddedCheckout,
   useCrossmintCheckout,
 } from "@crossmint/client-sdk-react-ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Order = { orderId: string; clientSecret: string };
 
 export function CrossmintOnramp({
   walletAddress,
   email,
+  amountUsd,
   onCompleted,
 }: {
   walletAddress: string;
   email: string;
+  amountUsd: number;
   onCompleted: (amount: number) => void;
 }) {
-  const [amount, setAmount] = useState("5");
+  const amount = String(amountUsd);
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,40 +49,38 @@ export function CrossmintOnramp({
   if (order) {
     return (
       <CrossmintCheckoutProvider>
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-2">
+        <div className="rounded-xl border bg-background p-2">
           <CrossmintEmbeddedCheckout
             orderId={order.orderId}
             clientSecret={order.clientSecret}
             payment={{ receiptEmail: email, crypto: { enabled: false }, fiat: { enabled: true }, defaultMethod: "fiat" }}
           />
         </div>
-        <CompletionWatcher onCompleted={() => onCompleted(Number(amount))} />
-        <p className="text-xs text-zinc-500 mt-2">Staging: тестовая карта 4242 4242 4242 4242, любой будущий срок и CVC.</p>
+        <CompletionWatcher onCompleted={() => onCompleted(amountUsd)} />
+        <p className="mt-2 text-xs text-muted-foreground">
+          Тестовый режим: карта 4242 4242 4242 4242, любая будущая дата и CVC.
+        </p>
       </CrossmintCheckoutProvider>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex items-center gap-2 text-sm">
-        Сумма, $
-        <input
-          type="number"
-          min={1}
-          max={1000}
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="w-24 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1"
-        />
+      <label className="flex items-center justify-between gap-3 text-sm">
+        Сумма заказа
+        <div className="flex w-32 items-center gap-2">
+          <Input type="number" value={amountUsd} readOnly aria-label="Сумма заказа в долларах" />
+          <span className="text-xs text-muted-foreground">USD</span>
+        </div>
       </label>
-      <button
+      <Button
         onClick={createOrder}
         disabled={loading}
-        className="self-start rounded-full bg-foreground text-background px-5 py-3 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+        className="self-start"
       >
-        {loading ? "создаём заказ..." : "Пополнить картой"}
-      </button>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+        {loading ? "Создаём заказ…" : `Пополнить картой на $${amountUsd}`}
+      </Button>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

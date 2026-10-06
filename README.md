@@ -65,27 +65,32 @@ npm run dev
 
 ```
 app/
-  page.tsx              — вход
-  portfolio/page.tsx     — портфель: пополнить → зарабатывать → купить
-  demo-bank/page.tsx     — фейковый банк, плитка «Токены» открывает мост внутри
+  page.tsx               — публичная главная и описание сценария
+  (app)/                 — мобильное приложение с общей навигацией
+    home/                 — баланс, вклады, активы и быстрые действия
+    earn/                 — продукты дохода и детали вклада
+    assets/               — список активов, карточки и покупка доли
+    activity/             — история операций по дням
+    profile/              — аккаунт, настройки и демо-данные
+  portfolio/page.tsx      — перенаправление на /home
+  demo-bank/page.tsx      — нейтральный экран банка с мостом внутри
   api/mint-demo-asset/   — выдаёт SPL-токен ICT-DEMO на кошелёк (devnet)
   api/onramp-order/      — создаёт заказ онрампа Crossmint (карта → USDC)
 components/
+  app/                   — экраны, карточки, оболочка и выдвижные панели
+  ui/                    — компоненты интерфейса на Base UI
   CrossmintOnramp.tsx     — встроенная оплата картой Crossmint
-  providers.tsx          — обёртка Crossmint (рендерится и без ключа)
-  LoginPanel.tsx          — вход/выход, адрес кошелька
-  OnrampButton.tsx        — выбор способа пополнения
-  YieldCard.tsx           — хранилище с доходом: вложить, начисление, вывести
-  AssetCard.tsx           — карточка актива + кнопка покупки
-  BalanceBadge.tsx        — демо-баланс
+  providers.tsx           — тема, уведомления, состояние и Crossmint
 lib/
   assets.ts               — список активов (что реально, что мок)
-  yields.ts               — RWA-доходность (USDY, демо тенговых облигаций) и демо-начисление
+  yields.ts               — продукты дохода и ускоренные демо-начисления
   onramps.ts              — способы пополнения (Crossmint, Mercuryo, Freedom, Kaspi)
+  store.tsx               — общее состояние и сохранение демо-данных в браузере
+  format.ts               — форматы сумм, ставок и дат операций
+  useNow.ts               — ускоренные часы для начислений
 scripts/
   setup-demo-token.mjs    — один раз создаёт SPL-токен ICT-DEMO на devnet
-  mockBalance.tsx         — демо-баланс и yield-позиции в памяти
-  config.ts                — чтение env, флаги "настроено ли"
+lib/config.ts             — чтение env и флаги подключения
 ```
 
 ## Дальше (после хакатона, не сейчас)
