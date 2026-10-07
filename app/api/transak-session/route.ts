@@ -157,6 +157,12 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const walletAddress = body?.walletAddress;
+  const emailCandidate = body?.email;
+  const email = typeof emailCandidate === "string"
+    && emailCandidate.length <= 254
+    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailCandidate)
+    ? emailCandidate
+    : undefined;
   const amountUsd = Number(body?.amountUsd);
   if (
     typeof walletAddress !== "string"
@@ -212,6 +218,7 @@ export async function POST(request: Request) {
       fiatCurrency: "USD",
       userIp,
       referrerDomain,
+      email,
     });
     return NextResponse.json({ widgetUrl });
   } catch {

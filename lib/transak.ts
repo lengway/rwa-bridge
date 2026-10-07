@@ -6,6 +6,22 @@ const CREATE_WIDGET_URL = "https://api-gateway-stg.transak.com/api/v2/auth/sessi
 const apiKey = process.env.NEXT_PUBLIC_TRANSAK_API_KEY ?? "";
 const apiSecret = process.env.TRANSAK_API_SECRET ?? "";
 
+// Staging only: fake data published by Transak for testing.
+const TRANSAK_STAGING_TEST_PERSONA = {
+  firstName: "Doe",
+  lastName: "Jane",
+  mobileNumber: "+12125550142",
+  dob: "1998-01-01",
+  address: {
+    addressLine1: "179 Richmond Oak",
+    addressLine2: "",
+    city: "California",
+    state: "CA",
+    postCode: "94016",
+    countryCode: "US",
+  },
+};
+
 export const transakConfig = {
   apiKeyConfigured: apiKey.length > 0,
   secretConfigured: apiSecret.length > 0,
@@ -73,12 +89,14 @@ export async function createWidgetUrl({
   fiatCurrency,
   userIp,
   referrerDomain,
+  email,
 }: {
   walletAddress?: string;
   fiatAmount: number;
   fiatCurrency: string;
   userIp: string;
   referrerDomain: string;
+  email?: string;
 }): Promise<string> {
   const accessToken = await getPartnerAccessToken();
   const widgetParams: Record<string, string | number | boolean> = {
@@ -89,7 +107,15 @@ export async function createWidgetUrl({
     fiatCurrency,
     cryptoCurrencyCode: "USDC",
     network: "solana",
+    userData: JSON.stringify({
+      ...TRANSAK_STAGING_TEST_PERSONA,
+      ...(email ? { email } : {}),
+    }),
+    isAutoFillUserData: true,
+    paymentMethod: "credit_debit_card",
   };
+
+  if (email) widgetParams.email = email;
 
   if (walletAddress) {
     widgetParams.walletAddress = walletAddress;

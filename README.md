@@ -68,7 +68,9 @@ npm run dev
 CVV `123`, USD, 3DS) и пароль 3DS `Checkout1!`. Для тестового US KYC: first name `Doe`,
 last name `Jane`, телефон `+12125550142`, дата рождения `01-01-1998`, адрес
 `179 Richmond Oak`, `California`, `CA`, `94016`, SSN `123456789`. Staging KYC использует
-фиктивные проверки и подтверждает прохождение. [Инструкция Transak по тестовым данным](https://docs.transak.com/guides/sandbox-credentials).
+фиктивные проверки и подтверждает прохождение. В staging-виджете заранее заполняется
+тестовая персона Transak, поэтому останется ввести код из письма и данные тестовой карты.
+[Инструкция Transak по тестовым данным](https://docs.transak.com/guides/sandbox-credentials).
 
 ## Структура
 

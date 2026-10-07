@@ -171,7 +171,7 @@ function TransakSessionPath({
   onSelectAnotherMethod: () => void;
   onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
-  const { login, status } = useCrossmintAuth();
+  const { login, status, user } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
   const [widgetUrl, setWidgetUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -202,7 +202,7 @@ function TransakSessionPath({
       const response = await fetch("/api/transak-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress: wallet.address, amountUsd: amount }),
+        body: JSON.stringify({ walletAddress: wallet.address, amountUsd: amount, email: user?.email }),
       });
       const result = await response.json().catch(() => null) as {
         widgetUrl?: unknown;
@@ -308,7 +308,7 @@ function TransakSessionPath({
         <p className="text-xs text-muted-foreground">
           {amount < TRANSAK_MIN_USD
             ? "Минимальная сумма для Transak — $30. Увеличьте сумму или продолжите в демо-режиме."
-            : "Откроется тестовый виджет Transak. Оплата тестовой картой, USDC придут на ваш кошелёк в тестовой сети."}
+            : "Откроется тестовый виджет Transak. Тестовые данные для проверки личности заполнятся сами — останется код из письма и тестовая карта."}
         </p>
       ) : null}
       {loading ? <p className="text-xs text-muted-foreground">Открываем тестовый виджет Transak…</p> : null}
