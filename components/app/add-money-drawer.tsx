@@ -38,7 +38,7 @@ export function AddMoneyDrawer({
   const [success, setSuccess] = useState<SuccessState | null>(null);
   const amountValue = Number(amount);
   const valid = Number.isFinite(amountValue) && amountValue >= 1 && amountValue <= 1000;
-  const methods = ["devnet-faucet", "moonpay", "crossmint", "transak", "mercuryo", "kaspi", "freedom"]
+  const methods = ["devnet-faucet", "transak", "moonpay", "crossmint", "mercuryo", "kaspi", "freedom"]
     .map((id) => ONRAMP_OPTIONS.find((option) => option.id === id))
     .filter((option): option is NonNullable<typeof option> => Boolean(option));
 
@@ -68,6 +68,18 @@ export function AddMoneyDrawer({
     (value: number) => complete(value, "transak", "Сумма зачислена после оплаты картой."),
     [complete],
   );
+
+  const completeTransakOnchain = useCallback((credit: {
+    amountUsd: number;
+    signature: string;
+    explorerUrl: string;
+  }) => complete(
+    credit.amountUsd,
+    "transak",
+    "Покупка подтверждена Transak. Тестовые доллары зачислены в Solana devnet.",
+    "Сумма зачислена после серверной проверки заказа Transak.",
+    { onchain: true, signature: credit.signature, explorerUrl: credit.explorerUrl },
+  ), [complete]);
 
   const completeMoonPay = useCallback((
     value: number,
@@ -183,6 +195,7 @@ export function AddMoneyDrawer({
               amount={amountValue}
               onDemo={addMockMoney}
               onComplete={completeTransak}
+              onCompleteOnchain={completeTransakOnchain}
               onSelectAnotherMethod={selectAnotherMethod}
             />
           ) : null}

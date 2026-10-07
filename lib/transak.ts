@@ -33,6 +33,32 @@ type CachedToken = { accessToken: string; expiresAt: number };
 let cachedToken: CachedToken | null = null;
 let refreshInFlight: Promise<string> | null = null;
 
+export type TransakOrder = {
+  id: string;
+  status: string;
+  walletAddress: string;
+  fiatAmount: number;
+  fiatCurrency: string;
+  cryptoAmount: number;
+  cryptoCurrency: string;
+  network: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requiredString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function requiredAmount(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !value.trim()) return null;
+  const amount = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(amount) ? amount : null;
+}
+
 export async function getPartnerAccessToken(): Promise<string> {
   if (!transakConfig.apiKeyConfigured || !transakConfig.secretConfigured) {
     throw new Error("Transak staging credentials are not configured");
@@ -81,6 +107,58 @@ export async function getPartnerAccessToken(): Promise<string> {
   } finally {
     refreshInFlight = null;
   }
+}
+
+export async function getOrder(orderId: string): Promise<TransakOrder> {
+  const accessToken = await getPartnerAccessToken();
+  const response = await fetch(
+    `https://api-stg.transak.com/partners/api/v2/order/${encodeURIComponent(orderId)}`,
+    {
+      headers: {
+        accept: "application/json",
+        "x-api-key": apiKey,
+        "access-token": accessToken,
+      },
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) throw new Error("Transak staging order lookup failed");
+
+  const result = await response.json().catch(() => null) as { data?: unknown } | null;
+  const order = result?.data;
+  if (!isRecord(order)) throw new Error("Transak staging returned an invalid order response");
+
+  const id = requiredString(order.id ?? order._id ?? order.orderId);
+  const status = requiredString(order.status);
+  const walletAddress = requiredString(order.walletAddress);
+  const fiatAmount = requiredAmount(order.fiatAmount);
+  const fiatCurrency = requiredString(order.fiatCurrency);
+  const cryptoAmount = requiredAmount(order.cryptoAmount);
+  const cryptoCurrency = requiredString(order.cryptoCurrency);
+  const network = requiredString(order.network);
+  if (
+    id === null
+    || status === null
+    || walletAddress === null
+    || fiatAmount === null
+    || fiatCurrency === null
+    || cryptoAmount === null
+    || cryptoCurrency === null
+    || network === null
+  ) {
+    throw new Error("Transak staging returned incomplete order details");
+  }
+
+  return {
+    id,
+    status,
+    walletAddress,
+    fiatAmount,
+    fiatCurrency,
+    cryptoAmount,
+    cryptoCurrency,
+    network,
+  };
 }
 
 export async function createWidgetUrl({

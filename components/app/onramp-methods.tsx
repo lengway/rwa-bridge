@@ -52,7 +52,7 @@ export function MethodOption({
         <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {labels[id]}
           {id === "devnet-faucet" ? <Badge variant="outline">Без карты</Badge> : null}
-          {id === "moonpay" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
+          {id === "transak" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
           {id === "kaspi" || id === "freedom" ? <Badge variant="outline">Концепт</Badge> : null}
         </span>
         {hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}
@@ -74,36 +74,38 @@ function toPositiveAmount(value: unknown): number | null {
 
   const amount = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return null;
-  return Math.round((amount + Number.EPSILON) * 100) / 100;
+  return amount;
 }
 
-function getCreditedAmount(eventData: unknown, requestedAmount: number): number {
-  const payload = isRecord(eventData) && isRecord(eventData.data) ? eventData.data : null;
-  const status = payload && isRecord(payload.status) ? payload.status : null;
-  const candidates = [
-    payload?.cryptoAmount,
-    status?.cryptoAmount,
-    payload?.fiatAmount,
-    status?.fiatAmount,
-  ];
-
+function getTransakOrderId(eventData: unknown): string | null {
+  if (!isRecord(eventData) || !isRecord(eventData.data)) return null;
+  const payload = eventData.data;
+  const status = isRecord(payload.status) ? payload.status : null;
+  const candidates = [payload.id, status?.id, payload.orderId];
   for (const candidate of candidates) {
-    const amount = toPositiveAmount(candidate);
-    if (amount !== null) return amount;
+    if (typeof candidate === "string" && candidate.trim() && candidate.length <= 128) {
+      return candidate.trim();
+    }
   }
-
-  return Math.round((requestedAmount + Number.EPSILON) * 100) / 100;
+  return null;
 }
+
+const TRANSAK_POLL_INTERVAL_MS = 5_000;
+const TRANSAK_POLL_TIMEOUT_MS = 10 * 60 * 1_000;
+
+type TransakOnchainCompletion = { amountUsd: number; signature: string; explorerUrl: string };
 
 export function TransakPath({
   amount,
   onDemo,
   onComplete,
+  onCompleteOnchain,
   onSelectAnotherMethod,
 }: {
   amount: number;
   onDemo: () => void;
   onComplete: (amount: number) => void;
+  onCompleteOnchain: (credit: TransakOnchainCompletion) => void;
   onSelectAnotherMethod: () => void;
 }) {
   const [setup, setSetup] = useState<TransakSetup | null>(null);
@@ -155,6 +157,7 @@ export function TransakPath({
       amount={amount}
       onDemo={onDemo}
       onComplete={onComplete}
+      onCompleteOnchain={onCompleteOnchain}
       onSelectAnotherMethod={onSelectAnotherMethod}
     />
   );
@@ -164,11 +167,13 @@ function TransakSessionPath({
   amount,
   onDemo,
   onComplete,
+  onCompleteOnchain,
   onSelectAnotherMethod,
 }: {
   amount: number;
   onDemo: () => void;
   onComplete: (amount: number) => void;
+  onCompleteOnchain: (credit: TransakOnchainCompletion) => void;
   onSelectAnotherMethod: () => void;
 }) {
   const { login, status, user } = useCrossmintAuth();
@@ -177,13 +182,17 @@ function TransakSessionPath({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [orderFailed, setOrderFailed] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [pollTimedOut, setPollTimedOut] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [hasOpenedSession, setHasOpenedSession] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const completed = useRef(false);
+  const reportedCredit = useRef(false);
+  const orderIdRef = useRef<string | null>(null);
   const opening = useRef(false);
   const mounted = useRef(false);
-  const requestedAmount = useRef(amount);
 
   const closeWidget = useCallback(() => {
     setWidgetUrl(null);
@@ -199,6 +208,18 @@ function TransakSessionPath({
     }
   }, [closeWidget]);
 
+  const captureOrderId = useCallback((eventData: unknown) => {
+    const id = getTransakOrderId(eventData);
+    if (!id || orderIdRef.current === id) return id;
+    orderIdRef.current = id;
+    setOrderId(id);
+    setOrderFailed(false);
+    setError(null);
+    setPollTimedOut(false);
+    setVerificationPending(true);
+    return id;
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
@@ -208,8 +229,8 @@ function TransakSessionPath({
     if (amount < TRANSAK_MIN_USD || opening.current || widgetUrl || !wallet?.address) return;
 
     opening.current = true;
-    requestedAmount.current = amount;
     completed.current = false;
+    reportedCredit.current = false;
     setLoading(true);
     setError(null);
     setOrderFailed(false);
@@ -252,6 +273,100 @@ function TransakSessionPath({
   };
 
   useEffect(() => {
+    if (!orderId || !wallet?.address || reportedCredit.current) return;
+    let active = true;
+    let timer: number | undefined;
+    let requestPending = false;
+    const deadline = Date.now() + TRANSAK_POLL_TIMEOUT_MS;
+
+    const poll = async () => {
+      if (!active || requestPending || reportedCredit.current) return;
+      if (Date.now() >= deadline) {
+        setPollTimedOut(true);
+        setVerificationPending(false);
+        return;
+      }
+
+      requestPending = true;
+      try {
+        const response = await fetch("/api/transak/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, walletAddress: wallet.address }),
+        });
+        const result = await response.json().catch(() => null) as {
+          status?: unknown;
+          amountUsd?: unknown;
+          signature?: unknown;
+          explorerUrl?: unknown;
+          error?: unknown;
+        } | null;
+        if (!active) return;
+
+        if (result?.status === "pending" || response.status === 202) {
+          setVerificationPending(true);
+          setError(null);
+        } else if (result?.status === "failed") {
+          reportedCredit.current = true;
+          orderIdRef.current = null;
+          setOrderId(null);
+          setVerificationPending(false);
+          setOrderFailed(true);
+          closeWidget();
+          return;
+        } else if (response.ok && result?.status === "completed") {
+          const amountUsd = toPositiveAmount(result.amountUsd);
+          if (amountUsd === null) {
+            throw new Error("Transak не вернул корректную сумму покупки.");
+          }
+          reportedCredit.current = true;
+          orderIdRef.current = null;
+          setOrderId(null);
+          setVerificationPending(false);
+          setPollTimedOut(false);
+          setError(null);
+          closeWidget();
+          if (typeof result.signature === "string" && typeof result.explorerUrl === "string") {
+            onCompleteOnchain({ amountUsd, signature: result.signature, explorerUrl: result.explorerUrl });
+          } else {
+            onComplete(amountUsd);
+          }
+          return;
+        } else if (response.status >= 400 && response.status < 500) {
+          orderIdRef.current = null;
+          setOrderId(null);
+          setVerificationPending(false);
+          setError(typeof result?.error === "string"
+            ? result.error
+            : "Не удалось проверить покупку Transak.");
+          return;
+        } else {
+          setVerificationPending(true);
+          if (typeof result?.error === "string") setError(result.error);
+        }
+      } catch (requestError) {
+        if (active) {
+          setVerificationPending(true);
+          setError(requestError instanceof Error
+            ? requestError.message
+            : "Не удалось проверить покупку Transak.");
+        }
+      } finally {
+        requestPending = false;
+        if (active && !reportedCredit.current) {
+          timer = window.setTimeout(() => { void poll(); }, TRANSAK_POLL_INTERVAL_MS);
+        }
+      }
+    };
+
+    void poll();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [closeWidget, onComplete, onCompleteOnchain, orderId, wallet?.address]);
+
+  useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (
         event.origin !== TRANSAK_STAGING_WIDGET_ORIGIN
@@ -261,13 +376,19 @@ function TransakSessionPath({
       ) return;
 
       const eventId = event.data.event_id;
+      if (eventId === "TRANSAK_ORDER_CREATED") {
+        captureOrderId(event.data);
+      }
       if (eventId === "TRANSAK_ORDER_SUCCESSFUL" && !completed.current) {
+        if (!captureOrderId(event.data)) {
+          setError("Не удалось получить идентификатор заказа Transak для проверки.");
+        }
         completed.current = true;
         closeWidget();
-        onComplete(getCreditedAmount(event.data, requestedAmount.current));
       }
       if (eventId === "TRANSAK_ORDER_FAILED" && !completed.current) {
-        setOrderFailed(true);
+        if (!captureOrderId(event.data) && !orderIdRef.current) setOrderFailed(true);
+        closeWidget();
       }
       if (eventId === "TRANSAK_WIDGET_CLOSE" && !completed.current) {
         closeWidget();
@@ -276,7 +397,7 @@ function TransakSessionPath({
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [closeWidget, onComplete]);
+  }, [captureOrderId, closeWidget]);
 
   if (status !== "logged-in") {
     const authLoading = status === "initializing" || status === "in-progress";
@@ -307,22 +428,20 @@ function TransakSessionPath({
   return (
     <>
       <div className="space-y-3">
-        {!widgetUrl ? (
+        {!widgetUrl && !orderId ? (
           <p className="text-xs text-muted-foreground">
             {amount < TRANSAK_MIN_USD
               ? "Минимальная сумма для Transak — $30. Увеличьте сумму или продолжите в демо-режиме."
               : "Откроется тестовый виджет Transak."}
           </p>
-        ) : !sheetOpen ? (
+        ) : widgetUrl && !sheetOpen ? (
           <p className="text-xs text-muted-foreground">Закройте виджет, чтобы вернуться к способам пополнения.</p>
         ) : null}
         {loading ? <p className="text-xs text-muted-foreground">Открываем тестовый виджет Transak…</p> : null}
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
-        {orderFailed && !widgetUrl ? (
-          <p className="text-xs text-destructive">
-            Оплата не прошла. Попробуйте ещё раз или выберите другой способ.
-          </p>
-        ) : null}
+        {orderId && verificationPending ? <p className="text-xs text-muted-foreground">Проверяем оплату Transak…</p> : null}
+        {pollTimedOut && orderId ? <p className="text-xs text-muted-foreground">Подтверждение задерживается. Попробуйте проверить оплату позже.</p> : null}
+        {orderFailed && !widgetUrl ? <p className="text-xs text-destructive">Оплата не прошла. Попробуйте ещё раз.</p> : null}
         {!widgetUrl && !loading && amount >= TRANSAK_MIN_USD ? (
           <Button className="w-full" onClick={openWidget}>
             {hasOpenedSession ? "Открыть Transak снова" : error ? "Повторить" : `Открыть Transak · ${formatMoney(amount)}`}
@@ -357,9 +476,7 @@ function TransakSessionPath({
               referrerPolicy="strict-origin-when-cross-origin"
             />
             {orderFailed ? (
-              <p className="shrink-0 px-4 py-2 text-xs text-red-700">
-                Оплата не прошла. Попробуйте ещё раз или выберите другой способ.
-              </p>
+              <p className="shrink-0 px-4 py-2 text-xs text-red-700">Оплата не прошла. Попробуйте ещё раз.</p>
             ) : null}
           </div>
         ) : null}

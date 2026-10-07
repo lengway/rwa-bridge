@@ -22,21 +22,21 @@ export const ONRAMP_OPTIONS: OnrampOption[] = [
     kind: "live",
   },
   {
+    id: "transak",
+    name: "Карта · Transak",
+    hint: "Карта · тестовый режим, данные личности заполняются сами",
+    kind: "live",
+  },
+  {
     id: "moonpay",
     name: "Карта · MoonPay",
-    hint: "Покупка и вывод на карту · работает в Казахстане",
+    hint: "Покупка и вывод на карту · в тестовом режиме оплата пока отклоняется",
     kind: "live",
   },
   {
     id: "crossmint",
     name: "Карта · Crossmint",
     hint: "Оплата прямо в приложении · упрощённая проверка до $1 000",
-    kind: "live",
-  },
-  {
-    id: "transak",
-    name: "Карта · Transak",
-    hint: "Запасной способ · тестовый режим",
     kind: "live",
   },
   {
