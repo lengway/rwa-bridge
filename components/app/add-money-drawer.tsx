@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { DrawerSuccess } from "@/components/app/drawer-success";
 import { CrossmintPath, MercuryoPath, MethodOption, TransakPath } from "@/components/app/onramp-methods";
+import { MoonPayBuyPath } from "@/components/app/moonpay-paths";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/lib/format";
@@ -38,7 +39,7 @@ export function AddMoneyDrawer({
   const [success, setSuccess] = useState<SuccessState | null>(null);
   const amountValue = Number(amount);
   const valid = Number.isFinite(amountValue) && amountValue >= 1 && amountValue <= 1000;
-  const methods = ["devnet-faucet", "crossmint", "transak", "mercuryo", "kaspi", "freedom"]
+  const methods = ["devnet-faucet", "moonpay", "crossmint", "transak", "mercuryo", "kaspi", "freedom"]
     .map((id) => ONRAMP_OPTIONS.find((option) => option.id === id))
     .filter((option): option is NonNullable<typeof option> => Boolean(option));
 
@@ -72,11 +73,22 @@ export function AddMoneyDrawer({
     [complete],
   );
 
+  const completeMoonPay = useCallback((
+    value: number,
+    extra?: { onchain?: boolean; signature?: string; explorerUrl?: string },
+  ) => complete(
+    value,
+    "moonpay",
+    "Покупка подтверждена MoonPay. Сумма отражена в балансе приложения.",
+    "В sandbox MoonPay покупается тестовый SOL, а в devnet на баланс зачисляются тестовые доллары на сумму покупки.",
+    extra,
+  ), [complete]);
+
   const addMockMoney = () => {
     if (!valid || processing) return;
     setProcessing(true);
     window.setTimeout(() => {
-      const source = method === "devnet-faucet" || method === "crossmint" || method === "mercuryo" || method === "transak"
+      const source = method === "devnet-faucet" || method === "moonpay" || method === "crossmint" || method === "mercuryo" || method === "transak"
         ? `${method}-demo`
         : method;
       complete(
@@ -183,6 +195,16 @@ export function AddMoneyDrawer({
               amount={amountValue}
               onDemo={addMockMoney}
               onComplete={completeTransak}
+              onSelectAnotherMethod={selectAnotherMethod}
+              onWidgetVisibilityChange={setTransakWidgetOpen}
+            />
+          ) : null}
+
+          {open && method === "moonpay" && valid ? (
+            <MoonPayBuyPath
+              amount={amountValue}
+              onDemo={addMockMoney}
+              onComplete={completeMoonPay}
               onSelectAnotherMethod={selectAnotherMethod}
               onWidgetVisibilityChange={setTransakWidgetOpen}
             />

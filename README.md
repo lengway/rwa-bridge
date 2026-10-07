@@ -66,6 +66,29 @@ npm run dev
    API secret хранится только на сервере; обе staging-учётные записи нужны из
    [кабинета Transak](https://dashboard.transak.com/).
 
+6. **`NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY` + `MOONPAY_SECRET_KEY`** — покупка и вывод
+   через MoonPay в sandbox. Создайте тестовые ключи в [MoonPay Dashboard → Developers →
+   API Keys](https://dashboard.moonpay.com/developers/api-keys). Публичный ключ начинается
+   с `pk_test_`; секретный `sk_test_` используется только сервером для подписи ссылок и
+   не должен иметь префикс `NEXT_PUBLIC_`. Без `MOONPAY_SECRET_KEY` виджет не откроется;
+   пополнение предложит демо-режим. Ссылки строятся по [Buy URL integration](https://moonpay.readme.io/docs/on-ramp-integrate-using-simple-url)
+   и [Sell URL integration](https://moonpay.readme.io/docs/off-ramp-how-to-integrate-using-simple-url),
+   а HMAC URL signature создаётся на сервере.
+
+   В sandbox для покупки можно использовать Visa `4242 4242 4242 4242`, срок `12/2030`,
+   CVC `123` (3DS Challenge, UK). Для тестовой выплаты на карту укажите Visa
+   `4000 0209 5159 5032`, срок `12/2030`, CVC `123`. Введённые данные KYC не проверяются;
+   документы можно пропустить. MoonPay рекомендует тестовому аккаунту адрес США или
+   Великобритании. Полный список карт и шаги sandbox доступны в
+   [руководстве MoonPay по sandbox-тестированию](https://moonpay.readme.io/docs/faq-sandbox-testing).
+
+   После завершённой sandbox-покупки приложение зеркально зачисляет полученную сумму в
+   собственный SPL тестовый доллар на devnet, чтобы сохранить один баланс: USDC MoonPay
+   — отдельный тестовый токен. Вывод на devnet тоже симулируется: кнопка отправляет
+   тестовые доллары с кошелька пользователя в treasury и записывает транзакцию в историю.
+   Эти тестовые доллары не отправляются на адрес MoonPay и реальная выплата не происходит.
+   В demo-режиме операция уменьшает только локальный баланс приложения.
+
 Для проверки Transak STAGING документация даёт Visa `4024764449971519` (срок `10/33`,
 CVV `123`, USD, 3DS) и пароль 3DS `Checkout1!`. Для тестового US KYC: first name `Doe`,
 last name `Jane`, телефон `+12125550142`, дата рождения `01-01-1998`, адрес
@@ -88,6 +111,7 @@ app/
   portfolio/page.tsx      — перенаправление на /home
   demo-bank/page.tsx      — нейтральный экран банка с мостом внутри
   api/devnet/            — faucet, балансы, платежи и вывод тестовых токенов
+  api/moonpay/           — sandbox status, подписанные ссылки и проверка buy/sell транзакций
   api/onramp-order/      — создаёт заказ онрампа Crossmint (карта → USDC)
   api/transak-session/   — создаёт тестовую сессию виджета Transak
 components/
@@ -98,7 +122,7 @@ components/
 lib/
   assets.ts               — список активов (что реально, что мок)
   yields.ts               — продукты дохода и ускоренные демо-начисления
-  onramps.ts              — способы пополнения (Crossmint, Transak, Mercuryo, Kaspi, Freedom)
+  onramps.ts              — способы пополнения (MoonPay, Crossmint, Transak, Mercuryo, Kaspi, Freedom)
   store.tsx               — общее состояние и сохранение демо-данных в браузере
   format.ts               — форматы сумм, ставок и дат операций
   useNow.ts               — ускоренные часы для начислений

@@ -27,6 +27,7 @@ export function MethodOption({
 }) {
   const labels: Record<string, string> = {
     "devnet-faucet": "Тестовый банкомат",
+    moonpay: "Карта · MoonPay",
     transak: "Карта · Transak",
     crossmint: "Карта · Crossmint",
     mercuryo: "Карта · Mercuryo",
@@ -50,7 +51,7 @@ export function MethodOption({
         <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {labels[id]}
           {id === "devnet-faucet" ? <Badge variant="outline">Без карты</Badge> : null}
-          {id === "crossmint" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
+          {id === "moonpay" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
           {id === "kaspi" || id === "freedom" ? <Badge variant="outline">Концепт</Badge> : null}
         </span>
         {hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}

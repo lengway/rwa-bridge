@@ -73,8 +73,7 @@ function ActivityRow({
   item: ActivityItem;
   currency: "USD" | "KZT";
 }) {
-  const isWalletSend = item.type === "withdraw" && item.title === "Отправка на кошелёк";
-  const isInflow = item.type === "topup" || (item.type === "withdraw" && !isWalletSend);
+  const isInflow = item.type === "topup" || (item.type === "withdraw" && item.title.startsWith("Вывод:"));
   const Icon = item.type === "topup"
     ? CreditCard
     : item.type === "invest"
@@ -120,6 +119,8 @@ function methodLabel(method: string) {
   const labels: Record<string, string> = {
     "devnet-faucet": "Тестовый банкомат",
     "devnet-faucet-demo": "Демо",
+    moonpay: "Карта · MoonPay",
+    "moonpay-demo": "Демо",
     transak: "Карта · Transak",
     "transak-demo": "Демо",
     crossmint: "Карта · Crossmint",

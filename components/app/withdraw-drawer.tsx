@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpFromLine, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { DrawerSuccess } from "@/components/app/drawer-success";
+import { MoonPaySellPath } from "@/components/app/moonpay-paths";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { accruedPosition, YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
@@ -18,6 +20,8 @@ type CompletedWithdrawal = {
   amount: number;
   title: string;
   explorerUrl?: string;
+  note?: string;
+  isCardWithdrawal?: boolean;
 };
 
 export function WithdrawDrawer({
@@ -27,18 +31,57 @@ export function WithdrawDrawer({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { positions, displayCurrency, withdraw } = useAppStore();
+  const { positions, displayCurrency, withdraw, cashUsd, recordCardWithdrawal } = useAppStore();
   const devnet = useDevnet();
   const now = useNow();
   const [completed, setCompleted] = useState<CompletedWithdrawal | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [method, setMethod] = useState<"yield" | "card">("yield");
+  const [cardAmount, setCardAmount] = useState("50");
+  const [moonPayWidgetOpen, setMoonPayWidgetOpen] = useState(false);
+  const cardWithdrawalRecorded = useRef(false);
   const active = YIELD_STRATEGIES.filter((strategy) => positions[strategy.id]);
+  const cardAmountValue = Number(cardAmount);
+  const validCardAmount = Number.isFinite(cardAmountValue)
+    && cardAmountValue >= 20
+    && cardAmountValue <= cashUsd
+    && cardAmountValue <= 1000;
 
   const changeOpen = (nextOpen: boolean) => {
     setCompleted(null);
     setError(null);
+    setMoonPayWidgetOpen(false);
+    cardWithdrawalRecorded.current = false;
     onOpenChange(nextOpen);
+  };
+
+  const completeCardWithdrawal = (amount: number, details: {
+    onchain?: boolean;
+    signature?: string;
+    explorerUrl?: string;
+    note: string;
+  }) => {
+    if (cardWithdrawalRecorded.current) return false;
+    cardWithdrawalRecorded.current = true;
+    const recorded = recordCardWithdrawal(amount, details);
+    if (!recorded) {
+      cardWithdrawalRecorded.current = false;
+      setError("Недостаточно средств на балансе для вывода.");
+      return false;
+    }
+    setError(null);
+    setMoonPayWidgetOpen(false);
+    setCompleted({
+      amount,
+      title: "MoonPay",
+      explorerUrl: details.explorerUrl,
+      note: details.note,
+      isCardWithdrawal: true,
+    });
+    if (details.onchain) void devnet.refresh();
+    toast.success(details.onchain ? "Тестовые доллары списаны с баланса" : "Демо-вывод записан");
+    return true;
   };
 
   const withdrawPosition = async (strategy: YieldStrategy) => {
@@ -99,8 +142,11 @@ export function WithdrawDrawer({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
+      fullHeight={moonPayWidgetOpen}
       title="Вывести средства"
-      description={devnet.mode === "devnet"
+      description={method === "card"
+        ? "Вывод на карту через MoonPay. В sandbox списание тестовых долларов симулируется."
+        : devnet.mode === "devnet"
         ? "Верните тестовые доллары из вклада в свой Solana-кошелёк."
         : "Верните средства из вклада на баланс приложения."}
     >
@@ -108,18 +154,44 @@ export function WithdrawDrawer({
         <DrawerSuccess
           amount={completed.amount}
           currency={displayCurrency}
-          sentence={devnet.mode === "devnet"
-            ? `Средства из вклада «${completed.title}» возвращены в ваш кошелёк.`
-            : `Средства из вклада «${completed.title}» вернулись на баланс.`}
+          sentence={completed.isCardWithdrawal
+            ? "Вывод на карту записан в историю операций."
+            : devnet.mode === "devnet"
+              ? `Средства из вклада «${completed.title}» возвращены в ваш кошелёк.`
+              : `Средства из вклада «${completed.title}» вернулись на баланс.`}
+          note={completed.note}
           onDone={() => changeOpen(false)}
           secondaryHref="/activity"
           secondaryLabel="История операций"
           explorerUrl={completed.explorerUrl}
         />
       ) : (
-        <div className="space-y-4">
+        <div className={moonPayWidgetOpen ? "flex h-full min-h-0 flex-col gap-4" : "space-y-4"}>
+          <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Способ вывода">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={method === "yield"}
+              onClick={() => {
+                setMethod("yield");
+                setMoonPayWidgetOpen(false);
+              }}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${method === "yield" ? "border-foreground bg-muted" : "hover:bg-muted/40"}`}
+            >
+              Из вклада на баланс
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={method === "card"}
+              onClick={() => setMethod("card")}
+              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${method === "card" ? "border-foreground bg-muted" : "hover:bg-muted/40"}`}
+            >
+              На банковскую карту
+            </button>
+          </div>
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
-          {active.length > 0 ? (
+          {method === "yield" && active.length > 0 ? (
             <div className="space-y-2">
               {active.map((strategy) => (
                 <WithdrawPosition
@@ -133,7 +205,8 @@ export function WithdrawDrawer({
                 />
               ))}
             </div>
-          ) : (
+          ) : null}
+          {method === "yield" && active.length === 0 ? (
             <Card className="items-center gap-2 p-6 text-center">
               <WalletCards className="size-6 text-muted-foreground" />
               <p className="font-medium">Нет открытых вкладов</p>
@@ -149,7 +222,49 @@ export function WithdrawDrawer({
                 Перейти к вкладам
               </Button>
             </Card>
-          )}
+          ) : null}
+          {method === "card" ? (
+            <div className={moonPayWidgetOpen ? "shrink-0 space-y-3" : "space-y-3"}>
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="moonpay-withdraw-amount" className="text-sm font-medium">Сумма вывода</label>
+                <span className="text-xs text-muted-foreground">Доступно {formatMoney(cashUsd, "USD")}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="moonpay-withdraw-amount"
+                  type="number"
+                  min="20"
+                  max={cashUsd}
+                  inputMode="decimal"
+                  value={cardAmount}
+                  onChange={(event) => setCardAmount(event.target.value)}
+                  disabled={moonPayWidgetOpen}
+                  className="h-11 text-lg tabular-nums"
+                />
+                <span className="text-sm font-medium">USD</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Минимум $20, максимум за одну операцию MoonPay — $1 000.</p>
+              {!validCardAmount ? (
+                <p className="text-xs text-destructive">
+                  {cashUsd < 20
+                    ? "Для вывода на карту нужно не менее $20 на балансе."
+                    : "Введите сумму от $20 до доступного баланса и не выше $1 000."}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {method === "card" ? (
+            <MoonPaySellPath
+              amount={cardAmountValue || 0}
+              validAmount={validCardAmount}
+              onWithdrawal={completeCardWithdrawal}
+              onSelectAnotherMethod={() => {
+                setMethod("yield");
+                setMoonPayWidgetOpen(false);
+              }}
+              onWidgetVisibilityChange={setMoonPayWidgetOpen}
+            />
+          ) : null}
         </div>
       )}
     </DrawerFrame>

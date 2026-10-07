@@ -22,6 +22,12 @@ export const ONRAMP_OPTIONS: OnrampOption[] = [
     kind: "live",
   },
   {
+    id: "moonpay",
+    name: "Карта · MoonPay",
+    hint: "Покупка и вывод на карту · работает в Казахстане",
+    kind: "live",
+  },
+  {
     id: "crossmint",
     name: "Карта · Crossmint",
     hint: "Оплата прямо в приложении · упрощённая проверка до $1 000",

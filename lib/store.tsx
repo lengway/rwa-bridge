@@ -35,6 +35,7 @@ type AppStore = PersistedState & {
   topUp: (amount: number, method: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => void;
   invest: (strategyId: string, amount: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => boolean;
   withdraw: (strategyId: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => number;
+  recordCardWithdrawal: (amount: number, extra: { onchain?: boolean; signature?: string; explorerUrl?: string; note: string }) => boolean;
   recordWalletSend: (amount: number, signature: string, explorerUrl: string) => void;
   buy: (assetId: string, amountUsd: number, extra?: {
     units?: number;
@@ -304,6 +305,33 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const recordCardWithdrawal = useCallback((amount: number, extra: {
+    onchain?: boolean;
+    signature?: string;
+    explorerUrl?: string;
+    note: string;
+  }) => {
+    if (!Number.isFinite(amount) || amount <= 0) return false;
+    if (!extra.onchain && state.cashUsd < amount) return false;
+    setState((current) => {
+      if (!extra.onchain && current.cashUsd < amount) return current;
+      return {
+        ...current,
+        cashUsd: extra.onchain ? current.cashUsd : current.cashUsd - amount,
+        activity: [makeActivity({
+          type: "withdraw",
+          title: "Вывод на карту · MoonPay",
+          amountUsd: amount,
+          method: "moonpay",
+          note: extra.note,
+          ...(extra.signature ? { signature: extra.signature } : {}),
+          ...(extra.explorerUrl ? { explorerUrl: extra.explorerUrl } : {}),
+        }), ...current.activity],
+      };
+    });
+    return true;
+  }, [state.cashUsd]);
+
   const setDisplayCurrency = useCallback((displayCurrency: "USD" | "KZT") => {
     setState((current) => ({ ...current, displayCurrency }));
   }, []);
@@ -311,8 +339,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const resetDemo = useCallback(() => setState(initialState), []);
 
   const value = useMemo<AppStore>(() => ({
-    ...state, hydrated, topUp, invest, withdraw, buy, recordWalletSend, setDisplayCurrency, resetDemo,
-  }), [state, hydrated, topUp, invest, withdraw, buy, recordWalletSend, setDisplayCurrency, resetDemo]);
+    ...state, hydrated, topUp, invest, withdraw, buy, recordCardWithdrawal, recordWalletSend, setDisplayCurrency, resetDemo,
+  }), [state, hydrated, topUp, invest, withdraw, buy, recordCardWithdrawal, recordWalletSend, setDisplayCurrency, resetDemo]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }
