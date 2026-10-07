@@ -6,6 +6,9 @@ export type OnrampOption = {
   kind: "live" | "concept";
 };
 
+export const TRANSAK_STAGING_WIDGET_ORIGIN = "https://global-stg.transak.com";
+export const TRANSAK_MIN_USD = 30;
+
 export const mercuryoWidgetId = process.env.NEXT_PUBLIC_MERCURYO_WIDGET_ID ?? "";
 // Production host by default; set NEXT_PUBLIC_MERCURYO_WIDGET_HOST to the sandbox host from Mercuryo's docs while testing.
 export const mercuryoWidgetHost = process.env.NEXT_PUBLIC_MERCURYO_WIDGET_HOST ?? "https://exchange.mercuryo.io";
@@ -13,9 +16,15 @@ export const isMercuryoConfigured = mercuryoWidgetId.length > 0;
 
 export const ONRAMP_OPTIONS: OnrampOption[] = [
   {
+    id: "transak",
+    name: "Карта · Transak",
+    hint: "Тестовый режим: работает без компании",
+    kind: "live",
+  },
+  {
     id: "mercuryo",
-    name: "Банковская карта (Mercuryo)",
-    hint: "Рекомендуем для Казахстана: тенге в списке валют",
+    name: "Карта · Mercuryo",
+    hint: "Нужен партнёрский доступ (KYB)",
     kind: "live",
   },
   {

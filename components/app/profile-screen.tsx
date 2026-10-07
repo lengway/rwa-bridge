@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { Check, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/lib/store";
+
+const subscribeToMountedState = () => () => {};
+const getMountedState = () => true;
+const getServerMountedState = () => false;
 
 export function ProfileScreen() {
   const { displayCurrency, setDisplayCurrency, resetDemo } = useAppStore();
@@ -98,7 +102,12 @@ function PreferenceSection({
 
 function ThemeSection() {
   const { theme, setTheme } = useTheme();
-  const selected = theme ?? "system";
+  const mounted = useSyncExternalStore(
+    subscribeToMountedState,
+    getMountedState,
+    getServerMountedState,
+  );
+  const selected = mounted ? theme ?? "system" : null;
   const options = [
     { id: "system", label: "Системная" },
     { id: "light", label: "Светлая" },

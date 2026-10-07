@@ -117,6 +117,8 @@ function ActivityRow({
 
 function methodLabel(method: string) {
   const labels: Record<string, string> = {
+    transak: "Карта · Transak",
+    "transak-demo": "Демо",
     crossmint: "Карта · Crossmint",
     "crossmint-demo": "Демо",
     mercuryo: "Карта · Mercuryo",

@@ -11,10 +11,10 @@
 
 - **Вход и кошелёк** — Crossmint embedded wallet (email login, без seed-фразы),
   Solana. Staging-ключ = devnet, бесплатно.
-- **Пополнение баланса** — рекомендуемый для Казахстана онрамп Mercuryo (тенге есть
-  в списке валют). Онрамп Crossmint в Казахстане недоступен, но Crossmint по-прежнему
-  используется для входа и кошелька. Freedom и Kaspi — концепт. Без входа зачисляется
-  демо-баланс.
+- **Пополнение баланса** — Transak STAGING показывает тестовый карточный онрамп без
+  компании; для входа и кошелька используется Crossmint. Mercuryo остаётся запасным
+  способом и требует партнёрского доступа (KYB). Freedom и Kaspi — концепт. Без входа
+  доступно демо-зачисление.
 - **Доход на реальных активах (RWA)** — две карточки (см. `lib/yields.ts`):
   - «Долларовый вклад» — Ondo USDY на Solana (гособлигации США). Адрес токена взят из
     официальной документации Ondo, ставка из ondo.finance с датой. Покупка пока демо:
@@ -60,6 +60,15 @@ npm run dev
    Включает кнопку «купить долю» на демо-активе.
 4. **`NEXT_PUBLIC_MERCURYO_WIDGET_ID`** (+ `NEXT_PUBLIC_MERCURYO_WIDGET_HOST` для
    песочницы) — запасной онрамп Mercuryo.
+5. **`NEXT_PUBLIC_TRANSAK_API_KEY` + `TRANSAK_API_SECRET`** — тестовый виджет Transak.
+   API secret хранится только на сервере; обе staging-учётные записи нужны из
+   [кабинета Transak](https://dashboard.transak.com/).
+
+Для проверки Transak STAGING документация даёт Visa `4024764449971519` (срок `10/33`,
+CVV `123`, USD, 3DS) и пароль 3DS `Checkout1!`. Для тестового US KYC: first name `Doe`,
+last name `Jane`, телефон `+12125550142`, дата рождения `01-01-1998`, адрес
+`179 Richmond Oak`, `California`, `CA`, `94016`, SSN `123456789`. Staging KYC использует
+фиктивные проверки и подтверждает прохождение. [Инструкция Transak по тестовым данным](https://docs.transak.com/guides/sandbox-credentials).
 
 ## Структура
 
@@ -76,6 +85,7 @@ app/
   demo-bank/page.tsx      — нейтральный экран банка с мостом внутри
   api/mint-demo-asset/   — выдаёт SPL-токен ICT-DEMO на кошелёк (devnet)
   api/onramp-order/      — создаёт заказ онрампа Crossmint (карта → USDC)
+  api/transak-session/   — создаёт тестовую сессию виджета Transak
 components/
   app/                   — экраны, карточки, оболочка и выдвижные панели
   ui/                    — компоненты интерфейса на Base UI
@@ -84,7 +94,7 @@ components/
 lib/
   assets.ts               — список активов (что реально, что мок)
   yields.ts               — продукты дохода и ускоренные демо-начисления
-  onramps.ts              — способы пополнения (Crossmint, Mercuryo, Freedom, Kaspi)
+  onramps.ts              — способы пополнения (Transak, Mercuryo, Crossmint, Kaspi, Freedom)
   store.tsx               — общее состояние и сохранение демо-данных в браузере
   format.ts               — форматы сумм, ставок и дат операций
   useNow.ts               — ускоренные часы для начислений
