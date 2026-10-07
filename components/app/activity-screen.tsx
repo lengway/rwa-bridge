@@ -73,7 +73,8 @@ function ActivityRow({
   item: ActivityItem;
   currency: "USD" | "KZT";
 }) {
-  const isInflow = item.type === "topup" || item.type === "withdraw";
+  const isWalletSend = item.type === "withdraw" && item.title === "Отправка на кошелёк";
+  const isInflow = item.type === "topup" || (item.type === "withdraw" && !isWalletSend);
   const Icon = item.type === "topup"
     ? CreditCard
     : item.type === "invest"
@@ -101,7 +102,7 @@ function ActivityRow({
           <a
             href={item.explorerUrl}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             className="mt-2 inline-flex text-xs underline underline-offset-4"
           >
             Открыть подтверждение
@@ -117,6 +118,8 @@ function ActivityRow({
 
 function methodLabel(method: string) {
   const labels: Record<string, string> = {
+    "devnet-faucet": "Тестовый банкомат",
+    "devnet-faucet-demo": "Демо",
     transak: "Карта · Transak",
     "transak-demo": "Демо",
     crossmint: "Карта · Crossmint",

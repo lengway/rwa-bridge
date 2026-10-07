@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
-import { Copy, LogIn, LogOut, WalletCards } from "lucide-react";
+import { Copy, LogIn, LogOut, Send, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { isCrossmintConfigured } from "@/lib/config";
+import { useAppStore } from "@/lib/store";
+import { formatMoney } from "@/lib/format";
+import { Input } from "@/components/ui/input";
+import { useDevnet } from "@/lib/useDevnet";
 
 export function AccountSection() {
   if (!isCrossmintConfigured) {
@@ -93,7 +98,17 @@ export function WalletSection() {
 
 function WalletSectionReady() {
   const { wallet } = useWallet();
+  const devnet = useDevnet();
+  const { recordWalletSend } = useAppStore();
+  const [recipient, setRecipient] = useState("");
+  const [amount, setAmount] = useState("10");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const address = wallet?.address;
+  const amountValue = Number(amount);
+  const recipientValid = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(recipient.trim());
+  const balance = devnet.onchain?.usd ?? 0;
+  const amountValid = Number.isFinite(amountValue) && amountValue >= 0.01 && amountValue <= balance;
 
   const copyAddress = async () => {
     if (!address) return;
@@ -102,6 +117,27 @@ function WalletSectionReady() {
       toast.success("Адрес скопирован");
     } catch {
       toast.error("Не удалось скопировать адрес");
+    }
+  };
+
+  const sendTokens = async () => {
+    if (!wallet || !devnet.usdMint || !recipientValid || !amountValid || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const transaction = await wallet.send(recipient.trim(), devnet.usdMint, String(amountValue));
+      const signature = transaction.hash;
+      const explorer = `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
+      recordWalletSend(amountValue, signature, explorer);
+      void devnet.refresh();
+      setRecipient("");
+      setAmount("10");
+      toast.success("Тестовые доллары отправлены");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      setSendError(/[А-Яа-яЁё]/.test(message) ? message : "Перевод не выполнен. Проверьте адрес и баланс тестовых долларов.");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -139,6 +175,50 @@ function WalletSectionReady() {
               <p className="text-xs text-muted-foreground">
                 Сеть: Solana devnet. Адрес не нужен для обычной работы в приложении.
               </p>
+              {devnet.mode === "devnet" ? (
+                <Card className="gap-3 rounded-2xl p-4">
+                  <div>
+                    <h3 className="font-medium">Отправить на другой кошелёк</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Переведите тестовые доллары на любой адрес Solana devnet.
+                    </p>
+                  </div>
+                  <label className="space-y-1.5 text-sm">
+                    <span>Адрес получателя</span>
+                    <Input
+                      value={recipient}
+                      onChange={(event) => setRecipient(event.target.value)}
+                      placeholder="Адрес Solana"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </label>
+                  {recipient.length > 0 && !recipientValid ? (
+                    <p className="text-xs text-destructive">Проверьте адрес Solana.</p>
+                  ) : null}
+                  <label className="space-y-1.5 text-sm">
+                    <span>Сумма в USD</span>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      max={balance}
+                      inputMode="decimal"
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                    />
+                  </label>
+                  {amountValue > balance ? (
+                    <p className="text-xs text-destructive">
+                      Недостаточно средств. <Link href="/home" className="underline">Пополнить через тестовый банкомат</Link>.
+                    </p>
+                  ) : null}
+                  {sendError ? <p className="text-xs text-destructive">{sendError}</p> : null}
+                  <Button className="w-full" onClick={sendTokens} disabled={!recipientValid || !amountValid || sending}>
+                    <Send />{sending ? "Отправляем…" : `Отправить ${formatMoney(amountValue || 0)}`}
+                  </Button>
+                </Card>
+              ) : null}
             </>
           ) : (
             <p className="text-sm text-muted-foreground">

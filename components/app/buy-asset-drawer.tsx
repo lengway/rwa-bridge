@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useWallet } from "@crossmint/client-sdk-react-ui";
 import { ArrowUpRight, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
@@ -12,7 +12,14 @@ import { Input } from "@/components/ui/input";
 import { isCrossmintConfigured } from "@/lib/config";
 import { formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
+import { useDevnet } from "@/lib/useDevnet";
 import type { BridgeAsset } from "@/lib/assets";
+
+type BuyAssetDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  asset: BridgeAsset;
+};
 
 type BuyResult = {
   amount: number;
@@ -21,164 +28,198 @@ type BuyResult = {
   explorerUrl?: string;
 };
 
-export function BuyAssetDrawer({
+export function BuyAssetDrawer(props: BuyAssetDrawerProps) {
+  if (!isCrossmintConfigured) return <BuyAssetDrawerContents {...props} wallet={null} />;
+  return <BuyAssetDrawerWithWallet {...props} />;
+}
+
+function BuyAssetDrawerWithWallet(props: BuyAssetDrawerProps) {
+  const { wallet } = useWallet();
+  return <BuyAssetDrawerContents {...props} wallet={wallet ?? null} />;
+}
+
+function BuyAssetDrawerContents({
   open,
   onOpenChange,
   asset,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  asset: BridgeAsset;
-}) {
+  wallet,
+}: BuyAssetDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null }) {
   const { cashUsd, displayCurrency, buy } = useAppStore();
+  const devnet = useDevnet();
   const [amount, setAmount] = useState("10");
   const [processing, setProcessing] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BuyResult | null>(null);
   const amountValue = Number(amount);
-  const valid = Number.isFinite(amountValue) && amountValue >= 10 && amountValue <= cashUsd;
+  const maximumAmount = devnet.mode === "devnet" ? Math.min(cashUsd, 1000) : cashUsd;
+  const valid = Number.isFinite(amountValue) && amountValue >= 10 && amountValue <= maximumAmount;
   const units = amountValue;
 
   const changeOpen = (nextOpen: boolean) => {
-    if (!nextOpen) setResult(null);
-    if (nextOpen) setResult(null);
+    setResult(null);
+    setError(null);
     onOpenChange(nextOpen);
   };
 
   const completePurchase = async () => {
     if (!valid || processing) return;
     setProcessing(true);
-    let signature: string | undefined;
-    let explorerUrl: string | undefined;
-    let note: string | undefined;
+    setError(null);
 
-    if (asset.buyFlow === "spl-demo-mint" && walletAddress) {
+    if (devnet.mode === "devnet") {
+      if (!devnet.treasuryOwner) {
+        setError("Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
+        setProcessing(false);
+        return;
+      }
+      if (!wallet || !devnet.walletAddress || !devnet.usdMint) {
+        setError("Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.");
+        setProcessing(false);
+        return;
+      }
       try {
-        const response = await fetch("/api/mint-demo-asset", {
+        setProgress("Подписываем перевод…");
+        const payment = await wallet.send(devnet.treasuryOwner, devnet.usdMint, String(amountValue));
+        setProgress("Проверяем в сети…");
+        const response = await fetch("/api/devnet/buy-asset", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ recipientAddress: walletAddress }),
+          body: JSON.stringify({
+            walletAddress: devnet.walletAddress,
+            assetId: asset.id,
+            amountUsd: amountValue,
+            signature: payment.hash,
+          }),
         });
-        const data = await response.json();
-        if (!response.ok || !data.signature) {
-          throw new Error(data.error ?? "Выпуск токена недоступен");
+        const data = await response.json() as {
+          signature?: unknown;
+          explorerUrl?: unknown;
+          units?: unknown;
+          error?: unknown;
+        };
+        if (!response.ok || typeof data.signature !== "string" || typeof data.explorerUrl !== "string") {
+          throw new Error(typeof data.error === "string" ? data.error : "Не удалось подтвердить покупку.");
         }
-        signature = data.signature;
-        explorerUrl = data.explorer;
-        note = amountValue === asset.demoPriceUsd
-          ? "Демо-токен ICT-DEMO отправлен."
-          : `Тестовый выпуск фиксирован: отправлено ${asset.demoPriceUsd} ICT-DEMO независимо от суммы покупки.`;
-      } catch {
-        note = "Токен не отправлен: демо-режим.";
+        const purchasedUnits = typeof data.units === "number" ? data.units : units;
+        const purchased = buy(asset.id, amountValue, {
+          units: purchasedUnits,
+          title: asset.name,
+          signature: data.signature,
+          explorerUrl: data.explorerUrl,
+          onchain: true,
+        });
+        if (!purchased) throw new Error("Не удалось обновить историю покупки.");
+        setResult({ amount: amountValue, units: purchasedUnits, explorerUrl: data.explorerUrl });
+        void devnet.refresh();
+        toast.success("Покупка завершена");
+      } catch (requestError) {
+        const message = requestError instanceof Error ? requestError.message : "";
+        setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось выполнить покупку. Проверьте баланс тестовых долларов и попробуйте ещё раз.");
+      } finally {
+        setProcessing(false);
+        setProgress(null);
       }
-    } else {
-      note = "Токен не отправлен: демо-режим.";
+      return;
     }
 
     const purchased = buy(asset.id, amountValue, {
       units,
       title: asset.name,
-      ...(signature ? { signature } : {}),
-      ...(explorerUrl ? { explorerUrl } : {}),
-      ...(note ? { note } : {}),
+      note: "Демо: перевод не отправлен",
     });
     setProcessing(false);
     if (!purchased) return;
-    setResult({ amount: amountValue, units, note, explorerUrl });
+    setResult({ amount: amountValue, units, note: "Демо: перевод не отправлен" });
     toast.success("Покупка завершена");
   };
 
   return (
-    <>
-      {isCrossmintConfigured ? (
-        <WalletAddressWatcher onAddress={setWalletAddress} />
-      ) : null}
-      <DrawerFrame
-        open={open}
-        onOpenChange={changeOpen}
-        title={`Купить · ${asset.name}`}
-        description="Укажите сумму в долларах. Покупка показана в демо-режиме."
-      >
-        {result ? (
-          <DrawerSuccess
-            amount={result.amount}
-            currency={displayCurrency}
-            sentence={`Покупка завершена: ${result.units.toLocaleString("ru-RU")} долей ${asset.ticker}.`}
-            note={result.note}
-            onDone={() => changeOpen(false)}
-            secondaryHref="/assets"
-            secondaryLabel="К активам"
-            explorerUrl={result.explorerUrl}
-          />
-        ) : (
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <label htmlFor="buy-amount" className="font-medium">Сумма покупки</label>
-                <span className="text-muted-foreground">
-                  Доступно {formatMoney(cashUsd, displayCurrency)}
-                </span>
-              </div>
-              <div className="relative">
-                <Input
-                  id="buy-amount"
-                  type="number"
-                  min="10"
-                  max={cashUsd}
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  className="h-12 pr-16 text-xl font-semibold tabular-nums"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  USD
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                1 {asset.ticker} = $1 доли · {units > 0 ? units.toLocaleString("ru-RU") : "0"} долей
-              </p>
-              <p className="text-xs text-muted-foreground">
-                ≈ {formatMoney(Number(amount) || 0, "KZT")} по демо-курсу 480 ₸ за $1.
-              </p>
+    <DrawerFrame
+      open={open}
+      onOpenChange={changeOpen}
+      title={`Купить · ${asset.name}`}
+      description={devnet.mode === "devnet"
+        ? "Оплата тестовыми долларами в Solana devnet."
+        : "Укажите сумму в долларах. Покупка показана в демо-режиме."}
+    >
+      {result ? (
+        <DrawerSuccess
+          amount={result.amount}
+          currency={displayCurrency}
+          sentence={`Покупка завершена: ${result.units.toLocaleString("ru-RU")} долей ${asset.ticker}.`}
+          note={result.note}
+          onDone={() => changeOpen(false)}
+          secondaryHref="/assets"
+          secondaryLabel="К активам"
+          explorerUrl={result.explorerUrl}
+        />
+      ) : (
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <label htmlFor="buy-amount" className="font-medium">Сумма покупки</label>
+              <span className="text-muted-foreground">
+                Доступно {formatMoney(cashUsd, displayCurrency)}
+              </span>
             </div>
-
-            <Card className="gap-2 p-4">
-              <p className="text-sm font-medium">Покупка в демо-режиме</p>
-              <p className="text-xs leading-5 text-muted-foreground">
-                Сумма спишется только с демо-баланса. Доля не даёт права собственности на реальный объект.
-              </p>
-            </Card>
-            {amountValue < 10 ? (
-              <p className="text-xs text-destructive">Минимальная сумма — $10.</p>
-            ) : null}
-            {amountValue > cashUsd ? (
-              <p className="text-xs text-destructive">На балансе недостаточно средств.</p>
-            ) : null}
-            <Button
-              className="w-full"
-              onClick={completePurchase}
-              disabled={!valid || processing}
-            >
-              <ShoppingBag />
-              {processing ? "Оформляем покупку…" : `Купить на ${formatMoney(amountValue || 0)}`}
-            </Button>
-            {asset.buyFlow === "spl-demo-mint" && walletAddress ? (
-              <p className="text-center text-xs text-muted-foreground">
-                <ArrowUpRight className="mr-1 inline size-3" />
-                После покупки попробуем отправить тестовый токен.
-              </p>
-            ) : null}
+            <div className="relative">
+              <Input
+                id="buy-amount"
+                type="number"
+                min="10"
+                max={maximumAmount}
+                inputMode="decimal"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                className="h-12 pr-16 text-xl font-semibold tabular-nums"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                USD
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              1 {asset.ticker} = $1 доли · {units > 0 ? units.toLocaleString("ru-RU") : "0"} долей
+            </p>
+            <p className="text-xs text-muted-foreground">
+              ≈ {formatMoney(Number(amount) || 0, "KZT")} по демо-курсу 480 ₸ за $1.
+            </p>
           </div>
-        )}
-      </DrawerFrame>
-    </>
-  );
-}
 
-function WalletAddressWatcher({ onAddress }: { onAddress: (address: string | null) => void }) {
-  const { wallet } = useWallet();
-  useEffect(() => {
-    onAddress(wallet?.address ?? null);
-  }, [onAddress, wallet?.address]);
-  return null;
+          <Card className="gap-2 p-4">
+            <p className="text-sm font-medium">{devnet.mode === "devnet" ? "Покупка в Solana devnet" : "Покупка в демо-режиме"}</p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              {devnet.mode === "devnet"
+                ? "Тестовые доллары поступят в казначейство, а OFFICE-DEMO будет выпущен в ваш кошелёк."
+                : "Сумма спишется только с демо-баланса. Доля не даёт права собственности на реальный объект."}
+            </p>
+          </Card>
+          {amountValue < 10 ? (
+            <p className="text-xs text-destructive">Минимальная сумма — $10.</p>
+          ) : null}
+          {amountValue > cashUsd ? (
+            <p className="text-xs text-destructive">
+              Недостаточно средств. {devnet.mode === "devnet"
+                ? <a href="/home" className="underline">Пополнить через тестовый банкомат</a>
+                : "Пополните демо-баланс."}
+            </p>
+          ) : null}
+          {devnet.mode === "devnet" && amountValue > 1000 ? (
+            <p className="text-xs text-destructive">Максимальная сумма — $1 000.</p>
+          ) : null}
+          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          {progress ? <p className="text-center text-xs text-muted-foreground">{progress}</p> : null}
+          <Button className="w-full" onClick={completePurchase} disabled={!valid || processing}>
+            <ShoppingBag />{processing ? (progress ?? "Оформляем покупку…") : `Купить на ${formatMoney(amountValue || 0)}`}
+          </Button>
+          {devnet.mode !== "devnet" && asset.buyFlow === "spl-demo-mint" ? (
+            <p className="text-center text-xs text-muted-foreground">
+              <ArrowUpRight className="mr-1 inline size-3" />
+              Демо-режим не отправляет токены в кошелёк.
+            </p>
+          ) : null}
+        </div>
+      )}
+    </DrawerFrame>
+  );
 }

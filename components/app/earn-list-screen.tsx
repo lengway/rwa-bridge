@@ -1,17 +1,23 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatApy } from "@/lib/format";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { RiskBadge } from "@/components/app/earn-detail-parts";
+import { useDevnet } from "@/lib/useDevnet";
 
 export function EarnList() {
+  const devnet = useDevnet();
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">Вклады с понятными условиями</p>
         <p className="text-xs text-muted-foreground">
-          Все покупки и начисления здесь показаны в демо-режиме.
+          {devnet.mode === "devnet"
+            ? "Тестовые доллары переводятся в Solana devnet; доход по вкладам рассчитывается в приложении."
+            : "Вложения и начисления здесь показаны в демо-режиме."}
         </p>
       </div>
       <div className="space-y-3">

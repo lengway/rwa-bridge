@@ -8,6 +8,7 @@ import {
 import { ThemeProvider } from "next-themes";
 import { crossmintApiKey, isCrossmintConfigured, walletChain } from "@/lib/config";
 import { AppStoreProvider } from "@/lib/store";
+import { DevnetProvider } from "@/lib/devnet-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -15,10 +16,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const app = (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
-        <AppStoreProvider>
-          {children}
-          <Toaster position="top-center" />
-        </AppStoreProvider>
+        <DevnetProvider crossmintEnabled={isCrossmintConfigured}>
+          <AppStoreProvider>
+            {children}
+            <Toaster position="top-center" />
+          </AppStoreProvider>
+        </DevnetProvider>
       </TooltipProvider>
     </ThemeProvider>
   );

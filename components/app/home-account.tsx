@@ -57,6 +57,7 @@ export function BalanceCard({
   currency,
   hydrated,
   onCurrencyChange,
+  mode,
 }: {
   total: number;
   cashUsd: number;
@@ -64,6 +65,7 @@ export function BalanceCard({
   currency: "USD" | "KZT";
   hydrated: boolean;
   onCurrencyChange: (currency: "USD" | "KZT") => void;
+  mode: "devnet" | "demo";
 }) {
   return (
     <Card className="gap-5 rounded-2xl border-emerald-600/20 bg-card p-5 ring-1 ring-emerald-600/10 dark:border-emerald-400/20 dark:ring-emerald-400/10">
@@ -75,6 +77,9 @@ export function BalanceCard({
               {formatMoney(total, currency)}
             </p>
           ) : <Skeleton className="mt-2 h-10 w-44" />}
+          <Badge variant={mode === "devnet" ? "outline" : "secondary"} className="mt-2">
+            {mode === "devnet" ? "Тестовая сеть Solana" : "Демо"}
+          </Badge>
         </div>
         <div
           role="group"

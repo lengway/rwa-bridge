@@ -12,7 +12,7 @@ export function AssetsScreen() {
           Знакомьтесь с покупкой долей на примере демо-токена. Реальный объект не продаётся.
         </p>
       </section>
-      <AssetListCard asset={DEMO_ASSETS.find((asset) => asset.source === "aifc-mock")!} />
+      <AssetListCard asset={DEMO_ASSETS.find((asset) => asset.source === "demo")!} />
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold">Акции</h2>

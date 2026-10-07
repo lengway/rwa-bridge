@@ -131,10 +131,10 @@ export default function LandingPage() {
               href="/earn/kz-bond-demo"
             />
             <ProductCard
-              title="Iconic Tower"
+              title="Офисное здание"
               label="Демо-доля · от $10"
-              detail="1 ICT-DEMO = $1 условной доли."
-              href="/assets/aifc-mock-iconic-tower"
+              detail="1 OFFICE-DEMO = $1 условной доли."
+              href="/assets/demo-office"
             />
           </div>
         </section>

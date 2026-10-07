@@ -43,9 +43,9 @@ export function DrawerSuccess({
             variant="outline"
             className="w-full"
             nativeButton={false}
-            render={<a href={explorerUrl} target="_blank" rel="noreferrer" />}
+            render={<a href={explorerUrl} target="_blank" rel="noopener noreferrer" />}
           >
-            Открыть транзакцию
+            Открыть в обозревателе
           </Button>
         ) : (
           <Button

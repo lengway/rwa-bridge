@@ -16,6 +16,12 @@ export const isMercuryoConfigured = mercuryoWidgetId.length > 0;
 
 export const ONRAMP_OPTIONS: OnrampOption[] = [
   {
+    id: "devnet-faucet",
+    name: "Тестовый банкомат",
+    hint: "Мгновенно · тестовые доллары в сети Solana, без карты и проверки",
+    kind: "live",
+  },
+  {
     id: "crossmint",
     name: "Карта · Crossmint",
     hint: "Оплата прямо в приложении · упрощённая проверка до $1 000",

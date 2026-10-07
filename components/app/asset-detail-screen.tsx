@@ -10,12 +10,14 @@ import { Card } from "@/components/ui/card";
 import { formatMoney } from "@/lib/format";
 import { type BridgeAsset } from "@/lib/assets";
 import { useAppStore } from "@/lib/store";
+import { useDevnet } from "@/lib/useDevnet";
 
 export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
   const { cashUsd, displayCurrency, holdings } = useAppStore();
+  const devnet = useDevnet();
   const [buyOpen, setBuyOpen] = useState(false);
   const holding = holdings[asset.id];
-  const isDemo = asset.source === "aifc-mock";
+  const isDemo = asset.source === "demo";
 
   if (!isDemo) {
     return (
@@ -38,10 +40,10 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
         <TowerArtwork />
         <div className="flex items-center gap-2">
           <Badge variant="outline">Демо</Badge>
-          <span className="text-xs text-muted-foreground">ICT-DEMO</span>
+          <span className="text-xs text-muted-foreground">{asset.ticker}</span>
         </div>
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Iconic Tower</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">{asset.name}</h2>
           <p className="mt-1 text-sm text-muted-foreground">Доля в офисной недвижимости</p>
         </div>
         <p className="text-sm leading-6 text-muted-foreground">{asset.description}</p>
@@ -54,10 +56,10 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
         <h2 className="text-lg font-semibold">Что означает доля</h2>
         <Card className="gap-3 rounded-2xl p-4">
           <p className="text-sm leading-5">
-            В этом сценарии 1 ICT-DEMO показывает $1 условной доли. Количество долей соответствует сумме покупки в долларах.
+            В этом сценарии 1 {asset.ticker} показывает $1 условной доли. Количество долей соответствует сумме покупки в долларах.
           </p>
           <p className="text-sm leading-5 text-muted-foreground">
-            Это демонстрационный токен, он не даёт права собственности на реальное здание и не имеет рыночной цены.
+            Это демонстрационный токен: он не подтверждает право собственности и не имеет рыночной цены.
           </p>
         </Card>
       </section>
@@ -65,7 +67,9 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
       <Card className="flex-row items-start gap-3 rounded-2xl p-4">
         <ShieldAlert className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <p className="text-xs leading-5 text-muted-foreground">
-          Реального предложения Iconic Tower в приложении нет. Покупка изменит только демо-баланс и историю операций.
+          {asset.sourceLabel}. {devnet.mode === "devnet"
+            ? `Тестовые доллары будут переведены в Solana devnet, а ${asset.ticker} появится в вашем кошельке.`
+            : "Покупка изменит только демо-баланс и историю операций."}
         </p>
       </Card>
 
@@ -87,7 +91,9 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
         </div>
         {cashUsd < 10 ? (
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Пополните демо-баланс хотя бы на $10, чтобы продолжить.
+            {devnet.mode === "devnet"
+              ? "Пополните баланс через тестовый банкомат хотя бы на $10, чтобы продолжить."
+              : "Пополните демо-баланс хотя бы на $10, чтобы продолжить."}
           </p>
         ) : null}
       </div>

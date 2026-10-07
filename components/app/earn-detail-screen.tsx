@@ -14,7 +14,7 @@ import { ProductSummary, ProjectionCalculator } from "@/components/app/earn-deta
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
-import { accrued, type YieldStrategy } from "@/lib/yields";
+import { accruedPosition, type YieldStrategy } from "@/lib/yields";
 import { useNow } from "@/lib/useNow";
 
 export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
@@ -25,7 +25,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const position = positions[strategy.id];
   const currentEarned = position && now !== null
-    ? accrued(position.principal, position.since, strategy.demoApy, now)
+    ? accruedPosition(position, strategy.demoApy, now)
     : 0;
   const currentPosition = position && now !== null
     ? { value: position.principal + currentEarned, earned: currentEarned }

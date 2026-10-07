@@ -1,4 +1,4 @@
-export type AssetSource = "xstocks" | "aifc-mock";
+export type AssetSource = "xstocks" | "demo";
 
 export type BridgeAsset = {
   id: string;
@@ -40,24 +40,21 @@ export const XSTOCKS_DEMO_ASSET: BridgeAsset = {
 };
 
 /**
- * Local rail: a stand-in for a future AIFC-issued token (e.g. the kind of commercial
- * real-estate pilot referenced in the project's research, such as Iconic Tower /
- * Birlik). No real AIFC partner or contract exists yet, so this issues our own ICT-DEMO
- * SPL token on Solana devnet (1 token = $1 of the share) — a real, testable transfer,
- * standing in for what a licensed AFSA partner's token would later be.
+ * Fictional demo asset. This issues our own OFFICE-DEMO SPL token on Solana devnet
+ * (1 token = $1 of a conditional share) for a real, testable transfer.
  */
-export const AIFC_MOCK_ASSET: BridgeAsset = {
-  id: "aifc-mock-iconic-tower",
-  name: "Iconic Tower (демо-доля)",
-  ticker: "ICT-DEMO",
-  source: "aifc-mock",
-  sourceLabel: "AIFC — демо, не реальный эмитент",
+export const DEMO_OFFICE_ASSET: BridgeAsset = {
+  id: "demo-office",
+  name: "Офисное здание (демо-объект)",
+  ticker: "OFFICE-DEMO",
+  source: "demo",
+  sourceLabel: "Демо-объект, не реальный эмитент",
   description:
-    "Мок-актив вместо реального казахстанского RWA-токена. Показывает, как будет выглядеть покупка доли местной недвижимости, когда появится лицензированный партнёр.",
+    "Выдуманный объект для демонстрации: так выглядит покупка доли в коммерческой недвижимости через токен. 1 OFFICE-DEMO = $1 условной доли.",
   mintAddress: null,
   logoEmoji: "🏢",
   buyFlow: "spl-demo-mint",
   demoPriceUsd: 40,
 };
 
-export const DEMO_ASSETS: BridgeAsset[] = [AIFC_MOCK_ASSET, XSTOCKS_DEMO_ASSET];
+export const DEMO_ASSETS: BridgeAsset[] = [DEMO_OFFICE_ASSET, XSTOCKS_DEMO_ASSET];

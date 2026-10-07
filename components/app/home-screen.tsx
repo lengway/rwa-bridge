@@ -8,7 +8,8 @@ import { HoldingsSection, PositionSection, PromoCard } from "@/components/app/ho
 import { DEMO_ASSETS } from "@/lib/assets";
 import { useNow } from "@/lib/useNow";
 import { useAppStore } from "@/lib/store";
-import { accrued, YIELD_STRATEGIES } from "@/lib/yields";
+import { accruedPosition, YIELD_STRATEGIES } from "@/lib/yields";
+import { useDevnet } from "@/lib/useDevnet";
 
 export function HomeScreen() {
   const {
@@ -20,6 +21,8 @@ export function HomeScreen() {
     realizedEarningsUsd,
     hydrated,
   } = useAppStore();
+  const devnet = useDevnet();
+  const displayHydrated = hydrated && (devnet.mode !== "devnet" || devnet.onchain !== null);
   const [addOpen, setAddOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const now = useNow();
@@ -29,7 +32,7 @@ export function HomeScreen() {
     if (!position) return [];
     const earned = now === null
       ? 0
-      : accrued(position.principal, position.since, strategy.demoApy, now);
+      : accruedPosition(position, strategy.demoApy, now);
     return [{ strategy, position, earned }];
   });
   const holdingValues = DEMO_ASSETS.flatMap((asset) => {
@@ -60,8 +63,9 @@ export function HomeScreen() {
         cashUsd={cashUsd}
         earnings={realizedEarningsUsd + unrealizedEarnings}
         currency={displayCurrency}
-        hydrated={hydrated}
+        hydrated={displayHydrated}
         onCurrencyChange={setDisplayCurrency}
+        mode={devnet.mode}
       />
       <QuickActions
         onAddMoney={() => setAddOpen(true)}

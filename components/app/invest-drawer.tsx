@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useWallet } from "@crossmint/client-sdk-react-ui";
 import { ArrowDownToLine } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
@@ -10,37 +11,104 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { useAppStore } from "@/lib/store";
+import { isCrossmintConfigured } from "@/lib/config";
 import { formatApy, formatMoney } from "@/lib/format";
+import { useAppStore } from "@/lib/store";
+import { useDevnet } from "@/lib/useDevnet";
 import type { YieldStrategy } from "@/lib/yields";
 
-export function InvestDrawer({
-  open,
-  onOpenChange,
-  strategy,
-}: {
+type InvestDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   strategy: YieldStrategy;
-}) {
+};
+
+export function InvestDrawer(props: InvestDrawerProps) {
+  if (!isCrossmintConfigured) return <InvestDrawerContents {...props} wallet={null} />;
+  return <InvestDrawerWithWallet {...props} />;
+}
+
+function InvestDrawerWithWallet(props: InvestDrawerProps) {
+  const { wallet } = useWallet();
+  return <InvestDrawerContents {...props} wallet={wallet ?? null} />;
+}
+
+function InvestDrawerContents({
+  open,
+  onOpenChange,
+  strategy,
+  wallet,
+}: InvestDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null }) {
   const { cashUsd, displayCurrency, invest } = useAppStore();
+  const devnet = useDevnet();
   const [amount, setAmount] = useState("50");
   const [accepted, setAccepted] = useState(false);
-  const [successAmount, setSuccessAmount] = useState<number | null>(null);
+  const [success, setSuccess] = useState<{ amount: number; explorerUrl?: string } | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const amountValue = Number(amount);
-  const valid = Number.isFinite(amountValue) && amountValue > 0 && amountValue <= cashUsd;
+  const valid = Number.isFinite(amountValue)
+    && amountValue > 0
+    && amountValue <= cashUsd
+    && (devnet.mode !== "devnet" || (amountValue >= 1 && amountValue <= 1000));
   const earningsMonth = Math.max(0, amountValue) * strategy.demoApy / 12;
   const earningsYear = Math.max(0, amountValue) * strategy.demoApy;
 
   const changeOpen = (nextOpen: boolean) => {
-    if (!nextOpen) setSuccessAmount(null);
-    if (nextOpen) setSuccessAmount(null);
+    setSuccess(null);
+    setError(null);
     onOpenChange(nextOpen);
   };
 
-  const handleInvest = () => {
-    if (!accepted || !valid || !invest(strategy.id, amountValue)) return;
-    setSuccessAmount(amountValue);
+  const handleInvest = async () => {
+    if (!accepted || !valid || processing) return;
+    setError(null);
+    if (devnet.mode === "devnet") {
+      if (!devnet.treasuryOwner) {
+        setError("Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
+        return;
+      }
+      if (!wallet || !devnet.walletAddress || !devnet.usdMint) {
+        setError("Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.");
+        return;
+      }
+      setProcessing(true);
+      try {
+        setProgress("Подписываем перевод…");
+        const transaction = await wallet.send(devnet.treasuryOwner, devnet.usdMint, String(amountValue));
+        const signature = transaction.hash;
+        setProgress("Проверяем в сети…");
+        const response = await fetch("/api/devnet/invest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            walletAddress: devnet.walletAddress,
+            productId: strategy.id,
+            amountUsd: amountValue,
+            signature,
+          }),
+        });
+        const result = await response.json() as { ok?: unknown; explorerUrl?: unknown; error?: unknown };
+        if (!response.ok || result.ok !== true || typeof result.explorerUrl !== "string") {
+          throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить перевод.");
+        }
+        invest(strategy.id, amountValue, { onchain: true, signature, explorerUrl: result.explorerUrl });
+        setSuccess({ amount: amountValue, explorerUrl: result.explorerUrl });
+        void devnet.refresh();
+        toast.success("Вклад открыт");
+      } catch (requestError) {
+        const message = requestError instanceof Error ? requestError.message : "";
+        setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось выполнить перевод. Проверьте баланс тестовых долларов и попробуйте ещё раз.");
+      } finally {
+        setProcessing(false);
+        setProgress(null);
+      }
+      return;
+    }
+
+    if (!invest(strategy.id, amountValue)) return;
+    setSuccess({ amount: amountValue });
     toast.success("Вклад открыт");
   };
 
@@ -51,13 +119,16 @@ export function InvestDrawer({
       title={`Вложить · ${strategy.name}`}
       description={`${strategy.ticker} · ${formatApy(strategy.demoApy)} годовых по указанному ориентиру`}
     >
-      {successAmount !== null ? (
+      {success ? (
         <DrawerSuccess
-          amount={successAmount}
-          sentence={`Вклад «${strategy.name}» открыт. Начисления показаны в демо-режиме.`}
+          amount={success.amount}
+          sentence={devnet.mode === "devnet"
+            ? `Перевод тестовых долларов во вклад «${strategy.name}» подтверждён.`
+            : `Вклад «${strategy.name}» открыт. Начисления показаны в демо-режиме.`}
           onDone={() => changeOpen(false)}
           secondaryHref="/home"
           secondaryLabel="Перейти к портфелю"
+          explorerUrl={success.explorerUrl}
         />
       ) : (
         <div className="space-y-5">
@@ -73,7 +144,7 @@ export function InvestDrawer({
                 id="invest-amount"
                 type="number"
                 min="1"
-                max={cashUsd}
+                max={devnet.mode === "devnet" ? Math.min(cashUsd, 1000) : cashUsd}
                 inputMode="decimal"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
@@ -120,14 +191,18 @@ export function InvestDrawer({
           </p>
           {amountValue > cashUsd ? (
             <p className="text-xs text-destructive">
-              На балансе недостаточно средств. <Link href="/home" className="underline">Пополните баланс на Главной</Link>.
+              Недостаточно средств. {devnet.mode === "devnet"
+                ? <Link href="/home" className="underline">Пополнить через тестовый банкомат</Link>
+                : <Link href="/home" className="underline">Пополните баланс на Главной</Link>}.
             </p>
           ) : null}
           {!accepted ? (
             <p className="text-xs text-muted-foreground">Отметьте согласие с условиями, чтобы продолжить.</p>
           ) : null}
-          <Button className="w-full" onClick={handleInvest} disabled={!accepted || !valid}>
-            <ArrowDownToLine />Вложить {formatMoney(amountValue || 0)}
+          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          {progress ? <p className="text-center text-xs text-muted-foreground">{progress}</p> : null}
+          <Button className="w-full" onClick={handleInvest} disabled={!accepted || !valid || processing}>
+            <ArrowDownToLine />{processing ? (progress ?? "Обрабатываем…") : `Вложить ${formatMoney(amountValue || 0)}`}
           </Button>
         </div>
       )}

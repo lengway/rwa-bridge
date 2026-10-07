@@ -75,3 +75,12 @@ export function accrued(principal: number, since: number, apy: number, now: numb
   const days = Math.max(0, (now - since) / DEMO_DAY_MS);
   return Math.max(0, principal * apy * (days / 365));
 }
+
+export function accruedPosition(
+  position: { principal: number; since: number; earnedCarryUsd?: number },
+  apy: number,
+  now: number,
+) {
+  return Math.max(0, position.earnedCarryUsd ?? 0)
+    + accrued(position.principal, position.since, apy, now);
+}

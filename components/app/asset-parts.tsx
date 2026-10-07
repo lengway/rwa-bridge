@@ -40,7 +40,7 @@ export function AssetListCard({ asset }: { asset: BridgeAsset }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold">Iconic Tower</h2>
+              <h2 className="font-semibold">Офисное здание</h2>
               <Badge variant="outline">Демо</Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">Доля в офисной недвижимости</p>
@@ -50,7 +50,7 @@ export function AssetListCard({ asset }: { asset: BridgeAsset }) {
         <div className="flex items-end justify-between gap-3 border-t pt-3">
           <div>
             <p className="text-sm font-medium">От $10</p>
-            <p className="text-xs text-muted-foreground">1 ICT-DEMO = $1 доли</p>
+            <p className="text-xs text-muted-foreground">1 OFFICE-DEMO = $1 доли</p>
           </div>
           <span className="text-xs text-muted-foreground">Покупка в демо</span>
         </div>
@@ -88,7 +88,7 @@ export function AssetFacts({ asset }: { asset: BridgeAsset }) {
   return (
     <Card className="gap-3 rounded-2xl p-4">
       <h2 className="font-semibold">Ключевые факты</h2>
-      <Fact label="Название" value="Iconic Tower" />
+      <Fact label="Название" value={asset.name} />
       <Fact label="Формат" value="Демо-доля недвижимости" />
       <Fact label="Тикер" value={asset.ticker} />
       <Fact label="Одна единица" value="$1 доли" />

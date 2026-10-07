@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
-import { CreditCard, Plus } from "lucide-react";
+import { Coins, CreditCard, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CrossmintOnramp } from "@/components/CrossmintOnramp";
@@ -26,6 +26,7 @@ export function MethodOption({
   onSelect: (id: string) => void;
 }) {
   const labels: Record<string, string> = {
+    "devnet-faucet": "Тестовый банкомат",
     transak: "Карта · Transak",
     crossmint: "Карта · Crossmint",
     mercuryo: "Карта · Mercuryo",
@@ -33,6 +34,7 @@ export function MethodOption({
     freedom: "Freedom",
   };
   const hint = ONRAMP_OPTIONS.find((option) => option.id === id)?.hint;
+  const MethodIcon = id === "devnet-faucet" ? Coins : CreditCard;
 
   return (
     <button
@@ -42,11 +44,12 @@ export function MethodOption({
       className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors ${selected ? "border-foreground bg-muted/60" : "hover:bg-muted/40"}`}
     >
       <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
-        <CreditCard className="size-4" />
+        <MethodIcon className="size-4" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {labels[id]}
+          {id === "devnet-faucet" ? <Badge variant="outline">Без карты</Badge> : null}
           {id === "crossmint" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
           {id === "kaspi" || id === "freedom" ? <Badge variant="outline">Концепт</Badge> : null}
         </span>

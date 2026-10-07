@@ -1,20 +1,28 @@
+"use client";
+
 import { ChevronDown, CircleHelp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { YieldStrategy } from "@/lib/yields";
+import { useDevnet } from "@/lib/useDevnet";
 
 export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
+  const devnet = useDevnet();
   const steps = strategy.kind === "demo"
     ? [
-        "Вы выбираете сумму в долларах из демо-баланса.",
+        devnet.mode === "devnet"
+          ? "Вы отправляете тестовые доллары в казначейство Solana devnet."
+          : "Вы выбираете сумму в долларах из демо-баланса.",
         "Приложение показывает условное вложение в тенговый продукт будущего.",
         "Доходность на экране — ориентир индекса, не обещание выплаты. Токена пока нет.",
       ]
     : [
         "Эмитент сообщает, что токен обеспечен краткосрочными гособлигациями США и банковскими депозитами.",
         "По описанию эмитента доход отражается в цене токена.",
-        "В этой демо-версии вклад и начисления симулируются в приложении; реальная покупка не выполняется.",
+        devnet.mode === "devnet"
+          ? "Тестовые доллары переводятся в казначейство, а доходность начисляется в приложении по ускоренным демо-часам."
+          : "В этой демо-версии вклад и начисления симулируются в приложении; реальная покупка не выполняется.",
       ];
 
   return (
@@ -37,7 +45,9 @@ export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
         <Card className="gap-3 rounded-2xl p-4">
           <p className="text-sm leading-6">
             {strategy.kind === "live"
-              ? "Цифровой токен, стоимость которого, по описанию эмитента, отражает доход от обеспечивающих активов. В этой демо-версии покупка токена не выполняется: баланс вклада — симуляция."
+              ? devnet.mode === "devnet"
+                ? "Тестовое вложение фиксируется переводом долларов в Solana devnet. Расчёт дохода остаётся демонстрационным; токен USDY не покупается."
+                : "Цифровой токен, стоимость которого, по описанию эмитента, отражает доход от обеспечивающих активов. В этой демо-версии покупка токена не выполняется: баланс вклада — симуляция."
               : "Демонстрационную запись о вложении в будущий продукт. Токен mKZGB-DEMO не существует и доходность не является предложением купить облигацию."}
           </p>
           <p className="text-xs text-muted-foreground">Эмитент / модель: {strategy.issuer}</p>
@@ -114,11 +124,14 @@ export function TechnicalDetails({ strategy }: { strategy: YieldStrategy }) {
 }
 
 export function DemoDisclosure() {
+  const devnet = useDevnet();
   return (
     <Card className="gap-2 rounded-2xl bg-muted/40 p-4">
       <Badge variant="outline" className="w-fit">Демо</Badge>
       <p className="text-sm leading-5">
-        Тенговые облигации в приложении пока не существуют. Покупка изменит только демо-баланс.
+        Тенговые облигации в приложении пока не существуют. {devnet.mode === "devnet"
+          ? "Тестовый перевод будет сделан в Solana devnet, а запись о вкладе и доход останутся демонстрационными."
+          : "Покупка изменит только демо-баланс."}
       </p>
     </Card>
   );

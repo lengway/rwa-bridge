@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { formatApy, formatMoney } from "@/lib/format";
 import type { YieldStrategy } from "@/lib/yields";
+import { useDevnet } from "@/lib/useDevnet";
 
 export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
   if (strategy.kind === "demo") {
@@ -13,6 +14,7 @@ export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
 }
 
 export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
+  const devnet = useDevnet();
   return (
     <section className="space-y-4 pt-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -20,7 +22,7 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
         {strategy.kind === "demo" ? (
           <Badge variant="outline">Демо-токен</Badge>
         ) : (
-          <Badge variant="outline">Покупка в демо-режиме</Badge>
+          <Badge variant="outline">{devnet.mode === "devnet" ? "Вклад в Solana devnet" : "Покупка в демо-режиме"}</Badge>
         )}
       </div>
       <div>

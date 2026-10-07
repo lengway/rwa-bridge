@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/lib/store";
+import { useDevnet } from "@/lib/useDevnet";
 
 const subscribeToMountedState = () => () => {};
 const getMountedState = () => true;
@@ -137,11 +138,14 @@ function ThemeSection() {
 }
 
 function DemoInfoSection() {
+  const devnet = useDevnet();
   return (
     <Card className="gap-3 rounded-2xl p-4">
       <h2 className="font-semibold">О демо-режиме</h2>
       <p className="text-sm leading-5 text-muted-foreground">
-        Баланс, вклады, покупки и начисления здесь симулируются и хранятся в браузере. Реальные деньги не переводятся.
+        {devnet.mode === "devnet"
+          ? "Тестовые доллары, вклады и покупка OFFICE-DEMO проходят в Solana devnet; записи портфеля хранятся в браузере. Активы и доходность остаются демонстрационными."
+          : "Баланс, вклады, покупки и начисления здесь симулируются и хранятся в браузере. Реальные деньги не переводятся."}
       </p>
       <p className="text-sm leading-5 text-muted-foreground">
         Начисления ускорены: 1 секунда = 1 день. Доход не гарантирован. Не банковский вклад, не застраховано фондом гарантирования депозитов.
