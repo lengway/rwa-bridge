@@ -16,21 +16,21 @@ export const isMercuryoConfigured = mercuryoWidgetId.length > 0;
 
 export const ONRAMP_OPTIONS: OnrampOption[] = [
   {
+    id: "crossmint",
+    name: "Карта · Crossmint",
+    hint: "Оплата прямо в приложении · упрощённая проверка до $1 000",
+    kind: "live",
+  },
+  {
     id: "transak",
     name: "Карта · Transak",
-    hint: "Тестовый режим: работает без компании",
+    hint: "Запасной способ · тестовый режим",
     kind: "live",
   },
   {
     id: "mercuryo",
     name: "Карта · Mercuryo",
     hint: "Нужен партнёрский доступ (KYB)",
-    kind: "live",
-  },
-  {
-    id: "crossmint",
-    name: "Банковская карта (Crossmint)",
-    hint: "Недоступно в Казахстане (проверено 7 окт 2026)",
     kind: "live",
   },
   {

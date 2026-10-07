@@ -47,7 +47,7 @@ export function MethodOption({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {labels[id]}
-          {id === "transak" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
+          {id === "crossmint" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
           {id === "kaspi" || id === "freedom" ? <Badge variant="outline">Концепт</Badge> : null}
         </span>
         {hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}
@@ -408,7 +408,7 @@ function CrossmintPathReady({
           onCompleted={onComplete}
         />
         <p className="text-xs text-muted-foreground">
-          Если видите «Not available in your country», этот способ недоступен в вашей стране.
+          Если оплата картой недоступна в вашей стране, выберите другой способ.
         </p>
         <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>
           Выбрать другой способ
