@@ -27,9 +27,11 @@ type CompletedWithdrawal = {
 export function WithdrawDrawer({
   open,
   onOpenChange,
+  onAddMoney,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onAddMoney?: () => void;
 }) {
   const { positions, displayCurrency, withdraw, cashUsd, recordCardWithdrawal } = useAppStore();
   const devnet = useDevnet();
@@ -39,6 +41,7 @@ export function WithdrawDrawer({
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<"yield" | "card">("yield");
   const [cardAmount, setCardAmount] = useState("50");
+  const [cardAmountTouched, setCardAmountTouched] = useState(false);
   const [moonPayWidgetOpen, setMoonPayWidgetOpen] = useState(false);
   const cardWithdrawalRecorded = useRef(false);
   const active = YIELD_STRATEGIES.filter((strategy) => positions[strategy.id]);
@@ -48,7 +51,13 @@ export function WithdrawDrawer({
     && cardAmountValue <= cashUsd
     && cardAmountValue <= 1000;
 
+  const resetCardAmount = () => {
+    setCardAmount(String(Math.max(20, Math.min(50, Math.floor(cashUsd)))));
+    setCardAmountTouched(false);
+  };
+
   const changeOpen = (nextOpen: boolean) => {
+    if (nextOpen && method === "card") resetCardAmount();
     setCompleted(null);
     setError(null);
     setMoonPayWidgetOpen(false);
@@ -145,7 +154,7 @@ export function WithdrawDrawer({
       fullHeight={moonPayWidgetOpen}
       title="Вывести средства"
       description={method === "card"
-        ? "Вывод на карту через MoonPay. В sandbox списание тестовых долларов симулируется."
+        ? "Вывод на карту через MoonPay. В тестовом режиме списание тестовых долларов симулируется."
         : devnet.mode === "devnet"
         ? "Верните тестовые доллары из вклада в свой Solana-кошелёк."
         : "Верните средства из вклада на баланс приложения."}
@@ -184,7 +193,11 @@ export function WithdrawDrawer({
               type="button"
               role="tab"
               aria-selected={method === "card"}
-              onClick={() => setMethod("card")}
+              onClick={() => {
+                resetCardAmount();
+                setError(null);
+                setMethod("card");
+              }}
               className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${method === "card" ? "border-foreground bg-muted" : "hover:bg-muted/40"}`}
             >
               На банковскую карту
@@ -237,18 +250,28 @@ export function WithdrawDrawer({
                   max={cashUsd}
                   inputMode="decimal"
                   value={cardAmount}
-                  onChange={(event) => setCardAmount(event.target.value)}
+                  onChange={(event) => {
+                    setCardAmount(event.target.value);
+                    setCardAmountTouched(true);
+                  }}
                   disabled={moonPayWidgetOpen}
                   className="h-11 text-lg tabular-nums"
                 />
                 <span className="text-sm font-medium">USD</span>
               </div>
               <p className="text-xs text-muted-foreground">Минимум $20, максимум за одну операцию MoonPay — $1 000.</p>
-              {!validCardAmount ? (
+              {cashUsd < 20 ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Для вывода на карту нужно минимум $20.</p>
+                  {onAddMoney ? (
+                    <Button variant="outline" className="w-full" onClick={onAddMoney}>
+                      Пополнить баланс
+                    </Button>
+                  ) : null}
+                </div>
+              ) : cardAmountTouched && !validCardAmount ? (
                 <p className="text-xs text-destructive">
-                  {cashUsd < 20
-                    ? "Для вывода на карту нужно не менее $20 на балансе."
-                    : "Введите сумму от $20 до доступного баланса и не выше $1 000."}
+                  Введите сумму от $20 до доступного баланса и не выше $1 000.
                 </p>
               ) : null}
             </div>
@@ -258,10 +281,6 @@ export function WithdrawDrawer({
               amount={cardAmountValue || 0}
               validAmount={validCardAmount}
               onWithdrawal={completeCardWithdrawal}
-              onSelectAnotherMethod={() => {
-                setMethod("yield");
-                setMoonPayWidgetOpen(false);
-              }}
               onWidgetVisibilityChange={setMoonPayWidgetOpen}
             />
           ) : null}

@@ -361,7 +361,7 @@ function MoonPayBuyReady({
             ? "MoonPay недоступен в вашей стране."
             : amount < 5
             ? "Минимальная сумма покупки через MoonPay — $5."
-            : `Откроется MoonPay ${environment === "sandbox" ? "Sandbox" : ""} для покупки ${environment === "sandbox" ? "SOL" : "USDC"}.`}
+            : `Откроется MoonPay${environment === "sandbox" ? " в тестовом режиме" : ""} для покупки ${environment === "sandbox" ? "SOL" : "USDC"}.`}
         </p>
       ) : null}
       {loading ? <p className="text-xs text-muted-foreground">Открываем MoonPay…</p> : null}
@@ -405,13 +405,11 @@ export function MoonPaySellPath({
   amount,
   validAmount,
   onWithdrawal,
-  onSelectAnotherMethod,
   onWidgetVisibilityChange,
 }: {
   amount: number;
   validAmount: boolean;
   onWithdrawal: (amount: number, details: WithdrawalDetails) => boolean;
-  onSelectAnotherMethod: () => void;
   onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
   const setup = useMoonPaySetup();
@@ -431,7 +429,6 @@ export function MoonPaySellPath({
         validAmount={validAmount}
         canDemo={devnet.mode === "demo"}
         onWithdrawal={onWithdrawal}
-        onSelectAnotherMethod={onSelectAnotherMethod}
       />
     );
   }
@@ -443,7 +440,6 @@ export function MoonPaySellPath({
         validAmount={validAmount}
         canDemo={devnet.mode === "demo"}
         onWithdrawal={onWithdrawal}
-        onSelectAnotherMethod={onSelectAnotherMethod}
       />
     );
   }
@@ -454,7 +450,6 @@ export function MoonPaySellPath({
       validAmount={validAmount}
       environment={setup.environment}
       onWithdrawal={onWithdrawal}
-      onSelectAnotherMethod={onSelectAnotherMethod}
       onWidgetVisibilityChange={onWidgetVisibilityChange}
     />
   );
@@ -466,14 +461,12 @@ function MoonPaySellFallback({
   validAmount,
   canDemo,
   onWithdrawal,
-  onSelectAnotherMethod,
 }: {
   message: string;
   amount: number;
   validAmount: boolean;
   canDemo: boolean;
   onWithdrawal: (amount: number, details: WithdrawalDetails) => boolean;
-  onSelectAnotherMethod: () => void;
 }) {
   const simulateDemoWithdrawal = () => {
     onWithdrawal(amount, { note: "Демо: MoonPay не получил перевод, сумма списана только с локального баланса." });
@@ -485,10 +478,9 @@ function MoonPaySellFallback({
       <TestCardDetails flow="sell" />
       {canDemo ? (
         <Button className="w-full" onClick={simulateDemoWithdrawal} disabled={!validAmount}>
-          Симулировать вывод · {formatMoney(amount)}
+          Вывести в демо-режиме · {formatMoney(amount)}
         </Button>
       ) : null}
-      <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Из вклада на баланс</Button>
     </div>
   );
 }
@@ -498,14 +490,12 @@ function MoonPaySellReady({
   validAmount,
   environment,
   onWithdrawal,
-  onSelectAnotherMethod,
   onWidgetVisibilityChange,
 }: {
   amount: number;
   validAmount: boolean;
   environment: "sandbox" | "production";
   onWithdrawal: (amount: number, details: WithdrawalDetails) => boolean;
-  onSelectAnotherMethod: () => void;
   onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
   const { login, status } = useCrossmintAuth();
@@ -670,10 +660,9 @@ function MoonPaySellReady({
         </Button>
         {devnet.mode === "demo" ? (
           <Button className="w-full" onClick={recordDemoWithdrawal} disabled={!validAmount}>
-            Симулировать вывод · {formatMoney(amount)}
+            Вывести в демо-режиме · {formatMoney(amount)}
           </Button>
         ) : null}
-        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Из вклада на баланс</Button>
       </div>
     );
   }
@@ -693,9 +682,8 @@ function MoonPaySellReady({
           <p className="text-xs text-muted-foreground">Можно списать тестовые доллары с devnet-баланса без перевода через MoonPay.</p>
         ) : null}
         <Button className="w-full" onClick={simulateWithdrawal} disabled={!validAmount || sending}>
-          {sending ? "Отправляем…" : `Симулировать вывод · ${formatMoney(amount)}`}
+          {sending ? "Отправляем…" : `Вывести в демо-режиме · ${formatMoney(amount)}`}
         </Button>
-        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Из вклада на баланс</Button>
       </div>
     );
   }
@@ -725,13 +713,13 @@ function MoonPaySellReady({
           {depositAddress ? <p className="break-all text-xs text-muted-foreground">Адрес депозита MoonPay: {depositAddress}</p> : null}
           {devnet.mode === "devnet" ? (
             <p className="text-xs text-muted-foreground">
-              В sandbox тестовый доллар приложения отличается от SOL MoonPay. Кнопка ниже только симулирует депозит и списывает тестовые доллары.
+              В тестовом режиме приложения тестовый доллар отличается от SOL MoonPay. Кнопка ниже только симулирует депозит и списывает тестовые доллары.
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">Демо-вывод только уменьшит локальный баланс; перевод MoonPay не отправляется.</p>
           )}
           <Button className="w-full" onClick={simulateWithdrawal} disabled={sending}>
-            {sending ? "Отправляем…" : devnet.mode === "devnet" ? "Отправить с баланса" : "Симулировать вывод"}
+            {sending ? "Отправляем…" : devnet.mode === "devnet" ? "Отправить с баланса" : "Вывести в демо-режиме"}
           </Button>
         </div>
       ) : null}
@@ -759,22 +747,9 @@ function MoonPaySellReady({
       ) : null}
       {stage === "idle" && !widgetUrl && devnet.mode === "demo" && validAmount ? (
         <Button variant="outline" className="w-full" onClick={recordDemoWithdrawal}>
-          Симулировать вывод · {formatMoney(amount)}
+          Вывести в демо-режиме · {formatMoney(amount)}
         </Button>
       ) : null}
-      <Button
-        variant="outline"
-        className="w-full shrink-0"
-        onClick={() => {
-          setWidgetUrl(null);
-          setExternalTransactionId(null);
-          setStage("idle");
-          onWidgetVisibilityChange(false);
-          onSelectAnotherMethod();
-        }}
-      >
-        Из вклада на баланс
-      </Button>
     </div>
   );
 }

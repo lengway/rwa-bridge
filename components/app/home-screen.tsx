@@ -88,7 +88,14 @@ export function HomeScreen() {
       ) : null}
       {hydrated && !positions["ondo-usdy"] ? <PromoCard /> : null}
       <AddMoneyDrawer open={addOpen} onOpenChange={setAddOpen} />
-      <WithdrawDrawer open={withdrawOpen} onOpenChange={setWithdrawOpen} />
+      <WithdrawDrawer
+        open={withdrawOpen}
+        onOpenChange={setWithdrawOpen}
+        onAddMoney={() => {
+          setWithdrawOpen(false);
+          setAddOpen(true);
+        }}
+      />
     </div>
   );
 }
