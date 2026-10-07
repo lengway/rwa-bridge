@@ -42,7 +42,6 @@ export function WithdrawDrawer({
   const [method, setMethod] = useState<"yield" | "card">("yield");
   const [cardAmount, setCardAmount] = useState("50");
   const [cardAmountTouched, setCardAmountTouched] = useState(false);
-  const [moonPayWidgetOpen, setMoonPayWidgetOpen] = useState(false);
   const cardWithdrawalRecorded = useRef(false);
   const active = YIELD_STRATEGIES.filter((strategy) => positions[strategy.id]);
   const cardAmountValue = Number(cardAmount);
@@ -60,7 +59,6 @@ export function WithdrawDrawer({
     if (nextOpen && method === "card") resetCardAmount();
     setCompleted(null);
     setError(null);
-    setMoonPayWidgetOpen(false);
     cardWithdrawalRecorded.current = false;
     onOpenChange(nextOpen);
   };
@@ -80,7 +78,6 @@ export function WithdrawDrawer({
       return false;
     }
     setError(null);
-    setMoonPayWidgetOpen(false);
     setCompleted({
       amount,
       title: "MoonPay",
@@ -151,7 +148,6 @@ export function WithdrawDrawer({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      fullHeight={moonPayWidgetOpen}
       title="Вывести средства"
       description={method === "card"
         ? "Вывод на карту через MoonPay. В тестовом режиме списание тестовых долларов симулируется."
@@ -175,7 +171,7 @@ export function WithdrawDrawer({
           explorerUrl={completed.explorerUrl}
         />
       ) : (
-        <div className={moonPayWidgetOpen ? "flex h-full min-h-0 flex-col gap-4" : "space-y-4"}>
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Способ вывода">
             <button
               type="button"
@@ -183,7 +179,6 @@ export function WithdrawDrawer({
               aria-selected={method === "yield"}
               onClick={() => {
                 setMethod("yield");
-                setMoonPayWidgetOpen(false);
               }}
               className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${method === "yield" ? "border-foreground bg-muted" : "hover:bg-muted/40"}`}
             >
@@ -237,7 +232,7 @@ export function WithdrawDrawer({
             </Card>
           ) : null}
           {method === "card" ? (
-            <div className={moonPayWidgetOpen ? "shrink-0 space-y-3" : "space-y-3"}>
+            <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <label htmlFor="moonpay-withdraw-amount" className="text-sm font-medium">Сумма вывода</label>
                 <span className="text-xs text-muted-foreground">Доступно {formatMoney(cashUsd, "USD")}</span>
@@ -254,7 +249,6 @@ export function WithdrawDrawer({
                     setCardAmount(event.target.value);
                     setCardAmountTouched(true);
                   }}
-                  disabled={moonPayWidgetOpen}
                   className="h-11 text-lg tabular-nums"
                 />
                 <span className="text-sm font-medium">USD</span>
@@ -281,7 +275,6 @@ export function WithdrawDrawer({
               amount={cardAmountValue || 0}
               validAmount={validCardAmount}
               onWithdrawal={completeCardWithdrawal}
-              onWidgetVisibilityChange={setMoonPayWidgetOpen}
             />
           ) : null}
         </div>

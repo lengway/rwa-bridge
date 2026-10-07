@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { Coins, CreditCard, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CrossmintOnramp } from "@/components/CrossmintOnramp";
+import { ProviderSheet } from "@/components/app/provider-sheet";
 import { isCrossmintConfigured } from "@/lib/config";
 import { formatMoney } from "@/lib/format";
 import {
@@ -99,13 +100,11 @@ export function TransakPath({
   onDemo,
   onComplete,
   onSelectAnotherMethod,
-  onWidgetVisibilityChange,
 }: {
   amount: number;
   onDemo: () => void;
   onComplete: (amount: number) => void;
   onSelectAnotherMethod: () => void;
-  onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
   const [setup, setSetup] = useState<TransakSetup | null>(null);
 
@@ -157,7 +156,6 @@ export function TransakPath({
       onDemo={onDemo}
       onComplete={onComplete}
       onSelectAnotherMethod={onSelectAnotherMethod}
-      onWidgetVisibilityChange={onWidgetVisibilityChange}
     />
   );
 }
@@ -167,13 +165,11 @@ function TransakSessionPath({
   onDemo,
   onComplete,
   onSelectAnotherMethod,
-  onWidgetVisibilityChange,
 }: {
   amount: number;
   onDemo: () => void;
   onComplete: (amount: number) => void;
   onSelectAnotherMethod: () => void;
-  onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
   const { login, status, user } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
@@ -181,11 +177,27 @@ function TransakSessionPath({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [orderFailed, setOrderFailed] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [hasOpenedSession, setHasOpenedSession] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const completed = useRef(false);
   const opening = useRef(false);
   const mounted = useRef(false);
   const requestedAmount = useRef(amount);
+
+  const closeWidget = useCallback(() => {
+    setWidgetUrl(null);
+    setSheetOpen(false);
+    setHasOpenedSession(true);
+  }, []);
+
+  const handleSheetOpenChange = useCallback((nextOpen: boolean) => {
+    if (nextOpen) {
+      setSheetOpen(true);
+    } else {
+      closeWidget();
+    }
+  }, [closeWidget]);
 
   useEffect(() => {
     mounted.current = true;
@@ -225,13 +237,13 @@ function TransakSessionPath({
       if (!mounted.current) return;
 
       setWidgetUrl(parsedUrl.toString());
-      onWidgetVisibilityChange(true);
+      setHasOpenedSession(true);
+      setSheetOpen(true);
     } catch (requestError: unknown) {
       if (mounted.current) {
         setError(requestError instanceof Error
           ? requestError.message
           : "Не удалось открыть виджет Transak.");
-        onWidgetVisibilityChange(false);
       }
     } finally {
       opening.current = false;
@@ -251,22 +263,20 @@ function TransakSessionPath({
       const eventId = event.data.event_id;
       if (eventId === "TRANSAK_ORDER_SUCCESSFUL" && !completed.current) {
         completed.current = true;
-        onWidgetVisibilityChange(false);
+        closeWidget();
         onComplete(getCreditedAmount(event.data, requestedAmount.current));
       }
       if (eventId === "TRANSAK_ORDER_FAILED" && !completed.current) {
         setOrderFailed(true);
       }
       if (eventId === "TRANSAK_WIDGET_CLOSE" && !completed.current) {
-        setWidgetUrl(null);
-        onWidgetVisibilityChange(false);
-        onSelectAnotherMethod();
+        closeWidget();
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [onComplete, onSelectAnotherMethod, onWidgetVisibilityChange]);
+  }, [closeWidget, onComplete]);
 
   if (status !== "logged-in") {
     const authLoading = status === "initializing" || status === "in-progress";
@@ -295,52 +305,66 @@ function TransakSessionPath({
   }
 
   return (
-    <div className={widgetUrl ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
-      {widgetUrl ? (
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-background">
-          <iframe
-            ref={iframeRef}
-            src={widgetUrl}
-            title="Transak — покупка USDC"
-            className="h-full w-full border-0"
-            allow="camera; microphone; payment"
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
-        </div>
-      ) : null}
-      {!widgetUrl ? (
-        <p className="text-xs text-muted-foreground">
-          {amount < TRANSAK_MIN_USD
-            ? "Минимальная сумма для Transak — $30. Увеличьте сумму или продолжите в демо-режиме."
-            : "Откроется тестовый виджет Transak. Тестовые данные для проверки личности заполнятся сами — останется код из письма и тестовая карта."}
-        </p>
-      ) : null}
-      {loading ? <p className="text-xs text-muted-foreground">Открываем тестовый виджет Transak…</p> : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      {!widgetUrl && !loading && amount >= TRANSAK_MIN_USD ? (
-        <Button
-          className="w-full"
-          onClick={openWidget}
-        >
-          {error ? "Повторить" : `Открыть Transak · ${formatMoney(amount)}`}
-        </Button>
-      ) : null}
-      {!widgetUrl ? (
-        <Button variant="outline" className="w-full" onClick={onDemo}>
-          <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
-        </Button>
-      ) : null}
-      {widgetUrl && orderFailed ? (
-        <p className="text-xs text-destructive">
-          Оплата не прошла. Попробуйте ещё раз или выберите другой способ.
-        </p>
-      ) : null}
-      {widgetUrl ? (
-        <Button variant="outline" className="w-full shrink-0" onClick={onSelectAnotherMethod}>
-          Выбрать другой способ
-        </Button>
-      ) : null}
-    </div>
+    <>
+      <div className="space-y-3">
+        {!widgetUrl ? (
+          <p className="text-xs text-muted-foreground">
+            {amount < TRANSAK_MIN_USD
+              ? "Минимальная сумма для Transak — $30. Увеличьте сумму или продолжите в демо-режиме."
+              : "Откроется тестовый виджет Transak."}
+          </p>
+        ) : !sheetOpen ? (
+          <p className="text-xs text-muted-foreground">Закройте виджет, чтобы вернуться к способам пополнения.</p>
+        ) : null}
+        {loading ? <p className="text-xs text-muted-foreground">Открываем тестовый виджет Transak…</p> : null}
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {orderFailed && !widgetUrl ? (
+          <p className="text-xs text-destructive">
+            Оплата не прошла. Попробуйте ещё раз или выберите другой способ.
+          </p>
+        ) : null}
+        {!widgetUrl && !loading && amount >= TRANSAK_MIN_USD ? (
+          <Button className="w-full" onClick={openWidget}>
+            {hasOpenedSession ? "Открыть Transak снова" : error ? "Повторить" : `Открыть Transak · ${formatMoney(amount)}`}
+          </Button>
+        ) : null}
+        {!widgetUrl ? (
+          <Button variant="outline" className="w-full" onClick={onDemo}>
+            <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+          </Button>
+        ) : null}
+        {!sheetOpen ? (
+          <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>
+            Выбрать другой способ
+          </Button>
+        ) : null}
+      </div>
+      <ProviderSheet
+        open={sheetOpen}
+        onOpenChange={handleSheetOpenChange}
+        title="Transak"
+        badge="Тестовый режим"
+        testData={<p>Тестовые данные для проверки личности заполнятся сами — останется код из письма и тестовая карта.</p>}
+      >
+        {widgetUrl ? (
+          <div className="flex h-full min-h-0 flex-col bg-white">
+            <iframe
+              ref={iframeRef}
+              src={widgetUrl}
+              title="Transak — покупка USDC"
+              className="min-h-0 flex-1 border-0 bg-white"
+              allow="camera; microphone; payment"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+            {orderFailed ? (
+              <p className="shrink-0 px-4 py-2 text-xs text-red-700">
+                Оплата не прошла. Попробуйте ещё раз или выберите другой способ.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </ProviderSheet>
+    </>
   );
 }
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ProviderSheet } from "@/components/app/provider-sheet";
 import { formatMoney } from "@/lib/format";
 import { isCrossmintConfigured } from "@/lib/config";
 import { useDevnet } from "@/lib/useDevnet";
@@ -30,7 +31,7 @@ const SIGNING_MESSAGE = "Добавьте MOONPAY_SECRET_KEY в .env.local, чт
 const IFRAME_ALLOW = "accelerometer; autoplay; camera; gyroscope; payment";
 const POLL_INTERVAL_MS = 5_000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1_000;
-const SANDBOX_BUY_NOTE = "Тестовый режим MoonPay: покупается тестовый SOL, а на баланс зачисляются тестовые доллары на сумму покупки.";
+const SANDBOX_BUY_NOTE = "Тестовый режим: данные личности не проверяются, покупается тестовый SOL, а на баланс зачисляются тестовые доллары.";
 
 async function getMoonPayIp(flow: "buy" | "sell") {
   const apiKey = process.env.NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY;
@@ -50,21 +51,16 @@ async function getMoonPayIp(flow: "buy" | "sell") {
 }
 
 function TestCardDetails({ flow }: { flow: "buy" | "sell" }) {
-  return (
-    <details className="rounded-lg border px-3 py-2 text-xs text-muted-foreground">
-      <summary className="cursor-pointer font-medium text-foreground">Тестовые данные</summary>
-      {flow === "buy" ? (
-        <p className="mt-2 leading-5">
-          Visa · 4242 4242 4242 4242 · срок 12/2030 · CVC 123 (3DS Challenge, UK).
-          Для тестового аккаунта MoonPay рекомендует адрес США или Великобритании.
-        </p>
-      ) : (
-        <p className="mt-2 leading-5">
-          Карта для тестовой выплаты: Visa · 4000 0209 5159 5032 · срок 12/2030 · CVC 123.
-        </p>
-      )}
-    </details>
-  );
+  if (flow === "buy") {
+    return (
+      <p>
+        Visa · 4242 4242 4242 4242 · срок 12/2030 · CVC 123 (3DS Challenge, UK).
+        Для тестового аккаунта MoonPay рекомендует адрес США или Великобритании.
+      </p>
+    );
+  }
+
+  return <p>Карта для тестовой выплаты: Visa · 4000 0209 5159 5032 · срок 12/2030 · CVC 123.</p>;
 }
 
 function useMoonPaySetup() {
@@ -106,10 +102,6 @@ function MoonPayFallback({
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">{message}</p>
       {environment === "sandbox" ? <p className="text-xs text-muted-foreground">{SANDBOX_BUY_NOTE}</p> : null}
-      <p className="text-xs text-muted-foreground">
-        Тестовый режим MoonPay: данные для проверки личности не проверяются, используйте тестовую карту из подсказки.
-      </p>
-      <TestCardDetails flow="buy" />
       <Button className="w-full" onClick={onDemo}>
         <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
       </Button>
@@ -125,13 +117,11 @@ export function MoonPayBuyPath({
   onDemo,
   onComplete,
   onSelectAnotherMethod,
-  onWidgetVisibilityChange,
 }: {
   amount: number;
   onDemo: () => void;
   onComplete: (amountUsd: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => void;
   onSelectAnotherMethod: () => void;
-  onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
   const setup = useMoonPaySetup();
   if (!setup) return <p className="text-xs text-muted-foreground">Проверяем настройки MoonPay…</p>;
@@ -176,7 +166,6 @@ export function MoonPayBuyPath({
       onDemo={onDemo}
       onComplete={onComplete}
       onSelectAnotherMethod={onSelectAnotherMethod}
-      onWidgetVisibilityChange={onWidgetVisibilityChange}
     />
   );
 }
@@ -187,14 +176,12 @@ function MoonPayBuyReady({
   onDemo,
   onComplete,
   onSelectAnotherMethod,
-  onWidgetVisibilityChange,
 }: {
   amount: number;
   environment: "sandbox" | "production";
   onDemo: () => void;
   onComplete: (amountUsd: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => void;
   onSelectAnotherMethod: () => void;
-  onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
   const { login, status } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
@@ -205,12 +192,17 @@ function MoonPayBuyReady({
   const [orderFailed, setOrderFailed] = useState(false);
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [countryUnavailable, setCountryUnavailable] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const opening = useRef(false);
   const completed = useRef(false);
 
   const openWidget = async () => {
-    if (amount < 5 || !wallet?.address || opening.current || widgetUrl) return;
+    if (widgetUrl) {
+      setSheetOpen(true);
+      return;
+    }
+    if (amount < 5 || !wallet?.address || opening.current) return;
     opening.current = true;
     completed.current = false;
     setLoading(true);
@@ -239,7 +231,7 @@ function MoonPayBuyReady({
       if (parsedUrl.hostname !== expectedHost) throw new Error("MoonPay вернул ссылку для другой среды.");
       setExternalTransactionId(result.externalTransactionId);
       setWidgetUrl(parsedUrl.toString());
-      onWidgetVisibilityChange(true);
+      setSheetOpen(true);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Не удалось открыть MoonPay.");
     } finally {
@@ -282,7 +274,7 @@ function MoonPayBuyReady({
           active = false;
           setWidgetUrl(null);
           setExternalTransactionId(null);
-          onWidgetVisibilityChange(false);
+          setSheetOpen(false);
           return;
         }
         if (!response.ok) {
@@ -294,7 +286,7 @@ function MoonPayBuyReady({
         active = false;
         setWidgetUrl(null);
         setExternalTransactionId(null);
-        onWidgetVisibilityChange(false);
+        setSheetOpen(false);
         onComplete(result.amountUsd, {
           ...(typeof result.signature === "string" ? { onchain: true, signature: result.signature } : {}),
           ...(typeof result.explorerUrl === "string" ? { explorerUrl: result.explorerUrl } : {}),
@@ -312,17 +304,13 @@ function MoonPayBuyReady({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [externalTransactionId, onComplete, onWidgetVisibilityChange, wallet?.address, widgetUrl]);
+  }, [externalTransactionId, onComplete, wallet?.address, widgetUrl]);
 
   if (status !== "logged-in") {
     const authLoading = status === "initializing" || status === "in-progress";
     return (
       <div className="space-y-3">
         {environment === "sandbox" ? <p className="text-xs text-muted-foreground">{SANDBOX_BUY_NOTE}</p> : null}
-        <p className="text-xs text-muted-foreground">
-          Тестовый режим MoonPay: данные для проверки личности не проверяются, используйте тестовую карту из подсказки.
-        </p>
-        <TestCardDetails flow="buy" />
         <p className="text-xs text-muted-foreground">Войдите, чтобы привязать покупку MoonPay к своему кошельку.</p>
         <Button variant="outline" className="w-full" onClick={login} disabled={authLoading}>
           {authLoading ? "Загружаем…" : "Войти"}
@@ -333,64 +321,74 @@ function MoonPayBuyReady({
     );
   }
   if (!wallet?.address || walletStatus === "in-progress") {
-    return <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>;
+    return (
+      <div className="space-y-3">
+        {environment === "sandbox" ? <p className="text-xs text-muted-foreground">{SANDBOX_BUY_NOTE}</p> : null}
+        <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>
+      </div>
+    );
   }
 
   return (
-    <div className={widgetUrl ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
-      {environment === "sandbox" ? <p className="text-xs text-muted-foreground">{SANDBOX_BUY_NOTE}</p> : null}
-      <p className="text-xs text-muted-foreground">
-        Тестовый режим MoonPay: данные для проверки личности не проверяются, используйте тестовую карту из подсказки.
-      </p>
-      <TestCardDetails flow="buy" />
-      {widgetUrl ? (
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-background">
-          <iframe
-            ref={iframeRef}
-            src={widgetUrl}
-            title={`MoonPay — покупка ${environment === "sandbox" ? "SOL" : "USDC"}`}
-            className="h-full w-full border-0"
-            allow={IFRAME_ALLOW}
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
-        </div>
-      ) : null}
-      {!widgetUrl ? (
-        <p className="text-xs text-muted-foreground">
-          {countryUnavailable
-            ? "MoonPay недоступен в вашей стране."
-            : amount < 5
-            ? "Минимальная сумма покупки через MoonPay — $5."
-            : `Откроется MoonPay${environment === "sandbox" ? " в тестовом режиме" : ""} для покупки ${environment === "sandbox" ? "SOL" : "USDC"}.`}
-        </p>
-      ) : null}
-      {loading ? <p className="text-xs text-muted-foreground">Открываем MoonPay…</p> : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Оставьте виджет открытым и повторите проверку позже.</p> : null}
-      {orderFailed ? <p className="text-xs text-destructive">Оплата не прошла. Попробуйте ещё раз.</p> : null}
-      {!widgetUrl && !loading && amount >= 5 && !countryUnavailable ? (
-        <Button className="w-full" onClick={openWidget} disabled={loading}>
-          {error ? "Повторить" : `Открыть MoonPay · ${formatMoney(amount)}`}
-        </Button>
-      ) : null}
-      {!widgetUrl ? (
-        <Button variant="outline" className="w-full" onClick={onDemo}>
-          <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
-        </Button>
-      ) : null}
-      <Button
-        variant="outline"
-        className="w-full shrink-0"
-        onClick={() => {
-          setWidgetUrl(null);
-          setExternalTransactionId(null);
-          onWidgetVisibilityChange(false);
-          onSelectAnotherMethod();
-        }}
+    <>
+      <div className="space-y-3">
+        {environment === "sandbox" ? <p className="text-xs text-muted-foreground">{SANDBOX_BUY_NOTE}</p> : null}
+        {widgetUrl && !sheetOpen ? (
+          <p className="text-xs text-muted-foreground">Если вы уже оплатили, сумма зачислится автоматически.</p>
+        ) : null}
+        {!widgetUrl ? (
+          <p className="text-xs text-muted-foreground">
+            {countryUnavailable
+              ? "MoonPay недоступен в вашей стране."
+              : amount < 5
+                ? "Минимальная сумма покупки через MoonPay — $5."
+                : `Откроется MoonPay${environment === "sandbox" ? " в тестовом режиме" : ""} для покупки ${environment === "sandbox" ? "SOL" : "USDC"}.`}
+          </p>
+        ) : null}
+        {loading ? <p className="text-xs text-muted-foreground">Открываем MoonPay…</p> : null}
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Оставьте виджет открытым и повторите проверку позже.</p> : null}
+        {orderFailed ? <p className="text-xs text-destructive">Оплата не прошла. Попробуйте ещё раз.</p> : null}
+        {((widgetUrl && !sheetOpen) || (!widgetUrl && amount >= 5 && !countryUnavailable)) && !loading ? (
+          <Button className="w-full" onClick={openWidget} disabled={loading}>
+            {widgetUrl ? "Открыть MoonPay снова" : error ? "Повторить" : `Открыть MoonPay · ${formatMoney(amount)}`}
+          </Button>
+        ) : null}
+        {!widgetUrl ? (
+          <Button variant="outline" className="w-full" onClick={onDemo}>
+            <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+          </Button>
+        ) : null}
+        {(!widgetUrl || !sheetOpen) ? (
+          <Button variant="outline" className="w-full" onClick={() => {
+            setSheetOpen(false);
+            onSelectAnotherMethod();
+          }}>
+            Выбрать другой способ
+          </Button>
+        ) : null}
+      </div>
+      <ProviderSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        title="MoonPay"
+        badge={environment === "sandbox" ? "Тестовый режим" : undefined}
+        testData={environment === "sandbox" ? <TestCardDetails flow="buy" /> : undefined}
       >
-        Выбрать другой способ
-      </Button>
-    </div>
+        {widgetUrl ? (
+          <div className="flex h-full min-h-0 flex-1 flex-col bg-white">
+            <iframe
+              ref={iframeRef}
+              src={widgetUrl}
+              title={`MoonPay — покупка ${environment === "sandbox" ? "SOL" : "USDC"}`}
+              className="min-h-0 flex-1 border-0 bg-white"
+              allow={IFRAME_ALLOW}
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          </div>
+        ) : null}
+      </ProviderSheet>
+    </>
   );
 }
 
@@ -405,12 +403,10 @@ export function MoonPaySellPath({
   amount,
   validAmount,
   onWithdrawal,
-  onWidgetVisibilityChange,
 }: {
   amount: number;
   validAmount: boolean;
   onWithdrawal: (amount: number, details: WithdrawalDetails) => boolean;
-  onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
   const setup = useMoonPaySetup();
   const devnet = useDevnet();
@@ -450,7 +446,6 @@ export function MoonPaySellPath({
       validAmount={validAmount}
       environment={setup.environment}
       onWithdrawal={onWithdrawal}
-      onWidgetVisibilityChange={onWidgetVisibilityChange}
     />
   );
 }
@@ -475,7 +470,6 @@ function MoonPaySellFallback({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">{message}</p>
-      <TestCardDetails flow="sell" />
       {canDemo ? (
         <Button className="w-full" onClick={simulateDemoWithdrawal} disabled={!validAmount}>
           Вывести в демо-режиме · {formatMoney(amount)}
@@ -490,13 +484,11 @@ function MoonPaySellReady({
   validAmount,
   environment,
   onWithdrawal,
-  onWidgetVisibilityChange,
 }: {
   amount: number;
   validAmount: boolean;
   environment: "sandbox" | "production";
   onWithdrawal: (amount: number, details: WithdrawalDetails) => boolean;
-  onWidgetVisibilityChange: (visible: boolean) => void;
 }) {
   const { login, status } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
@@ -512,11 +504,16 @@ function MoonPaySellReady({
   const [failed, setFailed] = useState(false);
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [countryUnavailable, setCountryUnavailable] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const opening = useRef(false);
 
   const openWidget = async () => {
-    if (!validAmount || !wallet?.address || opening.current || widgetUrl) return;
+    if (widgetUrl) {
+      setSheetOpen(true);
+      return;
+    }
+    if (!validAmount || !wallet?.address || opening.current) return;
     opening.current = true;
     setLoading(true);
     setError(null);
@@ -546,7 +543,7 @@ function MoonPaySellReady({
       setExternalTransactionId(result.externalTransactionId);
       setWidgetUrl(parsedUrl.toString());
       setStage("iframe");
-      onWidgetVisibilityChange(true);
+      setSheetOpen(true);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Не удалось открыть MoonPay.");
     } finally {
@@ -592,15 +589,17 @@ function MoonPaySellReady({
         if (result?.status === "waitingForDeposit") {
           setStage("deposit");
           setWidgetUrl(null);
+          setSheetOpen(false);
         } else if (result?.status === "failed") {
           setFailed(true);
           setStage("idle");
           setWidgetUrl(null);
           setExternalTransactionId(null);
-          onWidgetVisibilityChange(false);
+          setSheetOpen(false);
         } else if (result?.status === "completed") {
           setStage("provider-complete");
           setWidgetUrl(null);
+          setSheetOpen(false);
         }
       } catch {
         // Keep polling while the sell flow is active; transient status API failures do not cancel it.
@@ -615,7 +614,7 @@ function MoonPaySellReady({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [externalTransactionId, onWidgetVisibilityChange, wallet?.address]);
+  }, [externalTransactionId, wallet?.address]);
 
   const recordDemoWithdrawal = () => {
     const note = "Демо: MoonPay не получил перевод, сумма списана только с локального баланса.";
@@ -677,7 +676,6 @@ function MoonPaySellReady({
     return (
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">MoonPay недоступен в вашей стране.</p>
-        <TestCardDetails flow="sell" />
         {devnet.mode === "devnet" ? (
           <p className="text-xs text-muted-foreground">Можно списать тестовые доллары с devnet-баланса без перевода через MoonPay.</p>
         ) : null}
@@ -689,67 +687,81 @@ function MoonPaySellReady({
   }
 
   return (
-    <div className={widgetUrl ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
-      <TestCardDetails flow="sell" />
-      {widgetUrl ? (
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-background">
-          <iframe
-            ref={iframeRef}
-            src={widgetUrl}
-            title={`MoonPay — вывод ${environment === "sandbox" ? "SOL" : "USDC"}`}
-            className="h-full w-full border-0"
-            allow={IFRAME_ALLOW}
-            referrerPolicy="strict-origin-when-cross-origin"
-          />
-        </div>
-      ) : null}
-      {stage === "deposit" ? (
-        <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
-          <p className="text-sm font-medium">
-            {currentCryptoAmount === null
-              ? "MoonPay ждёт перевод выбранной суммы."
-              : `MoonPay ждёт перевод ${currentCryptoAmount.toFixed(2)} ${environment === "sandbox" ? "SOL" : "USDC"}.`}
-          </p>
-          {depositAddress ? <p className="break-all text-xs text-muted-foreground">Адрес депозита MoonPay: {depositAddress}</p> : null}
-          {devnet.mode === "devnet" ? (
-            <p className="text-xs text-muted-foreground">
-              В тестовом режиме приложения тестовый доллар отличается от SOL MoonPay. Кнопка ниже только симулирует депозит и списывает тестовые доллары.
+    <>
+      <div className="space-y-3">
+        {stage === "deposit" ? (
+          <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
+            <p className="text-sm font-medium">
+              {currentCryptoAmount === null
+                ? "MoonPay ждёт перевод выбранной суммы."
+                : `MoonPay ждёт перевод ${currentCryptoAmount.toFixed(2)} ${environment === "sandbox" ? "SOL" : "USDC"}.`}
             </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">Демо-вывод только уменьшит локальный баланс; перевод MoonPay не отправляется.</p>
-          )}
-          <Button className="w-full" onClick={simulateWithdrawal} disabled={sending}>
-            {sending ? "Отправляем…" : devnet.mode === "devnet" ? "Отправить с баланса" : "Вывести в демо-режиме"}
+            {depositAddress ? <p className="break-all text-xs text-muted-foreground">Адрес депозита MoonPay: {depositAddress}</p> : null}
+            {devnet.mode === "devnet" ? (
+              <p className="text-xs text-muted-foreground">
+                В тестовом режиме приложения тестовый доллар отличается от SOL MoonPay. Кнопка ниже только симулирует депозит и списывает тестовые доллары.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Демо-вывод только уменьшит локальный баланс; перевод MoonPay не отправляется.</p>
+            )}
+            <Button className="w-full" onClick={simulateWithdrawal} disabled={sending}>
+              {sending ? "Отправляем…" : devnet.mode === "devnet" ? "Отправить с баланса" : "Вывести в демо-режиме"}
+            </Button>
+          </div>
+        ) : null}
+        {stage === "provider-complete" ? (
+          <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
+            <p className="text-sm font-medium">MoonPay завершил тестовую операцию.</p>
+            <p className="text-xs text-muted-foreground">
+              {devnet.mode === "devnet"
+                ? `Чтобы баланс приложения отражал вывод, отдельно спишите тестовые доллары. Это не отправляет ${environment === "sandbox" ? "SOL" : "USDC"} MoonPay.`
+                : "Продолжите демо-сценарий, чтобы списать сумму с локального баланса."}
+            </p>
+            <Button className="w-full" onClick={simulateWithdrawal} disabled={sending}>
+              {sending ? "Отправляем…" : devnet.mode === "devnet" ? "Списать тестовые доллары" : "Завершить демо-вывод"}
+            </Button>
+          </div>
+        ) : null}
+        {loading ? <p className="text-xs text-muted-foreground">Открываем MoonPay…</p> : null}
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Можно повторить попытку.</p> : null}
+        {failed ? <p className="text-xs text-destructive">Вывод не прошёл. Попробуйте ещё раз.</p> : null}
+        {stage === "idle" && !widgetUrl && validAmount ? (
+          <Button className="w-full" onClick={openWidget} disabled={loading}>
+            {failed || error ? "Повторить" : "Открыть MoonPay"}
           </Button>
-        </div>
-      ) : null}
-      {stage === "provider-complete" ? (
-        <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
-          <p className="text-sm font-medium">MoonPay завершил тестовую операцию.</p>
-          <p className="text-xs text-muted-foreground">
-            {devnet.mode === "devnet"
-              ? `Чтобы баланс приложения отражал вывод, отдельно спишите тестовые доллары. Это не отправляет ${environment === "sandbox" ? "SOL" : "USDC"} MoonPay.`
-              : "Продолжите демо-сценарий, чтобы списать сумму с локального баланса."}
-          </p>
-          <Button className="w-full" onClick={simulateWithdrawal} disabled={sending}>
-            {sending ? "Отправляем…" : devnet.mode === "devnet" ? "Списать тестовые доллары" : "Завершить демо-вывод"}
+        ) : null}
+        {stage === "iframe" && widgetUrl && !sheetOpen ? (
+          <Button className="w-full" onClick={openWidget}>
+            Открыть MoonPay снова
           </Button>
-        </div>
-      ) : null}
-      {loading ? <p className="text-xs text-muted-foreground">Открываем MoonPay…</p> : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Можно повторить попытку.</p> : null}
-      {failed ? <p className="text-xs text-destructive">Вывод не прошёл. Попробуйте ещё раз.</p> : null}
-      {stage === "idle" && !widgetUrl && validAmount ? (
-        <Button className="w-full" onClick={openWidget} disabled={loading}>
-          {failed || error ? "Повторить" : "Открыть MoonPay"}
-        </Button>
-      ) : null}
-      {stage === "idle" && !widgetUrl && devnet.mode === "demo" && validAmount ? (
-        <Button variant="outline" className="w-full" onClick={recordDemoWithdrawal}>
-          Вывести в демо-режиме · {formatMoney(amount)}
-        </Button>
-      ) : null}
-    </div>
+        ) : null}
+        {stage === "idle" && !widgetUrl && devnet.mode === "demo" && validAmount ? (
+          <Button variant="outline" className="w-full" onClick={recordDemoWithdrawal}>
+            Вывести в демо-режиме · {formatMoney(amount)}
+          </Button>
+        ) : null}
+      </div>
+      <ProviderSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        title="MoonPay"
+        badge={environment === "sandbox" ? "Тестовый режим" : undefined}
+        testData={environment === "sandbox" ? <TestCardDetails flow="sell" /> : undefined}
+      >
+        {widgetUrl ? (
+          <div className="flex h-full min-h-0 flex-1 flex-col bg-white">
+            <iframe
+              ref={iframeRef}
+              src={widgetUrl}
+              title={`MoonPay — вывод ${environment === "sandbox" ? "SOL" : "USDC"}`}
+              className="min-h-0 flex-1 border-0 bg-white"
+              allow={IFRAME_ALLOW}
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          </div>
+        ) : null}
+      </ProviderSheet>
+    </>
   );
 }

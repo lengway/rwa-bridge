@@ -35,7 +35,6 @@ export function AddMoneyDrawer({
   const [amount, setAmount] = useState("50");
   const [method, setMethod] = useState("devnet-faucet");
   const [processing, setProcessing] = useState(false);
-  const [transakWidgetOpen, setTransakWidgetOpen] = useState(false);
   const [success, setSuccess] = useState<SuccessState | null>(null);
   const amountValue = Number(amount);
   const valid = Number.isFinite(amountValue) && amountValue >= 1 && amountValue <= 1000;
@@ -45,7 +44,6 @@ export function AddMoneyDrawer({
 
   const changeOpen = (nextOpen: boolean) => {
     setSuccess(null);
-    setTransakWidgetOpen(false);
     onOpenChange(nextOpen);
   };
 
@@ -56,7 +54,6 @@ export function AddMoneyDrawer({
     note?: string,
     extra?: { onchain?: boolean; signature?: string; explorerUrl?: string },
   ) => {
-    setTransakWidgetOpen(false);
     topUp(value, source, extra);
     setSuccess({ amount: value, sentence, note, explorerUrl: extra?.explorerUrl });
     if (extra?.onchain) void devnet.refresh();
@@ -64,7 +61,6 @@ export function AddMoneyDrawer({
   }, [devnet, topUp]);
 
   const selectAnotherMethod = useCallback(() => {
-    setTransakWidgetOpen(false);
     setMethod("");
   }, []);
 
@@ -105,7 +101,6 @@ export function AddMoneyDrawer({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      fullHeight={transakWidgetOpen}
       title="Пополнить баланс"
       description="Сначала выберите сумму, затем способ. Все суммы показаны в долларах."
     >
@@ -120,8 +115,8 @@ export function AddMoneyDrawer({
           secondaryLabel="Открыть вклад"
         />
       ) : (
-        <div className={transakWidgetOpen ? "flex h-full min-h-0 flex-col gap-4" : "space-y-5"}>
-          <div className={transakWidgetOpen ? "shrink-0 space-y-3" : "space-y-3"}>
+        <div className="space-y-5">
+          <div className="space-y-3">
             <label htmlFor="add-amount" className="text-sm font-medium">Сумма</label>
             <div className="flex items-center gap-2">
               <Input
@@ -132,7 +127,6 @@ export function AddMoneyDrawer({
                 inputMode="decimal"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
-                disabled={transakWidgetOpen}
                 className="h-11 text-lg tabular-nums"
               />
               <span className="text-sm font-medium">USD</span>
@@ -144,7 +138,6 @@ export function AddMoneyDrawer({
                   type="button"
                   variant={amount === String(value) ? "secondary" : "outline"}
                   onClick={() => setAmount(String(value))}
-                  disabled={transakWidgetOpen}
                 >
                   ${value}
                 </Button>
@@ -155,24 +148,19 @@ export function AddMoneyDrawer({
             </p>
           </div>
 
-          {!transakWidgetOpen ? (
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Способ пополнения</h3>
             <div className="space-y-2">
-              <h3 className="text-sm font-medium">Способ пополнения</h3>
-              <div className="space-y-2">
-                {methods.map((option) => (
-                  <MethodOption
-                    key={option.id}
-                    id={option.id}
-                    selected={method === option.id}
-                    onSelect={(id) => {
-                      setTransakWidgetOpen(false);
-                      setMethod(id);
-                    }}
-                  />
-                ))}
-              </div>
+              {methods.map((option) => (
+                <MethodOption
+                  key={option.id}
+                  id={option.id}
+                  selected={method === option.id}
+                  onSelect={setMethod}
+                />
+              ))}
             </div>
-          ) : null}
+          </div>
 
           {open && method === "devnet-faucet" && valid ? (
             <DevnetFaucetPath
@@ -196,18 +184,18 @@ export function AddMoneyDrawer({
               onDemo={addMockMoney}
               onComplete={completeTransak}
               onSelectAnotherMethod={selectAnotherMethod}
-              onWidgetVisibilityChange={setTransakWidgetOpen}
             />
           ) : null}
 
-          {open && method === "moonpay" && valid ? (
-            <MoonPayBuyPath
-              amount={amountValue}
-              onDemo={addMockMoney}
-              onComplete={completeMoonPay}
-              onSelectAnotherMethod={selectAnotherMethod}
-              onWidgetVisibilityChange={setTransakWidgetOpen}
-            />
+          {open && !success ? (
+            <div hidden={method !== "moonpay"}>
+              <MoonPayBuyPath
+                amount={amountValue}
+                onDemo={addMockMoney}
+                onComplete={completeMoonPay}
+                onSelectAnotherMethod={selectAnotherMethod}
+              />
+            </div>
           ) : null}
 
           {open && method === "crossmint" && valid ? (

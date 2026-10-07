@@ -7,7 +7,7 @@ import {
   useCrossmintCheckout,
 } from "@crossmint/client-sdk-react-ui";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ProviderSheet } from "@/components/app/provider-sheet";
 
 type Order = { orderId: string; clientSecret: string };
 
@@ -24,10 +24,19 @@ export function CrossmintOnramp({
 }) {
   const amount = String(amountUsd);
   const [order, setOrder] = useState<Order | null>(null);
+  const [orderAmount, setOrderAmount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const creating = useRef(false);
 
   const createOrder = async () => {
+    if (creating.current) return;
+    if (order && orderAmount === amountUsd) {
+      setSheetOpen(true);
+      return;
+    }
+    creating.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -39,49 +48,49 @@ export function CrossmintOnramp({
       const data = await res.json();
       if (!res.ok || !data.orderId || !data.clientSecret) throw new Error(data.error ?? "заказ не создан");
       setOrder({ orderId: data.orderId, clientSecret: data.clientSecret });
+      setOrderAmount(amountUsd);
+      setSheetOpen(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "ошибка");
     } finally {
+      creating.current = false;
       setLoading(false);
     }
   };
 
-  if (order) {
-    return (
-      <CrossmintCheckoutProvider>
-        <div className="rounded-xl border bg-background p-2">
-          <CrossmintEmbeddedCheckout
-            orderId={order.orderId}
-            clientSecret={order.clientSecret}
-            payment={{ receiptEmail: email, crypto: { enabled: false }, fiat: { enabled: true }, defaultMethod: "fiat" }}
-          />
-        </div>
-        <CompletionWatcher onCompleted={() => onCompleted(amountUsd)} />
-        <p className="mt-2 text-xs text-muted-foreground">
-          Тестовый режим: карта 4242 4242 4242 4242, любая будущая дата и CVC.
-        </p>
-      </CrossmintCheckoutProvider>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-2">
-      <label className="flex items-center justify-between gap-3 text-sm">
-        Сумма заказа
-        <div className="flex w-32 items-center gap-2">
-          <Input type="number" value={amountUsd} readOnly aria-label="Сумма заказа в долларах" />
-          <span className="text-xs text-muted-foreground">USD</span>
-        </div>
-      </label>
+    <>
       <Button
         onClick={createOrder}
         disabled={loading}
-        className="self-start"
+        className="w-full"
       >
-        {loading ? "Создаём заказ…" : `Пополнить картой на $${amountUsd}`}
+        {loading ? "Создаём заказ…" : `Открыть оплату картой · $${amountUsd}`}
       </Button>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
-    </div>
+      <ProviderSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        title="Crossmint"
+        testData={<p>Тестовый режим: карта 4242 4242 4242 4242, любая будущая дата и CVC.</p>}
+      >
+        {order ? (
+          <CrossmintCheckoutProvider>
+            <div className="h-full min-h-0 w-full overflow-auto bg-white">
+              <CrossmintEmbeddedCheckout
+                orderId={order.orderId}
+                clientSecret={order.clientSecret}
+                payment={{ receiptEmail: email, crypto: { enabled: false }, fiat: { enabled: true }, defaultMethod: "fiat" }}
+              />
+            </div>
+            <CompletionWatcher onCompleted={() => {
+              setSheetOpen(false);
+              onCompleted(amountUsd);
+            }} />
+          </CrossmintCheckoutProvider>
+        ) : null}
+      </ProviderSheet>
+    </>
   );
 }
 
