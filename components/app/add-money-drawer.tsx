@@ -27,12 +27,12 @@ export function AddMoneyDrawer({
 }) {
   const { topUp } = useAppStore();
   const [amount, setAmount] = useState("50");
-  const [method, setMethod] = useState("crossmint");
+  const [method, setMethod] = useState("mercuryo");
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<SuccessState | null>(null);
   const amountValue = Number(amount);
   const valid = Number.isFinite(amountValue) && amountValue >= 1 && amountValue <= 1000;
-  const methods = ["crossmint", "mercuryo", "kaspi", "freedom"]
+  const methods = ["mercuryo", "crossmint", "kaspi", "freedom"]
     .map((id) => ONRAMP_OPTIONS.find((option) => option.id === id))
     .filter((option): option is NonNullable<typeof option> => Boolean(option));
 
@@ -133,6 +133,7 @@ export function AddMoneyDrawer({
               amount={amountValue}
               onDemo={addMockMoney}
               onComplete={(value) => complete(value, "crossmint", "Сумма зачислена после оплаты картой.")}
+              onSelectAnotherMethod={() => setMethod("")}
               processing={processing}
             />
           ) : null}

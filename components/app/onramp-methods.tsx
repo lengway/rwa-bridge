@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CrossmintOnramp } from "@/components/CrossmintOnramp";
 import { isCrossmintConfigured } from "@/lib/config";
 import { formatMoney } from "@/lib/format";
-import { buildMercuryoUrl, isMercuryoConfigured } from "@/lib/onramps";
+import { buildMercuryoUrl, isMercuryoConfigured, ONRAMP_OPTIONS } from "@/lib/onramps";
 
 export function MethodOption({
   id,
@@ -24,12 +24,7 @@ export function MethodOption({
     kaspi: "Kaspi Pay",
     freedom: "Freedom",
   };
-  const hints: Record<string, string> = {
-    crossmint: "Оплата картой · основной способ",
-    mercuryo: "Запасной способ · доступность зависит от региона",
-    kaspi: "Пополнение в тенге · концепт",
-    freedom: "Пополнение со счёта · концепт",
-  };
+  const hint = ONRAMP_OPTIONS.find((option) => option.id === id)?.hint;
 
   return (
     <button
@@ -44,10 +39,10 @@ export function MethodOption({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {labels[id]}
-          {id === "crossmint" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
+          {id === "mercuryo" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
           {id === "kaspi" || id === "freedom" ? <Badge variant="outline">Концепт</Badge> : null}
         </span>
-        <span className="mt-1 block text-xs text-muted-foreground">{hints[id]}</span>
+        {hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}
       </span>
       <span className={`mt-1 size-4 rounded-full border ${selected ? "border-foreground bg-foreground ring-2 ring-background ring-offset-1 ring-offset-foreground" : "border-muted-foreground/40"}`} />
     </button>
@@ -58,38 +53,57 @@ export function CrossmintPath({
   amount,
   onDemo,
   onComplete,
+  onSelectAnotherMethod,
   processing,
 }: {
   amount: number;
   onDemo: () => void;
   onComplete: (amount: number) => void;
+  onSelectAnotherMethod: () => void;
   processing: boolean;
 }) {
   if (!isCrossmintConfigured) {
     return <DemoPath method="Crossmint" amount={amount} onDemo={onDemo} processing={processing} />;
   }
-  return <CrossmintPathReady amount={amount} onDemo={onDemo} onComplete={onComplete} />;
+  return (
+    <CrossmintPathReady
+      amount={amount}
+      onDemo={onDemo}
+      onComplete={onComplete}
+      onSelectAnotherMethod={onSelectAnotherMethod}
+    />
+  );
 }
 
 function CrossmintPathReady({
   amount,
   onDemo,
   onComplete,
+  onSelectAnotherMethod,
 }: {
   amount: number;
   onDemo: () => void;
   onComplete: (amount: number) => void;
+  onSelectAnotherMethod: () => void;
 }) {
   const { login, user, status } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
   if (status === "logged-in" && user?.email && wallet?.address) {
     return (
-      <CrossmintOnramp
-        walletAddress={wallet.address}
-        email={user.email}
-        amountUsd={amount}
-        onCompleted={onComplete}
-      />
+      <div className="space-y-3">
+        <CrossmintOnramp
+          walletAddress={wallet.address}
+          email={user.email}
+          amountUsd={amount}
+          onCompleted={onComplete}
+        />
+        <p className="text-xs text-muted-foreground">
+          Если видите «Not available in your country», этот способ недоступен в вашей стране.
+        </p>
+        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>
+          Выбрать другой способ
+        </Button>
+      </div>
     );
   }
 

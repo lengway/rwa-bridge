@@ -13,27 +13,27 @@ export const isMercuryoConfigured = mercuryoWidgetId.length > 0;
 
 export const ONRAMP_OPTIONS: OnrampOption[] = [
   {
-    id: "crossmint",
-    name: "Банковская карта (Crossmint)",
-    hint: "Основной: USDC сразу на твой кошелёк, проверка личности внутри",
-    kind: "live",
-  },
-  {
     id: "mercuryo",
     name: "Банковская карта (Mercuryo)",
-    hint: "Запасной: в списке валют есть тенге, вывод только в USD/EUR",
+    hint: "Рекомендуем для Казахстана: тенге в списке валют",
     kind: "live",
   },
   {
-    id: "freedom",
-    name: "Freedom (счёт в тенге)",
-    hint: "Концепт: пополнение со счёта Freedom, как это выглядело бы при партнёрстве",
-    kind: "concept",
+    id: "crossmint",
+    name: "Банковская карта (Crossmint)",
+    hint: "Недоступно в Казахстане (проверено 7 окт 2026)",
+    kind: "live",
   },
   {
     id: "kaspi",
     name: "Kaspi Pay, тенге",
     hint: "Концепт: так выглядело бы пополнение прямо в тенге",
+    kind: "concept",
+  },
+  {
+    id: "freedom",
+    name: "Freedom (счёт в тенге)",
+    hint: "Концепт: пополнение со счёта Freedom, как это выглядело бы при партнёрстве",
     kind: "concept",
   },
 ];
