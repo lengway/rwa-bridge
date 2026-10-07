@@ -275,6 +275,7 @@ export function WithdrawDrawer({
               amount={cardAmountValue || 0}
               validAmount={validCardAmount}
               onWithdrawal={completeCardWithdrawal}
+              onSelectAnotherMethod={() => setMethod("yield")}
             />
           ) : null}
         </div>

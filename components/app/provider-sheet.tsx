@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -15,6 +15,8 @@ export function ProviderSheet({
   title,
   badge,
   testData,
+  externalUrl,
+  onOpenExternal,
   children,
 }: {
   open: boolean;
@@ -22,6 +24,8 @@ export function ProviderSheet({
   title: string;
   badge?: string;
   testData?: React.ReactNode;
+  externalUrl?: string;
+  onOpenExternal?: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -36,6 +40,22 @@ export function ProviderSheet({
               {title}
             </DrawerTitle>
             {badge ? <Badge variant="secondary" className="shrink-0">{badge}</Badge> : null}
+            {externalUrl ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 gap-1 px-2 text-xs text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+                aria-label="Открыть в новой вкладке"
+                onClick={() => {
+                  window.open(externalUrl, "_blank", "noopener,noreferrer");
+                  onOpenExternal?.();
+                }}
+              >
+                <ExternalLink aria-hidden="true" className="size-3.5" />
+                В новой вкладке
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="ghost"
