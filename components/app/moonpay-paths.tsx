@@ -5,6 +5,7 @@ import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { ExternalLink, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProviderSheet } from "@/components/app/provider-sheet";
+import { ProviderQuote } from "@/components/app/provider-quote";
 import { formatMoney } from "@/lib/format";
 import { isCrossmintConfigured } from "@/lib/config";
 import { useDevnet } from "@/lib/useDevnet";
@@ -378,6 +379,14 @@ function MoonPayBuyReady({
               <Button className="w-full" onClick={openWidget} disabled={loading}>
                 {widgetUrl ? "Открыть MoonPay снова" : error ? "Повторить" : `Открыть MoonPay · ${formatMoney(amount)}`}
               </Button>
+            ) : null}
+            {!widgetUrl ? (
+              <ProviderQuote
+                provider="moonpay"
+                side="buy"
+                amount={amount}
+                valid={amount >= 5 && amount <= 1_000 && !countryUnavailable}
+              />
             ) : null}
             {!widgetUrl ? (
               <Button variant="outline" className="w-full" onClick={onDemo}>
@@ -792,6 +801,14 @@ function MoonPaySellReady({
           <Button className="w-full" onClick={openWidget} disabled={loading}>
             {failed || error ? "Повторить" : "Открыть MoonPay"}
           </Button>
+        ) : null}
+        {stage === "idle" && !widgetUrl ? (
+          <ProviderQuote
+            provider="moonpay"
+            side="sell"
+            amount={amount}
+            valid={validAmount}
+          />
         ) : null}
         {stage === "iframe" && widgetUrl && !sheetOpen ? (
           <Button className="w-full" onClick={openWidget}>

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AccountSection, WalletSection } from "@/components/app/profile-account";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -17,13 +18,21 @@ import {
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
+import { MarketDataNote } from "@/components/app/market-data-note";
 
 const subscribeToMountedState = () => () => {};
 const getMountedState = () => true;
 const getServerMountedState = () => false;
 
 export function ProfileScreen() {
-  const { displayCurrency, setDisplayCurrency, resetDemo } = useAppStore();
+  const {
+    displayCurrency,
+    setDisplayCurrency,
+    acceleratedAccrual,
+    setAcceleratedAccrual,
+    marketData,
+    resetDemo,
+  } = useAppStore();
   const [confirmReset, setConfirmReset] = useState(false);
   const reset = () => {
     resetDemo();
@@ -34,7 +43,15 @@ export function ProfileScreen() {
   return (
     <div className="space-y-6">
       <AccountSection />
-      <PreferenceSection currency={displayCurrency} onCurrencyChange={setDisplayCurrency} />
+      <PreferenceSection
+        currency={displayCurrency}
+        onCurrencyChange={setDisplayCurrency}
+        rate={marketData.rate}
+      />
+      <AccrualPreference
+        acceleratedAccrual={acceleratedAccrual}
+        onChange={setAcceleratedAccrual}
+      />
       <ThemeSection />
       <WalletSection />
       <DemoInfoSection />
@@ -72,17 +89,20 @@ export function ProfileScreen() {
 function PreferenceSection({
   currency,
   onCurrencyChange,
+  rate,
 }: {
   currency: "USD" | "KZT";
   onCurrencyChange: (currency: "USD" | "KZT") => void;
+  rate: ReturnType<typeof useAppStore>["marketData"]["rate"];
 }) {
   return (
     <Card className="gap-4 rounded-2xl p-4">
       <div>
         <h2 className="font-semibold">Валюта отображения</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Пересчёт в тенге — по демо-курсу 480 ₸ за $1.
+          Пересчёт в тенге — по курсу НБ РК.
         </p>
+        <MarketDataNote data={rate} />
       </div>
       <div className="grid grid-cols-2 gap-2">
         {(["USD", "KZT"] as const).map((value) => (
@@ -97,6 +117,28 @@ function PreferenceSection({
           </Button>
         ))}
       </div>
+    </Card>
+  );
+}
+
+function AccrualPreference({
+  acceleratedAccrual,
+  onChange,
+}: {
+  acceleratedAccrual: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
+  return (
+    <Card className="flex-row items-center justify-between gap-4 rounded-2xl p-4">
+      <div>
+        <h2 className="font-semibold">Ускорить начисления для демо</h2>
+        <p className="mt-1 text-sm text-muted-foreground">При включении 1 секунда считается за 1 день.</p>
+      </div>
+      <Switch
+        checked={acceleratedAccrual}
+        onCheckedChange={onChange}
+        aria-label="Ускорить начисления для демо"
+      />
     </Card>
   );
 }
@@ -139,6 +181,7 @@ function ThemeSection() {
 
 function DemoInfoSection() {
   const devnet = useDevnet();
+  const { acceleratedAccrual } = useAppStore();
   return (
     <Card className="gap-3 rounded-2xl p-4">
       <h2 className="font-semibold">О демо-режиме</h2>
@@ -148,7 +191,9 @@ function DemoInfoSection() {
           : "Баланс, вклады, покупки и начисления здесь симулируются и хранятся в браузере. Реальные деньги не переводятся."}
       </p>
       <p className="text-sm leading-5 text-muted-foreground">
-        Начисления ускорены: 1 секунда = 1 день. Доход не гарантирован. Не банковский вклад, не застраховано фондом гарантирования депозитов.
+        {acceleratedAccrual
+          ? "В демо включён ускоренный режим: 1 секунда = 1 день."
+          : "Начисления идут в реальном времени."} Доход не гарантирован. Не банковский вклад, не застраховано фондом гарантирования депозитов.
       </p>
     </Card>
   );

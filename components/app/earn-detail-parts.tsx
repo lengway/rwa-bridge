@@ -2,9 +2,12 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { formatApy, formatMoney } from "@/lib/format";
+import { formatApy, formatEarningsMoney, formatMoney } from "@/lib/format";
 import type { YieldStrategy } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
+import { getStrategyApy } from "@/lib/market-data";
+import { useAppStore } from "@/lib/store";
+import { MarketDataNote } from "@/components/app/market-data-note";
 
 export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
   if (strategy.kind === "demo") {
@@ -15,6 +18,9 @@ export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
 
 export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
   const devnet = useDevnet();
+  const { marketData } = useAppStore();
+  const apy = getStrategyApy(strategy.id, marketData.yields);
+  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
   return (
     <section className="space-y-4 pt-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -29,12 +35,20 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
         <p className="text-sm text-muted-foreground">{strategy.name}</p>
         <div className="mt-1 flex items-baseline gap-2">
           <p className="text-5xl font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400">
-            {formatApy(strategy.demoApy)}
+            {formatApy(apy)}
           </p>
           <p className="text-sm text-muted-foreground">годовых</p>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">{strategy.apyLabel}</p>
+        <div className="mt-2 space-y-1">
+          <MarketDataNote data={apyData} />
+        </div>
       </div>
+      {strategy.id === "ondo-usdy" ? (
+        <p className="text-xs leading-5 text-muted-foreground">
+          Доходность 3-мес. казначейских векселей США: {formatApy(marketData.yields.tbill3m.apy)}.{" "}
+          <MarketDataNote data={marketData.yields.tbill3m} />
+        </p>
+      ) : null}
       <p className="text-sm leading-6">{strategy.description}</p>
       <p className="rounded-xl border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
         Не банковский вклад, не застраховано фондом гарантирования депозитов. Доход не гарантирован.
@@ -56,8 +70,11 @@ export function ProjectionCalculator({
   currentPosition?: { value: number; earned: number };
   currency: "USD" | "KZT";
 }) {
+  const { marketData, acceleratedAccrual } = useAppStore();
+  const apy = getStrategyApy(strategy.id, marketData.yields);
+  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
   const years = [0, 1, 2, 3, 4, 5];
-  const projection = (year: number) => amount * (1 + strategy.demoApy * year);
+  const projection = (year: number) => amount * (1 + apy * year);
   const points = years.map((year, index) => {
     const x = 40 + index * 64;
     const y = 124 - ((projection(year) / projection(5)) * 94);
@@ -72,6 +89,7 @@ export function ProjectionCalculator({
           <p className="mt-1 text-xs text-muted-foreground">
             Оценка по текущему ориентиру, без учёта комиссий и изменения цены.
           </p>
+          <MarketDataNote data={apyData} />
         </div>
         <Sparkles className="size-5 text-emerald-700 dark:text-emerald-400" />
       </div>
@@ -95,17 +113,20 @@ export function ProjectionCalculator({
         <span>$10 000</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <ProjectedReturn label="За месяц" amount={amount * strategy.demoApy / 12} currency={currency} />
-        <ProjectedReturn label="За год" amount={amount * strategy.demoApy} currency={currency} />
+        <ProjectedReturn label="За месяц" amount={amount * apy / 12} currency={currency} />
+        <ProjectedReturn label="За год" amount={amount * apy} currency={currency} />
       </div>
       <ProjectionChart amount={amount} projection={projection} points={points} years={years} />
       {currentPosition ? (
         <p className="text-xs text-muted-foreground">
-          Сейчас в этом вкладе {formatMoney(currentPosition.value, currency)}, начислено +{formatMoney(currentPosition.earned, currency)}.
+          Сейчас в этом вкладе {formatMoney(currentPosition.value, currency)}, начислено +{formatEarningsMoney(currentPosition.earned, currency)}.
+          {acceleratedAccrual ? <span className="ml-2 inline-block rounded-full border px-2 py-0.5">Ускоренный режим</span> : null}
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Расчёт ознакомительный. В демо 1 секунда = 1 день.
+          {acceleratedAccrual
+            ? "Расчёт ознакомительный. Ускоренный режим: 1 секунда = 1 день."
+            : "Расчёт ознакомительный. Начисление идёт в реальном времени."}
         </p>
       )}
     </Card>
@@ -125,7 +146,7 @@ function ProjectedReturn({
     <div className="rounded-xl bg-muted/60 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-        +{formatMoney(amount, currency)}
+        +{formatEarningsMoney(amount, currency)}
       </p>
     </div>
   );

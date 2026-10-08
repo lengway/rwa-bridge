@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, Building2, ChartNoAxesCombined, CircleHelp, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +8,9 @@ import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatApy, formatMoney } from "@/lib/format";
 import { KZ_BOND_DEMO, ONDO_USDY } from "@/lib/yields";
+import { useMarketData } from "@/lib/useMarketData";
+import { formatDataDate, getStrategyApy, type DatedMetric } from "@/lib/market-data";
+import { MarketDataNote } from "@/components/app/market-data-note";
 
 const questions = [
   {
@@ -27,6 +32,11 @@ const questions = [
 ];
 
 export default function LandingPage() {
+  const marketData = useMarketData();
+  const usdyApy = getStrategyApy(ONDO_USDY.id, marketData.yields);
+  const kaseApy = getStrategyApy(KZ_BOND_DEMO.id, marketData.yields);
+  const usdyData = marketData.yields.usdy;
+  const kaseData = marketData.yields.kaseGov;
   return (
     <main className="min-h-dvh bg-muted/40">
       <div className="mx-auto max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
@@ -76,7 +86,9 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 gap-3 border-t pt-4">
               <div className="rounded-xl bg-muted/60 p-3">
                 <p className="text-xs text-muted-foreground">Долларовый вклад</p>
-                <p className="mt-1 font-semibold">{formatApy(ONDO_USDY.demoApy)}</p>
+                <p className="mt-1 font-semibold">{formatApy(usdyApy)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Данные на {formatDataDate(usdyData.asOf)}</p>
+                <a href={usdyData.source.url} target="_blank" rel="noreferrer" className="mt-1 block text-xs text-muted-foreground underline underline-offset-2">{usdyData.source.name}</a>
               </div>
               <div className="rounded-xl bg-muted/60 p-3">
                 <p className="text-xs text-muted-foreground">Доля недвижимости</p>
@@ -120,14 +132,17 @@ export default function LandingPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <ProductCard
               title="Долларовый вклад"
-              label={`${formatApy(ONDO_USDY.demoApy)} · ориентир`}
-              detail={ONDO_USDY.apyLabel}
+              label={`${formatApy(usdyApy)} · ориентир`}
+              detail={`Доходность 3-мес. казначейских векселей США: ${formatApy(marketData.yields.tbill3m.apy)}.`}
+              data={usdyData}
+              secondaryData={marketData.yields.tbill3m}
               href="/earn/ondo-usdy"
             />
             <ProductCard
               title="Тенговые облигации"
-              label="Демо"
-              detail={KZ_BOND_DEMO.apyLabel}
+              label={`${formatApy(kaseApy)} · демо`}
+              detail="Ориентир индекса доходности гособлигаций KASE. Обновляется вручную."
+              data={kaseData}
               href="/earn/kz-bond-demo"
             />
             <ProductCard
@@ -229,22 +244,28 @@ function ProductCard({
   label,
   detail,
   href,
+  data,
+  secondaryData,
 }: {
   title: string;
   label: string;
   detail: string;
   href: string;
+  data?: DatedMetric;
+  secondaryData?: DatedMetric;
 }) {
   return (
-    <Link href={href} className="block">
-      <Card className="h-full gap-3 rounded-2xl p-5 transition-colors hover:bg-muted/40">
+    <Card className="h-full gap-3 rounded-2xl p-5 transition-colors hover:bg-muted/40">
+      <Link href={href} className="block flex-1 space-y-3">
         <Badge variant="secondary" className="w-fit">{label}</Badge>
         <h3 className="font-semibold">{title}</h3>
-        <p className="flex-1 text-sm leading-5 text-muted-foreground">{detail}</p>
+        <p className="text-sm leading-5 text-muted-foreground">{detail}</p>
         <span className="inline-flex items-center gap-1 text-sm font-medium">
           Подробнее <ArrowRight className="size-4" />
         </span>
-      </Card>
-    </Link>
+      </Link>
+      {data ? <MarketDataNote data={data} plain /> : null}
+      {secondaryData ? <MarketDataNote data={secondaryData} plain /> : null}
+    </Card>
   );
 }

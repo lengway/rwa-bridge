@@ -14,18 +14,20 @@ import { ProductSummary, ProjectionCalculator } from "@/components/app/earn-deta
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
+import { getStrategyApy } from "@/lib/market-data";
 import { accruedPosition, type YieldStrategy } from "@/lib/yields";
 import { useNow } from "@/lib/useNow";
 
 export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
-  const { positions, cashUsd, displayCurrency, hydrated } = useAppStore();
+  const { positions, cashUsd, displayCurrency, hydrated, acceleratedAccrual, marketData } = useAppStore();
   const now = useNow();
   const [amount, setAmount] = useState(1000);
   const [investOpen, setInvestOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const position = positions[strategy.id];
+  const apy = getStrategyApy(strategy.id, marketData.yields);
   const currentEarned = position && now !== null
-    ? accruedPosition(position, strategy.demoApy, now)
+    ? accruedPosition(position, apy, now, acceleratedAccrual)
     : 0;
   const currentPosition = position && now !== null
     ? { value: position.principal + currentEarned, earned: currentEarned }
@@ -55,6 +57,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
               {hydrated ? formatMoney(cashUsd, displayCurrency) : "…"}
             </p>
           </div>
+          {position && acceleratedAccrual ? <span className="text-xs text-muted-foreground">Ускоренный режим</span> : null}
           {position ? (
             <Button
               variant="outline"

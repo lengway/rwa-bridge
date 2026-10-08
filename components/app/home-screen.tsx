@@ -10,6 +10,7 @@ import { useNow } from "@/lib/useNow";
 import { useAppStore } from "@/lib/store";
 import { accruedPosition, YIELD_STRATEGIES } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
+import { getStrategyApy } from "@/lib/market-data";
 
 export function HomeScreen() {
   const {
@@ -19,6 +20,8 @@ export function HomeScreen() {
     displayCurrency,
     setDisplayCurrency,
     realizedEarningsUsd,
+    acceleratedAccrual,
+    marketData,
     hydrated,
   } = useAppStore();
   const devnet = useDevnet();
@@ -32,7 +35,7 @@ export function HomeScreen() {
     if (!position) return [];
     const earned = now === null
       ? 0
-      : accruedPosition(position, strategy.demoApy, now);
+      : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
     return [{ strategy, position, earned }];
   });
   const holdingValues = DEMO_ASSETS.flatMap((asset) => {

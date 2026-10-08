@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isCrossmintConfigured } from "@/lib/config";
-import { formatMoney } from "@/lib/format";
+import { formatEarningsMoney, formatMoney } from "@/lib/format";
+import { useAppStore } from "@/lib/store";
+import { MarketDataNote } from "@/components/app/market-data-note";
 
 export function AccountGreeting() {
   if (!isCrossmintConfigured) return <GreetingContents />;
@@ -67,6 +69,7 @@ export function BalanceCard({
   onCurrencyChange: (currency: "USD" | "KZT") => void;
   mode: "devnet" | "demo";
 }) {
+  const { marketData, acceleratedAccrual } = useAppStore();
   return (
     <Card className="gap-5 rounded-2xl border-emerald-600/20 bg-card p-5 ring-1 ring-emerald-600/10 dark:border-emerald-400/20 dark:ring-emerald-400/10">
       <div className="flex items-start justify-between gap-3">
@@ -108,13 +111,15 @@ export function BalanceCard({
         ) : <Skeleton className="h-4 w-20" />}
       </div>
       <p className="-mt-3 text-xs text-muted-foreground">
-        В пересчёте в тенге — по демо-курсу 480 ₸ за $1.
+        В пересчёте в тенге — по курсу НБ РК.
       </p>
+      <MarketDataNote data={marketData.rate} />
       <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
         <ChartNoAxesCombined className="size-4" />
         {hydrated ? (
-          <span>+{formatMoney(earnings, currency)} доход за всё время</span>
+          <span>+{formatEarningsMoney(earnings, currency)} доход за всё время</span>
         ) : <Skeleton className="h-4 w-40" />}
+        {acceleratedAccrual ? <Badge variant="outline">Ускоренный режим</Badge> : null}
       </div>
     </Card>
   );

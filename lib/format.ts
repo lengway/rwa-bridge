@@ -1,11 +1,28 @@
-import { DEMO_KZT_RATE } from "@/lib/constants";
+import { FALLBACK_KZT_RATE } from "@/lib/constants";
+
+let liveUsdKzt = FALLBACK_KZT_RATE;
+
+export function setFormattedKztRate(rate: number) {
+  if (Number.isFinite(rate) && rate > 0) liveUsdKzt = rate;
+}
 
 export function formatMoney(usd: number, currency: "USD" | "KZT" = "USD") {
-  const value = currency === "KZT" ? usd * DEMO_KZT_RATE : usd;
+  const value = currency === "KZT" ? usd * liveUsdKzt : usd;
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: currency === "KZT" ? "KZT" : "USD",
     maximumFractionDigits: currency === "KZT" ? 0 : 2,
+  }).format(value);
+}
+
+export function formatEarningsMoney(usd: number, currency: "USD" | "KZT" = "USD") {
+  const smallAmount = Math.abs(usd) < 1;
+  const value = currency === "KZT" ? usd * liveUsdKzt : usd;
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: currency === "KZT" ? "KZT" : "USD",
+    minimumFractionDigits: smallAmount ? (currency === "USD" ? 4 : 2) : 0,
+    maximumFractionDigits: smallAmount ? (currency === "USD" ? 6 : 4) : (currency === "KZT" ? 0 : 2),
   }).format(value);
 }
 

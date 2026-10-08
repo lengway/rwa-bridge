@@ -10,11 +10,13 @@ import { MoonPaySellPath } from "@/components/app/moonpay-paths";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatMoney } from "@/lib/format";
+import { formatEarningsMoney, formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { accruedPosition, YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { useNow } from "@/lib/useNow";
 import { useDevnet } from "@/lib/useDevnet";
+import { getStrategyApy } from "@/lib/market-data";
+import { Badge } from "@/components/ui/badge";
 
 type CompletedWithdrawal = {
   amount: number;
@@ -33,7 +35,15 @@ export function WithdrawDrawer({
   onOpenChange: (open: boolean) => void;
   onAddMoney?: () => void;
 }) {
-  const { positions, displayCurrency, withdraw, cashUsd, recordCardWithdrawal } = useAppStore();
+  const {
+    positions,
+    displayCurrency,
+    withdraw,
+    cashUsd,
+    recordCardWithdrawal,
+    acceleratedAccrual,
+    marketData,
+  } = useAppStore();
   const devnet = useDevnet();
   const now = useNow();
   const [completed, setCompleted] = useState<CompletedWithdrawal | null>(null);
@@ -98,7 +108,7 @@ export function WithdrawDrawer({
       if (!position || !devnet.walletAddress) return;
       const earnedUsd = now === null
         ? position.earnedCarryUsd ?? 0
-        : accruedPosition(position, strategy.demoApy, now);
+        : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
       setProcessingId(strategy.id);
       try {
         const response = await fetch("/api/devnet/withdraw", {
@@ -299,7 +309,10 @@ function WithdrawPosition({
   processing: boolean;
   onWithdraw: (strategy: YieldStrategy) => void;
 }) {
-  const earned = now === null ? (position.earnedCarryUsd ?? 0) : accruedPosition(position, strategy.demoApy, now);
+  const { marketData, acceleratedAccrual } = useAppStore();
+  const earned = now === null
+    ? (position.earnedCarryUsd ?? 0)
+    : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
   const payout = position.principal + earned;
 
   return (
@@ -312,7 +325,8 @@ function WithdrawPosition({
           </p>
         </div>
         <span className="text-right text-sm tabular-nums text-emerald-600 dark:text-emerald-400">
-          +{formatMoney(earned, currency)}
+          +{formatEarningsMoney(earned, currency)}
+          {acceleratedAccrual ? <Badge variant="outline" className="mt-1">Ускоренный режим</Badge> : null}
         </span>
       </div>
       <Button variant="outline" className="w-full" onClick={() => onWithdraw(strategy)} disabled={processing}>

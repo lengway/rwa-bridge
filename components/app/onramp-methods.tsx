@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CrossmintOnramp } from "@/components/CrossmintOnramp";
 import { ProviderSheet } from "@/components/app/provider-sheet";
+import { ProviderQuote } from "@/components/app/provider-quote";
 import { isCrossmintConfigured } from "@/lib/config";
 import { formatMoney } from "@/lib/format";
 import {
@@ -446,6 +447,14 @@ function TransakSessionPath({
           <Button className="w-full" onClick={openWidget}>
             {hasOpenedSession ? "Открыть Transak снова" : error ? "Повторить" : `Открыть Transak · ${formatMoney(amount)}`}
           </Button>
+        ) : null}
+        {!widgetUrl ? (
+          <ProviderQuote
+            provider="transak"
+            side="buy"
+            amount={amount}
+            valid={amount >= TRANSAK_MIN_USD && amount <= 1_000}
+          />
         ) : null}
         {!widgetUrl ? (
           <Button variant="outline" className="w-full" onClick={onDemo}>

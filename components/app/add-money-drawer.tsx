@@ -15,6 +15,7 @@ import { ONRAMP_OPTIONS } from "@/lib/onramps";
 import { useAppStore } from "@/lib/store";
 import { isCrossmintConfigured } from "@/lib/config";
 import { useDevnet } from "@/lib/useDevnet";
+import { KztEstimate } from "@/components/app/kzt-estimate";
 
 type SuccessState = {
   amount: number;
@@ -155,9 +156,7 @@ export function AddMoneyDrawer({
                 </Button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              ≈ {formatMoney(Number(amount) || 0, "KZT")} по демо-курсу 480 ₸ за $1.
-            </p>
+            <KztEstimate usd={Number(amount) || 0} />
           </div>
 
           <div className="space-y-2">

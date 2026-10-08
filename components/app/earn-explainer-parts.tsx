@@ -6,9 +6,14 @@ import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { YieldStrategy } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
+import { useAppStore } from "@/lib/store";
+import { formatApy } from "@/lib/format";
+import { getStrategyApy } from "@/lib/market-data";
+import { MarketDataNote } from "@/components/app/market-data-note";
 
 export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
   const devnet = useDevnet();
+  const { acceleratedAccrual } = useAppStore();
   const steps = strategy.kind === "demo"
     ? [
         devnet.mode === "devnet"
@@ -21,8 +26,8 @@ export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
         "Эмитент сообщает, что токен обеспечен краткосрочными гособлигациями США и банковскими депозитами.",
         "По описанию эмитента доход отражается в цене токена.",
         devnet.mode === "devnet"
-          ? "Тестовые доллары переводятся в казначейство, а доходность начисляется в приложении по ускоренным демо-часам."
-          : "В этой демо-версии вклад и начисления симулируются в приложении; реальная покупка не выполняется.",
+          ? `Тестовые доллары переводятся в казначейство, а доходность начисляется в приложении${acceleratedAccrual ? " в ускоренном режиме" : " в реальном времени"}.`
+          : `В этой демо-версии вклад и начисления симулируются в приложении${acceleratedAccrual ? " в ускоренном режиме" : " в реальном времени"}; реальная покупка не выполняется.`,
       ];
 
   return (
@@ -96,6 +101,9 @@ export function EligibilitySection({ strategy }: { strategy: YieldStrategy }) {
 }
 
 export function TechnicalDetails({ strategy }: { strategy: YieldStrategy }) {
+  const { marketData } = useAppStore();
+  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
+  const apy = getStrategyApy(strategy.id, marketData.yields);
   return (
     <Collapsible>
       <Card className="rounded-2xl p-0">
@@ -111,11 +119,17 @@ export function TechnicalDetails({ strategy }: { strategy: YieldStrategy }) {
             </p>
           ) : <p>Адрес токена: токен не существует.</p>}
           {strategy.sourceUrl ? (
-            <p>
-              Источник данных: <a href={strategy.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">документация эмитента</a>. APY: {strategy.apyLabel}.
-            </p>
+            <div className="space-y-1">
+              <p>
+                Документация эмитента: <a href={strategy.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">адрес токена</a>. APY {formatApy(apy)}.
+              </p>
+              <MarketDataNote data={apyData} />
+            </div>
           ) : (
-            <p>Источник ориентира: {strategy.apyLabel}. Это демонстрационный показатель, не предложение от биржи или банка.</p>
+            <div className="space-y-1">
+              <p>Ориентир {formatApy(apy)}. Это демонстрационный показатель, не предложение от биржи или банка.</p>
+              <MarketDataNote data={apyData} />
+            </div>
           )}
         </CollapsibleContent>
       </Card>

@@ -2,10 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { accrued, YIELD_STRATEGIES } from "@/lib/yields";
-import { DEMO_KZT_RATE } from "@/lib/constants";
+import { getStrategyApy, type MarketData } from "@/lib/market-data";
+import { useMarketData } from "@/lib/useMarketData";
 import { useDevnet } from "@/lib/useDevnet";
 
-export { DEMO_KZT_RATE };
 export type ActivityType = "topup" | "invest" | "withdraw" | "buy";
 export type YieldPosition = { principal: number; since: number; earnedCarryUsd?: number };
 export type Holding = { units: number; costUsd: number; signature?: string };
@@ -28,9 +28,11 @@ type PersistedState = {
   holdings: Record<string, Holding>;
   activity: ActivityItem[];
   displayCurrency: "USD" | "KZT";
+  acceleratedAccrual: boolean;
 };
 
 type AppStore = PersistedState & {
+  marketData: MarketData;
   hydrated: boolean;
   topUp: (amount: number, method: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => void;
   invest: (strategyId: string, amount: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => boolean;
@@ -46,6 +48,7 @@ type AppStore = PersistedState & {
     onchain?: boolean;
   }) => boolean;
   setDisplayCurrency: (currency: "USD" | "KZT") => void;
+  setAcceleratedAccrual: (enabled: boolean) => void;
   resetDemo: () => void;
 };
 
@@ -59,6 +62,7 @@ const initialState: PersistedState = {
   holdings: {},
   activity: [],
   displayCurrency: "USD",
+  acceleratedAccrual: false,
 };
 
 const AppStoreContext = createContext<AppStore | null>(null);
@@ -119,6 +123,7 @@ function migrateKeyedAssetRecords(value: unknown): unknown {
 }
 
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
+  const marketData = useMarketData();
   const [state, setState] = useState<PersistedState>(initialState);
   const [hydrated, setHydrated] = useState(false);
 
@@ -142,6 +147,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
               : {},
             activity: Array.isArray(activity) ? activity as ActivityItem[] : [],
             displayCurrency: saved.displayCurrency === "KZT" ? "KZT" : "USD",
+            acceleratedAccrual: saved.acceleratedAccrual === true,
           });
         }
       } catch {
@@ -186,17 +192,18 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       const key = extra?.onchain ? `devnet:${strategyId}` : strategyId;
       const existing = current.positions[key];
       const strategy = YIELD_STRATEGIES.find((item) => item.id === strategyId);
+      const apy = getStrategyApy(strategyId, marketData.yields);
       const previousEarned = existing && strategy
-        ? (existing.earnedCarryUsd ?? 0) + accrued(existing.principal, existing.since, strategy.demoApy, Date.now())
+        ? (existing.earnedCarryUsd ?? 0) + accrued(existing.principal, existing.since, apy, Date.now(), current.acceleratedAccrual)
         : 0;
       const rolledForward = existing && strategy
-        ? existing.principal + accrued(existing.principal, existing.since, strategy.demoApy, Date.now()) + (existing.earnedCarryUsd ?? 0)
+        ? existing.principal + accrued(existing.principal, existing.since, apy, Date.now(), current.acceleratedAccrual) + (existing.earnedCarryUsd ?? 0)
         : (existing?.principal ?? 0);
       const realizedEarningsUsd = extra?.onchain
         ? current.realizedEarningsUsd
         : current.realizedEarningsUsd + (
           existing && strategy
-            ? accrued(existing.principal, existing.since, strategy.demoApy, Date.now()) + (existing.earnedCarryUsd ?? 0)
+            ? accrued(existing.principal, existing.since, apy, Date.now(), current.acceleratedAccrual) + (existing.earnedCarryUsd ?? 0)
             : 0
         );
       const position: YieldPosition = extra?.onchain
@@ -218,15 +225,16 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       };
     });
     return true;
-  }, [state.cashUsd]);
+  }, [state.cashUsd, marketData.yields]);
 
   const withdraw = useCallback((strategyId: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => {
     const key = extra?.onchain ? `devnet:${strategyId}` : strategyId;
     const position = state.positions[key];
     if (!position) return 0;
     const strategy = YIELD_STRATEGIES.find((item) => item.id === strategyId);
+    const apy = getStrategyApy(strategyId, marketData.yields);
     const gain = strategy
-      ? (position.earnedCarryUsd ?? 0) + accrued(position.principal, position.since, strategy.demoApy, Date.now())
+      ? (position.earnedCarryUsd ?? 0) + accrued(position.principal, position.since, apy, Date.now(), state.acceleratedAccrual)
       : (position.earnedCarryUsd ?? 0);
     const payout = Math.round((position.principal + gain) * 100) / 100;
     setState((current) => {
@@ -248,7 +256,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       };
     });
     return payout;
-  }, [state.positions]);
+  }, [marketData.yields, state.acceleratedAccrual, state.positions]);
 
   const buy = useCallback((assetId: string, amountUsd: number, extra?: {
     units?: number;
@@ -336,11 +344,41 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     setState((current) => ({ ...current, displayCurrency }));
   }, []);
 
+  const setAcceleratedAccrual = useCallback((acceleratedAccrual: boolean) => {
+    setState((current) => {
+      if (current.acceleratedAccrual === acceleratedAccrual) return current;
+      const now = Date.now();
+      const positions = Object.fromEntries(Object.entries(current.positions).map(([key, position]) => {
+        const strategyId = key.startsWith("devnet:") ? key.slice("devnet:".length) : key;
+        const earned = accrued(
+          position.principal,
+          position.since,
+          getStrategyApy(strategyId, marketData.yields),
+          now,
+          current.acceleratedAccrual,
+        ) + (position.earnedCarryUsd ?? 0);
+        return [key, { principal: position.principal, since: now, earnedCarryUsd: earned }];
+      }));
+      return { ...current, acceleratedAccrual, positions };
+    });
+  }, [marketData.yields]);
+
   const resetDemo = useCallback(() => setState(initialState), []);
 
   const value = useMemo<AppStore>(() => ({
-    ...state, hydrated, topUp, invest, withdraw, buy, recordCardWithdrawal, recordWalletSend, setDisplayCurrency, resetDemo,
-  }), [state, hydrated, topUp, invest, withdraw, buy, recordCardWithdrawal, recordWalletSend, setDisplayCurrency, resetDemo]);
+    ...state,
+    marketData,
+    hydrated,
+    topUp,
+    invest,
+    withdraw,
+    buy,
+    recordCardWithdrawal,
+    recordWalletSend,
+    setDisplayCurrency,
+    setAcceleratedAccrual,
+    resetDemo,
+  }), [state, marketData, hydrated, topUp, invest, withdraw, buy, recordCardWithdrawal, recordWalletSend, setDisplayCurrency, setAcceleratedAccrual, resetDemo]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }

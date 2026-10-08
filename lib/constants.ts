@@ -1,1 +1,1 @@
-export const DEMO_KZT_RATE = 480;
+export const FALLBACK_KZT_RATE = 480;

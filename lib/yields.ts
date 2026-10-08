@@ -6,8 +6,7 @@ export type YieldStrategy = {
   /** "live" = a real token that exists on Solana; "demo" = a clearly labelled stand-in that does not exist. */
   kind: "live" | "demo";
   description: string;
-  apyLabel: string;
-  /** Used only to animate demo accrual. */
+  /** Static fallback APY used only when the live source is unavailable. */
   demoApy: number;
   riskLabel: string;
   eligibilityLabel: string;
@@ -33,7 +32,6 @@ export const ONDO_USDY: YieldStrategy = {
   kind: "live",
   description:
     "Токен, обеспеченный краткосрочными гособлигациями США и банковскими депозитами (по описанию Ondo). Доход начисляется через рост цены токена.",
-  apyLabel: "~3,75% годовых (ondo.finance, 2 окт 2026)",
   demoApy: 0.0375,
   riskLabel: "Эмитент Ondo, ставка ФРС, ликвидность токена на Solana пока низкая",
   eligibilityLabel: "Не для резидентов США; Казахстан не в списке ограничений Ondo. Для выпуска токена нужен KYC у Ondo",
@@ -56,7 +54,6 @@ export const KZ_BOND_DEMO: YieldStrategy = {
   kind: "demo",
   description:
     "Показывает, как будет выглядеть вклад в токенизированные гособлигации Казахстана, когда такой токен появится у лицензированного эмитента.",
-  apyLabel: "ориентир ~14,6% (индекс гособлигаций KASE, 6 окт 2026)",
   demoApy: 0.146,
   riskLabel: "Курс тенге к доллару: высокая ставка частично съедается девальвацией",
   eligibilityLabel: "Токена пока нет — только демонстрация",
@@ -67,12 +64,22 @@ export const KZ_BOND_DEMO: YieldStrategy = {
 
 export const YIELD_STRATEGIES: YieldStrategy[] = [ONDO_USDY, KZ_BOND_DEMO];
 
-// Demo clock: one real second counts as one day, so accrual is visible during a pitch.
-export const DEMO_DAY_MS = 1000;
+export const REAL_DAY_MS = 86_400_000;
+export const ACCELERATED_DAY_MS = 1_000;
 
-export function accrued(principal: number, since: number, apy: number, now: number) {
+export function dayDurationMs(accelerated: boolean) {
+  return accelerated ? ACCELERATED_DAY_MS : REAL_DAY_MS;
+}
+
+export function accrued(
+  principal: number,
+  since: number,
+  apy: number,
+  now: number,
+  accelerated = false,
+) {
   if (![principal, since, apy, now].every(Number.isFinite)) return 0;
-  const days = Math.max(0, (now - since) / DEMO_DAY_MS);
+  const days = Math.max(0, (now - since) / dayDurationMs(accelerated));
   return Math.max(0, principal * apy * (days / 365));
 }
 
@@ -80,7 +87,8 @@ export function accruedPosition(
   position: { principal: number; since: number; earnedCarryUsd?: number },
   apy: number,
   now: number,
+  accelerated = false,
 ) {
   return Math.max(0, position.earnedCarryUsd ?? 0)
-    + accrued(position.principal, position.since, apy, now);
+    + accrued(position.principal, position.since, apy, now, accelerated);
 }

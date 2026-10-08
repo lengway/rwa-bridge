@@ -14,6 +14,7 @@ import { formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
 import type { BridgeAsset } from "@/lib/assets";
+import { KztEstimate } from "@/components/app/kzt-estimate";
 
 type BuyAssetDrawerProps = {
   open: boolean;
@@ -181,9 +182,7 @@ function BuyAssetDrawerContents({
             <p className="text-xs text-muted-foreground">
               1 {asset.ticker} = $1 доли · {units > 0 ? units.toLocaleString("ru-RU") : "0"} долей
             </p>
-            <p className="text-xs text-muted-foreground">
-              ≈ {formatMoney(Number(amount) || 0, "KZT")} по демо-курсу 480 ₸ за $1.
-            </p>
+            <KztEstimate usd={Number(amount) || 0} />
           </div>
 
           <Card className="gap-2 p-4">

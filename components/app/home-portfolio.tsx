@@ -3,9 +3,11 @@ import { ArrowDownToLine, BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DEMO_ASSETS } from "@/lib/assets";
-import { formatApy, formatMoney } from "@/lib/format";
-import type { Holding, YieldPosition } from "@/lib/store";
+import { formatApy, formatEarningsMoney, formatMoney } from "@/lib/format";
+import { useAppStore, type Holding, type YieldPosition } from "@/lib/store";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
+import { getStrategyApy } from "@/lib/market-data";
+import { MarketDataNote } from "@/components/app/market-data-note";
 
 type PositionItem = {
   strategy: YieldStrategy;
@@ -25,6 +27,7 @@ export function PositionSection({
   positions: PositionItem[];
   currency: "USD" | "KZT";
 }) {
+  const { acceleratedAccrual } = useAppStore();
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -32,32 +35,45 @@ export function PositionSection({
         <Link href="/earn" className="text-sm text-muted-foreground hover:text-foreground">Все</Link>
       </div>
       <div className="space-y-2">
-        {positions.map(({ strategy, position, earned }) => (
-          <Link key={strategy.id} href={`/earn/${strategy.id}`} className="block">
-            <Card className="flex-row items-center gap-3 rounded-2xl p-4 transition-colors hover:bg-muted/40">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                <BadgeCheck className="size-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{strategy.name}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  Вложено {formatMoney(position.principal, currency)} · {formatApy(strategy.demoApy)}
-                </span>
-              </span>
-              <span className="text-right">
-                <span className="block font-medium tabular-nums">
-                  {formatMoney(position.principal + earned, currency)}
-                </span>
-                <span className="mt-1 block text-xs tabular-nums text-emerald-600 dark:text-emerald-400">
-                  +{formatMoney(earned, currency)}
-                </span>
-              </span>
-            </Card>
-          </Link>
-        ))}
+        {positions.map((item) => <PositionCard key={item.strategy.id} item={item} currency={currency} />)}
       </div>
-      <p className="text-xs text-muted-foreground">Демо-начисления ускорены: 1 секунда = 1 день.</p>
+      <p className="text-xs text-muted-foreground">
+        {acceleratedAccrual ? "Ускоренный режим начислений: 1 секунда = 1 день." : "Начисления идут в реальном времени."}
+      </p>
     </section>
+  );
+}
+
+function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" | "KZT" }) {
+  const { acceleratedAccrual, marketData } = useAppStore();
+  const { strategy, position, earned } = item;
+  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
+  return (
+    <Card className="gap-0 rounded-2xl p-0 transition-colors hover:bg-muted/40">
+      <Link href={`/earn/${strategy.id}`} className="flex items-center gap-3 p-4">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+          <BadgeCheck className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{strategy.name}</span>
+          <span className="mt-1 block text-xs text-muted-foreground">
+            Вложено {formatMoney(position.principal, currency)} · {formatApy(getStrategyApy(strategy.id, marketData.yields))}
+          </span>
+        </span>
+        <span className="text-right">
+          <span className="block font-medium tabular-nums">
+            {formatMoney(position.principal + earned, currency)}
+          </span>
+          <span className="mt-1 block text-xs tabular-nums text-emerald-600 dark:text-emerald-400">
+            +{formatEarningsMoney(earned, currency)}
+            {acceleratedAccrual ? <span className="ml-1 rounded-full border px-1.5 py-0.5">Ускоренный режим</span> : null}
+          </span>
+        </span>
+      </Link>
+      <div className="px-4 pb-3">
+        <MarketDataNote data={apyData} plain />
+      </div>
+    </Card>
   );
 }
 
@@ -95,12 +111,15 @@ export function HoldingsSection({
 
 export function PromoCard() {
   const strategy = YIELD_STRATEGIES[0];
+  const { marketData } = useAppStore();
+  const apy = getStrategyApy(strategy.id, marketData.yields);
+  const apyData = marketData.yields.usdy;
   return (
-    <Link href={`/earn/${strategy.id}`} className="block">
-      <Card className="gap-3 rounded-2xl border-emerald-600/20 bg-emerald-500/5 p-5">
+    <Card className="gap-3 rounded-2xl border-emerald-600/20 bg-emerald-500/5 p-5">
+      <Link href={`/earn/${strategy.id}`} className="block space-y-3">
         <div className="flex items-center justify-between">
           <Badge variant="secondary" className="text-emerald-700 dark:text-emerald-300">
-            {formatApy(strategy.demoApy)} годовых
+            {formatApy(apy)} годовых
           </Badge>
           <ArrowDownToLine className="size-4 text-emerald-700 dark:text-emerald-300" />
         </div>
@@ -110,10 +129,11 @@ export function PromoCard() {
             Посмотрите, как цифровые доллары (USDC) могут получать доход.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {strategy.apyLabel}. Не банковский вклад, доход не гарантирован.
-        </p>
-      </Card>
-    </Link>
+      </Link>
+      <div className="space-y-1 text-xs text-muted-foreground">
+        <p>Не банковский вклад, доход не гарантирован.</p>
+        <MarketDataNote data={apyData} plain />
+      </div>
+    </Card>
   );
 }
