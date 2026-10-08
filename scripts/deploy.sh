@@ -26,7 +26,7 @@ cd "$RELEASE"
 ln -sf /home/plain/shared/.env.local .env.local
 grep -q '^DEMO_LEDGER_PATH=' /home/plain/shared/.env.local || echo 'DEMO_LEDGER_PATH=/home/plain/shared/.demo-ledger.json' >> /home/plain/shared/.env.local
 chown -R plain:plain "$RELEASE" /home/plain/shared
-sudo -u plain -H bash -c 'npm ci --no-audit --no-fund --loglevel=error && NEXT_TELEMETRY_DISABLED=1 npm run build'
+sudo -u plain -H bash -c 'npx -y npm@11 ci --no-audit --no-fund --loglevel=error && NEXT_TELEMETRY_DISABLED=1 npm run build'
 ln -sfn "$RELEASE" /home/plain/app.next && mv -T /home/plain/app.next /home/plain/app
 systemctl enable --now plain-web >/dev/null 2>&1 || true
 systemctl restart plain-web
