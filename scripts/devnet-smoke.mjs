@@ -31,7 +31,7 @@ async function post(path, body) {
 }
 
 const status = await request("/api/devnet/status");
-if (!status.configured || !status.usdMint || !status.treasury || !status.assetMint) {
+if (!status.configured || !status.usdMint || !status.treasury || !status.treasuryOwner || !status.assetMint) {
   throw new Error("The app has not been configured for Solana devnet.");
 }
 
@@ -69,11 +69,36 @@ const investment = await post("/api/devnet/invest", {
   amountUsd: 40,
   signature: investPayment,
 });
+if (!status.vaultUsdyMint || !investment.sharesMinted) {
+  throw new Error("The USDY vault share mint is not configured or no shares were issued.");
+}
+const vaultMint = new PublicKey(status.vaultUsdyMint);
+const treasuryVaultAta = await getAssociatedTokenAddress(vaultMint, new PublicKey(status.treasuryOwner), true);
+const userVaultAta = await getAssociatedTokenAddress(vaultMint, user.publicKey, true);
+let shareBalance = 0;
+for (let attempt = 0; attempt < 30; attempt += 1) {
+  try {
+    shareBalance = Number((await connection.getTokenAccountBalance(userVaultAta, "confirmed")).value.uiAmount ?? 0);
+  } catch {
+    shareBalance = 0;
+  }
+  if (shareBalance >= investment.sharesMinted) break;
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+}
+if (shareBalance < investment.sharesMinted) throw new Error("Vault share balance did not appear within 60 seconds.");
+const sharesToRedeem = investment.sharesMinted;
+const redemptionTransfer = new Transaction().add(createTransferInstruction(
+  userVaultAta,
+  treasuryVaultAta,
+  user.publicKey,
+  BigInt(Math.round(sharesToRedeem * 1_000_000)),
+));
+const redemptionSignature = await sendAndConfirmTransaction(connection, redemptionTransfer, [user], { commitment: "confirmed" });
 const withdrawal = await post("/api/devnet/withdraw", {
   walletAddress: user.publicKey.toBase58(),
   productId: "ondo-usdy",
-  principalUsd: 40,
-  earnedUsd: 1,
+  signature: redemptionSignature,
+  shares: sharesToRedeem,
 });
 
 const buyPayment = await sendToTreasury(10);
@@ -89,10 +114,14 @@ console.log(JSON.stringify({
   wallet: user.publicKey.toBase58(),
   usd: balance.usd,
   assetUnits: balance.assetUnits,
+  sharesMinted: investment.sharesMinted,
+  sharesRedeemed: withdrawal.sharesRedeemed,
+  amountReturnedUsd: withdrawal.amountUsd,
   explorerUrls: {
     faucet: faucet.explorerUrl,
     invest: investment.explorerUrl,
     withdraw: withdrawal.explorerUrl,
+    redeemShares: `https://explorer.solana.com/tx/${redemptionSignature}?cluster=devnet`,
     buyPayment: `https://explorer.solana.com/tx/${buyPayment}?cluster=devnet`,
     buyAssetMint: purchase.explorerUrl,
   },

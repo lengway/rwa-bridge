@@ -135,16 +135,8 @@ function BuyAssetDrawerContents({
           throw new Error("Оплата прошла, но доля не выдана. Мы повторим автоматически.", { cause: lastRequestError });
         }
         const purchasedUnits = typeof data.units === "number" ? data.units : units;
-        const purchased = buy(asset.id, amountValue, {
-          units: purchasedUnits,
-          title: asset.name,
-          signature: data.signature,
-          explorerUrl: data.explorerUrl,
-          onchain: true,
-        });
-        if (!purchased) throw new Error("Не удалось обновить историю покупки.");
         setResult({ amount: amountValue, units: purchasedUnits, explorerUrl: data.explorerUrl });
-        void devnet.refresh();
+        void devnet.refreshPortfolio();
         toast.success("Покупка завершена");
       } catch (requestError) {
         const message = requestError instanceof Error ? requestError.message : "";

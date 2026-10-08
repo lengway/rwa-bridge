@@ -48,10 +48,28 @@ const assetMint = getEnvValue(envContents, "DEMO_TOKEN_MINT")
   || (await createMint(connection, authority, authority.publicKey, null, 6)).toBase58();
 const usdMint = getEnvValue(envContents, "DEMO_USD_MINT")
   || (await createMint(connection, authority, authority.publicKey, null, 6)).toBase58();
+const vaultUsdyMint = getEnvValue(envContents, "DEMO_VAULT_USDY_MINT")
+  || (await createMint(connection, authority, authority.publicKey, null, 6)).toBase58();
+const vaultKzgbMint = getEnvValue(envContents, "DEMO_VAULT_KZGB_MINT")
+  || (await createMint(connection, authority, authority.publicKey, null, 6)).toBase58();
 const treasury = await getOrCreateAssociatedTokenAccount(
   connection,
   authority,
   new PublicKey(usdMint),
+  authority.publicKey,
+  true,
+);
+const vaultUsdyTreasury = await getOrCreateAssociatedTokenAccount(
+  connection,
+  authority,
+  new PublicKey(vaultUsdyMint),
+  authority.publicKey,
+  true,
+);
+const vaultKzgbTreasury = await getOrCreateAssociatedTokenAccount(
+  connection,
+  authority,
+  new PublicKey(vaultKzgbMint),
   authority.publicKey,
   true,
 );
@@ -66,9 +84,15 @@ function setEnvValue(contents, name, value) {
 
 envContents = setEnvValue(envContents, "DEMO_TOKEN_MINT", assetMint);
 envContents = setEnvValue(envContents, "DEMO_USD_MINT", usdMint);
+envContents = setEnvValue(envContents, "DEMO_VAULT_USDY_MINT", vaultUsdyMint);
+envContents = setEnvValue(envContents, "DEMO_VAULT_KZGB_MINT", vaultKzgbMint);
 envContents = setEnvValue(envContents, "DEMO_TOKEN_AUTHORITY_SECRET", JSON.stringify(Array.from(authority.secretKey)));
 writeFileSync(ENV_FILE, envContents);
 
 console.log(`OFFICE-DEMO mint: ${assetMint}`);
 console.log(`Тестовый доллар mint: ${usdMint}`);
+console.log(`vUSDY-DEMO mint: ${vaultUsdyMint}`);
+console.log(`vKZGB-DEMO mint: ${vaultKzgbMint}`);
 console.log(`Treasury ATA: ${treasury.address.toBase58()}`);
+console.log(`vUSDY-DEMO treasury ATA: ${vaultUsdyTreasury.address.toBase58()}`);
+console.log(`vKZGB-DEMO treasury ATA: ${vaultKzgbTreasury.address.toBase58()}`);

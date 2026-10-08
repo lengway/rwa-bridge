@@ -8,15 +8,35 @@ export type LedgerDeposit = {
   amountUsd: number;
   signature: string;
   at: number;
+  shares?: number;
+  priceUsd?: number;
+  mintSignature?: string;
 };
 
 export type LedgerWithdrawal = {
   productId: string;
-  principalUsd: number;
-  earnedUsd: number;
   signature: string;
   at: number;
+  shares?: number;
+  amountUsd?: number;
+  priceUsd?: number;
+  payoutSignature?: string;
+  burnSignature?: string;
+  // Kept for migration from the original principal based ledger.
+  principalUsd?: number;
+  earnedUsd?: number;
 };
+
+export type LedgerMigration = {
+  productId: string;
+  principalUsd: number;
+  shares: number;
+  priceUsd: number;
+  mintSignature: string;
+  at: number;
+};
+
+export type VaultCheckpoint = { price: number; at: number; apy: number };
 
 export type LedgerPurchase = {
   assetId: string;
@@ -31,9 +51,13 @@ export type WalletLedger = {
   deposits: LedgerDeposit[];
   withdrawals: LedgerWithdrawal[];
   purchases: LedgerPurchase[];
+  migrations: LedgerMigration[];
 };
 
-type Ledger = { wallets: Record<string, WalletLedger> };
+type Ledger = {
+  wallets: Record<string, WalletLedger>;
+  vaultCheckpoints: Record<string, VaultCheckpoint>;
+};
 
 const LEDGER_PATH = path.join(process.cwd(), ".demo-ledger.json");
 let mutex: Promise<void> = Promise.resolve();
@@ -66,25 +90,30 @@ async function exclusive<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 function emptyWallet(): WalletLedger {
-  return { deposits: [], withdrawals: [], purchases: [] };
+  return { deposits: [], withdrawals: [], purchases: [], migrations: [] };
 }
 
 async function readLedgerFile(): Promise<Ledger> {
   try {
     const parsed = JSON.parse(await readFile(LEDGER_PATH, "utf8")) as Partial<Ledger>;
     const wallets = parsed.wallets && typeof parsed.wallets === "object" ? parsed.wallets : {};
+    const vaultCheckpoints = parsed.vaultCheckpoints && typeof parsed.vaultCheckpoints === "object"
+      ? parsed.vaultCheckpoints
+      : {};
     return {
+      vaultCheckpoints,
       wallets: Object.fromEntries(Object.entries(wallets).map(([wallet, value]) => {
         const record = value as Partial<WalletLedger>;
         return [wallet, {
           deposits: Array.isArray(record.deposits) ? record.deposits : [],
           withdrawals: Array.isArray(record.withdrawals) ? record.withdrawals : [],
           purchases: Array.isArray(record.purchases) ? record.purchases : [],
+          migrations: Array.isArray(record.migrations) ? record.migrations : [],
         } satisfies WalletLedger];
       })),
     };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { wallets: {} };
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { wallets: {}, vaultCheckpoints: {} };
     throw error;
   }
 }
@@ -108,8 +137,9 @@ function walletOf(ledger: Ledger, walletAddress: string) {
 
 function signatureIsUsed(ledger: Ledger, signature: string) {
   return Object.values(ledger.wallets).some((wallet) =>
-    wallet.deposits.some((item) => item.signature === signature)
-      || wallet.withdrawals.some((item) => item.signature === signature)
+    wallet.deposits.some((item) => item.signature === signature || item.mintSignature === signature)
+      || wallet.withdrawals.some((item) => item.signature === signature || item.payoutSignature === signature || item.burnSignature === signature)
+      || wallet.migrations.some((item) => item.mintSignature === signature)
       || wallet.purchases.some((item) => item.paymentSignature === signature || item.mintSignature === signature),
   );
 }
@@ -122,28 +152,54 @@ export function hasLedgerSignature(signature: string) {
   return exclusive(async () => signatureIsUsed(await readLedgerFile(), signature));
 }
 
+export function findLedgerDeposit(walletAddress: string, signature: string) {
+  return exclusive(async () => walletOf(await readLedgerFile(), walletAddress).deposits
+    .find((deposit) => deposit.signature === signature) ?? null);
+}
+
+export function findLedgerWithdrawal(walletAddress: string, signature: string) {
+  return exclusive(async () => walletOf(await readLedgerFile(), walletAddress).withdrawals
+    .find((withdrawal) => withdrawal.signature === signature) ?? null);
+}
+
 export function findLedgerPurchase(walletAddress: string, paymentSignature: string) {
   return exclusive(async () => walletOf(await readLedgerFile(), walletAddress).purchases
     .find((purchase) => purchase.paymentSignature === paymentSignature) ?? null);
 }
 
-export function getAvailablePrincipal(walletAddress: string, productId: string) {
+export function getVaultCheckpoint(productId: string) {
+  return exclusive(async () => (await readLedgerFile()).vaultCheckpoints[productId] ?? null);
+}
+
+export async function setVaultCheckpoint(productId: string, checkpoint: VaultCheckpoint) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    ledger.vaultCheckpoints[productId] = checkpoint;
+    await writeLedgerFile(ledger);
+    return checkpoint;
+  });
+}
+
+export function getUnmigratedPrincipal(walletAddress: string, productId: string) {
   return exclusive(async () => {
     const wallet = walletOf(await readLedgerFile(), walletAddress);
-    const deposited = wallet.deposits
-      .filter((item) => item.productId === productId)
+    if (wallet.migrations.some((item) => item.productId === productId)) return 0;
+    const legacyDeposits = wallet.deposits
+      .filter((item) => item.productId === productId && !item.mintSignature)
       .reduce((total, item) => total + item.amountUsd, 0);
-    const withdrawn = wallet.withdrawals
-      .filter((item) => item.productId === productId)
-      .reduce((total, item) => total + item.principalUsd, 0);
-    return Math.max(0, deposited - withdrawn);
+    const legacyWithdrawals = wallet.withdrawals
+      .filter((item) => item.productId === productId && !item.payoutSignature)
+      .reduce((total, item) => total + (item.principalUsd ?? 0), 0);
+    return Math.max(0, legacyDeposits - legacyWithdrawals);
   });
 }
 
 export async function appendDeposit(walletAddress: string, deposit: LedgerDeposit) {
   return exclusive(async () => {
     const ledger = await readLedgerFile();
-    if (signatureIsUsed(ledger, deposit.signature)) throw new Error("Эта транзакция уже была использована.");
+    if (signatureIsUsed(ledger, deposit.signature) || (deposit.mintSignature && signatureIsUsed(ledger, deposit.mintSignature))) {
+      throw new Error("Эта транзакция уже была использована.");
+    }
     const wallet = walletOf(ledger, walletAddress);
     wallet.deposits.push(deposit);
     ledger.wallets[walletAddress] = wallet;
@@ -156,18 +212,40 @@ export async function appendWithdrawal(walletAddress: string, withdrawal: Ledger
     const ledger = await readLedgerFile();
     if (signatureIsUsed(ledger, withdrawal.signature)) throw new Error("Эта транзакция уже была использована.");
     const wallet = walletOf(ledger, walletAddress);
-    const deposited = wallet.deposits
-      .filter((item) => item.productId === withdrawal.productId)
-      .reduce((total, item) => total + item.amountUsd, 0);
-    const withdrawn = wallet.withdrawals
-      .filter((item) => item.productId === withdrawal.productId)
-      .reduce((total, item) => total + item.principalUsd, 0);
-    if (withdrawal.principalUsd > deposited - withdrawn + 0.000001) {
-      throw new Error("Сумма основного вклада превышает подтверждённые пополнения.");
-    }
     wallet.withdrawals.push(withdrawal);
     ledger.wallets[walletAddress] = wallet;
     await writeLedgerFile(ledger);
+  });
+}
+
+export async function updateWithdrawal(
+  walletAddress: string,
+  signature: string,
+  update: Partial<LedgerWithdrawal>,
+) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const wallet = walletOf(ledger, walletAddress);
+    const withdrawal = wallet.withdrawals.find((item) => item.signature === signature);
+    if (!withdrawal) throw new Error("Операция вывода не найдена.");
+    Object.assign(withdrawal, update);
+    ledger.wallets[walletAddress] = wallet;
+    await writeLedgerFile(ledger);
+    return withdrawal;
+  });
+}
+
+export async function appendMigration(walletAddress: string, migration: LedgerMigration) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const wallet = walletOf(ledger, walletAddress);
+    const existing = wallet.migrations.find((item) => item.productId === migration.productId);
+    if (existing) return existing;
+    if (signatureIsUsed(ledger, migration.mintSignature)) throw new Error("Эта транзакция уже была использована.");
+    wallet.migrations.push(migration);
+    ledger.wallets[walletAddress] = wallet;
+    await writeLedgerFile(ledger);
+    return migration;
   });
 }
 

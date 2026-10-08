@@ -7,7 +7,14 @@ import { useMarketData } from "@/lib/useMarketData";
 import { useDevnet } from "@/lib/useDevnet";
 
 export type ActivityType = "topup" | "invest" | "withdraw" | "buy";
-export type YieldPosition = { principal: number; since: number; earnedCarryUsd?: number };
+export type YieldPosition = {
+  principal: number;
+  since: number;
+  earnedCarryUsd?: number;
+  shares?: number;
+  priceUsd?: number;
+  valueUsd?: number;
+};
 export type Holding = { units: number; costUsd: number; signature?: string };
 export type ActivityItem = {
   id: string;
@@ -124,6 +131,7 @@ function migrateKeyedAssetRecords(value: unknown): unknown {
 
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const marketData = useMarketData();
+  const devnet = useDevnet();
   const [state, setState] = useState<PersistedState>(initialState);
   const [hydrated, setHydrated] = useState(false);
 
@@ -160,15 +168,16 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || devnet.mode !== "demo") return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       // Keep the in-memory demo usable when browser storage is unavailable.
     }
-  }, [hydrated, state]);
+  }, [devnet.mode, hydrated, state]);
 
   const topUp = useCallback((amount: number, method: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => {
+    if (devnet.mode === "devnet" || extra?.onchain) return;
     if (!Number.isFinite(amount) || amount <= 0) return;
     setState((current) => ({
       ...current,
@@ -182,9 +191,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         ...(extra?.explorerUrl ? { explorerUrl: extra.explorerUrl } : {}),
       }), ...current.activity],
     }));
-  }, []);
+  }, [devnet.mode]);
 
   const invest = useCallback((strategyId: string, amount: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => {
+    if (devnet.mode === "devnet") return false;
     if (!Number.isFinite(amount) || amount <= 0) return false;
     if (!extra?.onchain && state.cashUsd < amount) return false;
     setState((current) => {
@@ -225,9 +235,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       };
     });
     return true;
-  }, [state.cashUsd, marketData.yields]);
+  }, [devnet.mode, state.cashUsd, marketData.yields]);
 
   const withdraw = useCallback((strategyId: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => {
+    if (devnet.mode === "devnet") return 0;
     const key = extra?.onchain ? `devnet:${strategyId}` : strategyId;
     const position = state.positions[key];
     if (!position) return 0;
@@ -256,7 +267,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       };
     });
     return payout;
-  }, [marketData.yields, state.acceleratedAccrual, state.positions]);
+  }, [devnet.mode, marketData.yields, state.acceleratedAccrual, state.positions]);
 
   const buy = useCallback((assetId: string, amountUsd: number, extra?: {
     units?: number;
@@ -266,6 +277,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     note?: string;
     onchain?: boolean;
   }) => {
+    if (devnet.mode === "devnet") return false;
     if (!Number.isFinite(amountUsd) || amountUsd <= 0) return false;
     if (!extra?.onchain && state.cashUsd < amountUsd) return false;
     setState((current) => {
@@ -297,9 +309,10 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       };
     });
     return true;
-  }, [state.cashUsd]);
+  }, [devnet.mode, state.cashUsd]);
 
   const recordWalletSend = useCallback((amount: number, signature: string, explorerUrl: string) => {
+    if (devnet.mode === "devnet") return;
     if (!Number.isFinite(amount) || amount <= 0) return;
     setState((current) => ({
       ...current,
@@ -311,7 +324,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         explorerUrl,
       }), ...current.activity],
     }));
-  }, []);
+  }, [devnet.mode]);
 
   const recordCardWithdrawal = useCallback((amount: number, extra: {
     onchain?: boolean;
@@ -319,6 +332,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     explorerUrl?: string;
     note: string;
   }) => {
+    if (devnet.mode === "devnet") return true;
     if (!Number.isFinite(amount) || amount <= 0) return false;
     if (!extra.onchain && state.cashUsd < amount) return false;
     setState((current) => {
@@ -338,7 +352,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       };
     });
     return true;
-  }, [state.cashUsd]);
+  }, [devnet.mode, state.cashUsd]);
 
   const setDisplayCurrency = useCallback((displayCurrency: "USD" | "KZT") => {
     setState((current) => ({ ...current, displayCurrency }));
@@ -392,29 +406,29 @@ export function useAppStore() {
       principal: position.principalUsd,
       since: position.since,
       earnedCarryUsd: position.earnedCarryUsd,
+      shares: position.shares,
+      priceUsd: position.priceUsd,
+      valueUsd: position.valueUsd,
     }]))
     : Object.fromEntries(Object.entries(context.positions)
       .filter(([key]) => !key.startsWith("devnet:")));
   const holdings = devnet.mode === "devnet"
-    ? Object.fromEntries((devnet.portfolio?.holdings ?? []).map((holding) => [holding.assetId, {
-      units: holding.units,
-      costUsd: holding.costUsd,
+    ? Object.fromEntries((devnet.portfolio?.holdings ?? []).filter((holding) => holding.kind === "asset").map((holding) => [holding.assetId ?? "demo-office", {
+      units: holding.balance,
+      costUsd: holding.valueUsd,
     }]))
     : context.holdings;
   const activity = devnet.mode === "devnet"
-    ? (() => {
-      const serverActivity = devnet.portfolio?.activity ?? [];
-      const signatures = new Set(serverActivity.map((item) => item.signature));
-      return [...serverActivity, ...context.activity.filter((item) => !item.signature || !signatures.has(item.signature))]
-        .sort((left, right) => right.at - left.at);
-    })()
+    ? (devnet.portfolio?.activity ?? [])
     : context.activity;
+  const realizedEarningsUsd = devnet.mode === "devnet" ? 0 : context.realizedEarningsUsd;
   return {
     ...context,
     positions,
     holdings,
     activity,
-    cashUsd: devnet.mode === "devnet" ? (devnet.onchain?.usd ?? 0) : context.cashUsd,
+    realizedEarningsUsd,
+    cashUsd: devnet.mode === "devnet" ? (devnet.portfolio?.cashUsd ?? 0) : context.cashUsd,
   };
 }
 

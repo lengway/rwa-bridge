@@ -9,8 +9,10 @@ import {
   safeError,
   unavailableResponse,
 } from "@/lib/devnet-route";
-import { appendDeposit, hasLedgerSignature } from "@/lib/devnet-ledger";
-import { explorerUrl, verifyIncomingPayment } from "@/lib/solana-server";
+import { appendDeposit, findLedgerDeposit, hasLedgerSignature, withLedgerKeyLock } from "@/lib/devnet-ledger";
+import { explorerUrl, mintVaultShares, verifyIncomingPayment } from "@/lib/solana-server";
+import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
+import { getVaultQuote } from "@/lib/vaults";
 
 export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
@@ -33,21 +35,58 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Не указана подпись перевода." }, { status: 400 });
   }
 
-  try {
-    if (await hasLedgerSignature(body.signature)) {
-      throw new Error("Эта транзакция уже была использована.");
+  const walletAddress = body.walletAddress;
+  const productId = body.productId;
+  const amountUsd = body.amountUsd;
+  const paymentSignature = body.signature;
+
+  return withLedgerKeyLock(`invest:${paymentSignature}`, async () => {
+    const existing = await findLedgerDeposit(walletAddress, paymentSignature);
+    if (existing?.mintSignature && existing.shares !== undefined && existing.priceUsd !== undefined) {
+      if (existing.productId !== productId || Math.abs(existing.amountUsd - amountUsd) > 0.000001) {
+        return NextResponse.json({ error: "Эта транзакция уже использовалась для другого вклада." }, { status: 409 });
+      }
+      return NextResponse.json({
+        ok: true,
+        sharesMinted: existing.shares,
+        priceUsd: existing.priceUsd,
+        mint: (await getVaultQuote(productId)).mint,
+        mintSignature: existing.mintSignature,
+        explorerUrl: explorerUrl(existing.mintSignature),
+      });
     }
-    await verifyIncomingPayment({ signature: body.signature, fromOwner: body.walletAddress, minAmountUi: body.amountUsd });
-    await appendDeposit(body.walletAddress, {
-      productId: body.productId,
-      amountUsd: body.amountUsd,
-      signature: body.signature,
-      at: Date.now(),
-    });
-    return NextResponse.json({ ok: true, explorerUrl: explorerUrl(body.signature) });
-  } catch (error) {
-    return NextResponse.json({
-      error: safeError(error, "Не удалось подтвердить перевод в Solana devnet."),
-    }, { status: 400 });
-  }
+
+    try {
+      if (await hasLedgerSignature(paymentSignature)) {
+        throw new Error("Эта транзакция уже была использована.");
+      }
+      await verifyIncomingPayment({ signature: paymentSignature, fromOwner: walletAddress, minAmountUi: amountUsd });
+      const quote = await getVaultQuote(productId);
+      const sharesMinted = Math.floor((amountUsd / quote.priceUsd) * 1_000_000) / 1_000_000;
+      if (sharesMinted <= 0) throw new Error("Сумма слишком мала для выпуска долей.");
+      const mintSignature = await mintVaultShares(walletAddress, productId, sharesMinted);
+      await appendDeposit(walletAddress, {
+        productId,
+        amountUsd,
+        signature: paymentSignature,
+        at: Date.now(),
+        shares: sharesMinted,
+        priceUsd: quote.priceUsd,
+        mintSignature,
+      });
+      invalidateDevnetPortfolio(walletAddress);
+      return NextResponse.json({
+        ok: true,
+        sharesMinted,
+        priceUsd: quote.priceUsd,
+        mint: quote.mint,
+        mintSignature,
+        explorerUrl: explorerUrl(mintSignature),
+      });
+    } catch (error) {
+      return NextResponse.json({
+        error: safeError(error, "Не удалось подтвердить перевод и выпустить доли в Solana devnet."),
+      }, { status: 400 });
+    }
+  });
 }

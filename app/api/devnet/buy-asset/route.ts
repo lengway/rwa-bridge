@@ -11,6 +11,7 @@ import {
 } from "@/lib/devnet-route";
 import { appendPurchase, findLedgerPurchase, hasLedgerSignature, withLedgerKeyLock } from "@/lib/devnet-ledger";
 import { explorerUrl, mintAsset, verifyIncomingPayment } from "@/lib/solana-server";
+import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 
 export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
         mintSignature: signature,
         at: Date.now(),
       });
+      invalidateDevnetPortfolio(walletAddress);
       return NextResponse.json({ signature: purchase.mintSignature, explorerUrl: explorerUrl(purchase.mintSignature), units: purchase.units });
     } catch (error) {
       return NextResponse.json({

@@ -14,8 +14,10 @@ import {
   getAccount,
   getAssociatedTokenAddress,
   getOrCreateAssociatedTokenAccount,
+  burn,
   mintTo,
   transfer,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 
 const TOKEN_DECIMALS = 6;
@@ -57,6 +59,8 @@ function readAuthority() {
 const authority = readAuthority();
 const usdMintAddress = process.env.DEMO_USD_MINT ?? "";
 const assetMintAddress = process.env.DEMO_TOKEN_MINT ?? "";
+const vaultUsdyMintAddress = process.env.DEMO_VAULT_USDY_MINT ?? "";
+const vaultKzgbMintAddress = process.env.DEMO_VAULT_KZGB_MINT ?? "";
 
 export const connection = new Connection(
   process.env.SOLANA_RPC_URL ?? clusterApiUrl("devnet"),
@@ -65,10 +69,12 @@ export const connection = new Connection(
 
 export const devnetConfig = {
   get configured() {
-    if (!authority || !usdMintAddress || !assetMintAddress) return false;
+    if (!authority || !usdMintAddress || !assetMintAddress || !vaultUsdyMintAddress || !vaultKzgbMintAddress) return false;
     try {
       new PublicKey(usdMintAddress);
       new PublicKey(assetMintAddress);
+      new PublicKey(vaultUsdyMintAddress);
+      new PublicKey(vaultKzgbMintAddress);
       return true;
     } catch {
       return false;
@@ -76,6 +82,8 @@ export const devnetConfig = {
   },
   usdMint: usdMintAddress,
   assetMint: assetMintAddress,
+  vaultUsdyMint: vaultUsdyMintAddress,
+  vaultKzgbMint: vaultKzgbMintAddress,
   authority,
   async treasury(): Promise<string | null> {
     if (!this.configured || !authority) return null;
@@ -93,6 +101,12 @@ function requiredConfig() {
     usdMint: new PublicKey(usdMintAddress),
     assetMint: new PublicKey(assetMintAddress),
   };
+}
+
+export function vaultMintAddress(productId: string) {
+  if (productId === "ondo-usdy" && vaultUsdyMintAddress) return new PublicKey(vaultUsdyMintAddress);
+  if (productId === "kz-bond-demo" && vaultKzgbMintAddress) return new PublicKey(vaultKzgbMintAddress);
+  throw new Error("Неизвестный продукт дохода.");
 }
 
 function toTokenAmount(amountUi: number) {
@@ -137,6 +151,53 @@ export async function mintAsset(ownerAddress: string, units: number) {
     tokenAccount.address,
     mintAuthority,
     toTokenAmount(units),
+  );
+}
+
+export async function mintVaultShares(ownerAddress: string, productId: string, shares: number) {
+  const { authority: mintAuthority } = requiredConfig();
+  const mint = vaultMintAddress(productId);
+  const owner = new PublicKey(ownerAddress);
+  const tokenAccount = await getOrCreateAssociatedTokenAccount(
+    connection,
+    mintAuthority,
+    mint,
+    owner,
+    true,
+  );
+  return mintTo(
+    connection,
+    mintAuthority,
+    mint,
+    tokenAccount.address,
+    mintAuthority,
+    toTokenAmount(shares),
+  );
+}
+
+export async function treasuryVaultTokenAccount(productId: string) {
+  const { authority: mintAuthority } = requiredConfig();
+  const mint = vaultMintAddress(productId);
+  return getOrCreateAssociatedTokenAccount(
+    connection,
+    mintAuthority,
+    mint,
+    mintAuthority.publicKey,
+    true,
+  );
+}
+
+export async function burnTreasuryVaultShares(productId: string, shares: number) {
+  const { authority: mintAuthority } = requiredConfig();
+  const mint = vaultMintAddress(productId);
+  const treasury = await treasuryVaultTokenAccount(productId);
+  return burn(
+    connection,
+    mintAuthority,
+    treasury.address,
+    mint,
+    mintAuthority,
+    toTokenAmount(shares),
   );
 }
 
@@ -212,18 +273,21 @@ export async function verifyIncomingPayment({
   signature,
   fromOwner,
   minAmountUi,
+  mintAddress,
 }: {
   signature: string;
   fromOwner: string;
   minAmountUi: number;
+  mintAddress?: string;
 }) {
   const { authority: mintAuthority, usdMint } = requiredConfig();
+  const mint = mintAddress ? new PublicKey(mintAddress) : usdMint;
   if (pendingSignatures.has(signature)) {
     throw new Error("Эта транзакция уже была использована.");
   }
   pendingSignatures.add(signature);
   try {
-    const treasuryAta = await getAssociatedTokenAddress(usdMint, mintAuthority.publicKey, true);
+    const treasuryAta = await getAssociatedTokenAddress(mint, mintAuthority.publicKey, true);
     const minimum = toTokenAmount(minAmountUi);
     let transaction = null;
     for (let attempt = 0; attempt < 9; attempt += 1) {
@@ -241,18 +305,21 @@ export async function verifyIncomingPayment({
     const treasuryIndex = accountKeys.findIndex((key) => key.pubkey.toBase58() === treasuryAta.toBase58());
     if (treasuryIndex < 0) throw new Error("В транзакции не найден перевод в казначейство.");
     const treasuryBefore = (transaction.meta?.preTokenBalances ?? [])
-      .filter((balance) => balance.accountIndex === treasuryIndex && balance.mint === usdMint.toBase58())
+      .filter((balance) => balance.accountIndex === treasuryIndex && balance.mint === mint.toBase58())
       .reduce((total, balance) => total + BigInt(balance.uiTokenAmount.amount), BigInt(0));
     const treasuryAfter = (transaction.meta?.postTokenBalances ?? [])
-      .filter((balance) => balance.accountIndex === treasuryIndex && balance.mint === usdMint.toBase58())
+      .filter((balance) => balance.accountIndex === treasuryIndex && balance.mint === mint.toBase58())
       .reduce((total, balance) => total + BigInt(balance.uiTokenAmount.amount), BigInt(0));
-    const userBefore = balanceForOwner(transaction.meta?.preTokenBalances, fromOwner, usdMint.toBase58());
-    const userAfter = balanceForOwner(transaction.meta?.postTokenBalances, fromOwner, usdMint.toBase58());
+    const userBefore = balanceForOwner(transaction.meta?.preTokenBalances, fromOwner, mint.toBase58());
+    const userAfter = balanceForOwner(transaction.meta?.postTokenBalances, fromOwner, mint.toBase58());
 
-    if (treasuryAfter - treasuryBefore < minimum || userBefore - userAfter < minimum) {
+    const treasuryIncrease = treasuryAfter - treasuryBefore;
+    const userDecrease = userBefore - userAfter;
+    if (treasuryIncrease < minimum || userDecrease < minimum) {
       throw new Error("В сети не найден перевод нужной суммы от вашего кошелька в казначейство.");
     }
-    return true;
+    const received = treasuryIncrease < userDecrease ? treasuryIncrease : userDecrease;
+    return Number(received) / TOKEN_SCALE;
   } finally {
     pendingSignatures.delete(signature);
   }
@@ -301,26 +368,157 @@ export async function getUnassignedIncomingPayments(ownerAddress: string) {
 }
 
 export async function getWalletTokenBalances(ownerAddress: string) {
-  const { usdMint, assetMint } = requiredConfig();
-  const owner = new PublicKey(ownerAddress);
-  const [usdAta, assetAta] = await Promise.all([
-    getAssociatedTokenAddress(usdMint, owner, true),
-    getAssociatedTokenAddress(assetMint, owner, true),
-  ]);
-  const [usd, assetUnits] = await Promise.all([
-    readTokenAccountBalance(usdAta),
-    readTokenAccountBalance(assetAta),
-  ]);
-  return { usd, assetUnits };
+  const accounts = await getWalletTokenAccounts(ownerAddress);
+  const usdMint = usdMintAddress;
+  const assetMint = assetMintAddress;
+  return {
+    usd: accounts.find((item) => item.mint === usdMint)?.balance ?? 0,
+    assetUnits: accounts.find((item) => item.mint === assetMint)?.balance ?? 0,
+  };
 }
 
-async function readTokenAccountBalance(address: PublicKey) {
-  const account = await connection.getAccountInfo(address, "confirmed");
-  if (!account) return 0;
-  const balance = await connection.getTokenAccountBalance(address, "confirmed");
-  return Number(balance.value.uiAmount ?? 0);
+export type WalletTokenAccount = {
+  tokenAccount: string;
+  mint: string;
+  owner: string;
+  balance: number;
+};
+
+export async function getWalletTokenAccounts(ownerAddress: string): Promise<WalletTokenAccount[]> {
+  const owner = new PublicKey(ownerAddress);
+  const result = await connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_PROGRAM_ID }, "confirmed");
+  return result.value.flatMap(({ pubkey, account }) => {
+    if (account.data.program !== "spl-token") return [];
+    const info = account.data.parsed.info as {
+      mint?: unknown;
+      owner?: unknown;
+      tokenAmount?: { uiAmount?: unknown; uiAmountString?: unknown };
+    };
+    const mint = typeof info.mint === "string" ? info.mint : "";
+    const accountOwner = typeof info.owner === "string" ? info.owner : "";
+    const parsedBalance = typeof info.tokenAmount?.uiAmount === "number"
+      ? info.tokenAmount.uiAmount
+      : Number(info.tokenAmount?.uiAmountString ?? 0);
+    if (!mint || !Number.isFinite(parsedBalance)) return [];
+    return [{ tokenAccount: pubkey.toBase58(), mint, owner: accountOwner, balance: parsedBalance }];
+  });
+}
+
+export async function getWalletSolBalance(ownerAddress: string) {
+  return (await connection.getBalance(new PublicKey(ownerAddress), "confirmed")) / LAMPORTS_PER_SOL;
+}
+
+function formatTokenDelta(delta: number) {
+  const amount = Math.abs(delta).toLocaleString("ru-RU", { maximumFractionDigits: 6 });
+  return `${delta > 0 ? "+" : "−"}${amount}`;
+}
+
+export async function getWalletTransactionHistory(
+  ownerAddress: string,
+  tokenAccounts: WalletTokenAccount[],
+  assetLabels: Record<string, { ticker: string; name: string; kind: "cash" | "vault" | "asset"; priceUsd: number }>,
+) {
+  const walletAccounts = new Set(tokenAccounts.map((item) => item.tokenAccount));
+  const signatureGroups = await Promise.all(tokenAccounts.map(async ({ tokenAccount }) => {
+    try {
+      return await connection.getSignaturesForAddress(new PublicKey(tokenAccount), { limit: 50 }, "confirmed");
+    } catch {
+      return [];
+    }
+  }));
+  const candidates = new Map<string, { signature: string; blockTime: number | null }>();
+  for (const signatureInfo of signatureGroups.flat()) {
+    if (!signatureInfo.err && !candidates.has(signatureInfo.signature)) {
+      candidates.set(signatureInfo.signature, {
+        signature: signatureInfo.signature,
+        blockTime: signatureInfo.blockTime ?? null,
+      });
+    }
+  }
+  const latest = [...candidates.values()].sort((left, right) => (right.blockTime ?? 0) - (left.blockTime ?? 0)).slice(0, 20);
+  const rows = await Promise.all(latest.map(async (item) => {
+    const transaction = await connection.getParsedTransaction(item.signature, {
+      maxSupportedTransactionVersion: 0,
+      commitment: "confirmed",
+    }).catch(() => null);
+    if (!transaction || !transaction.meta || transaction.meta.err) return null;
+
+    const keys = transaction.transaction.message.accountKeys;
+    const deltas = new Map<string, { delta: bigint; decimals: number }>();
+    const collect = (
+      balances: typeof transaction.meta.preTokenBalances,
+      sign: -1 | 1,
+    ) => {
+      for (const balance of balances ?? []) {
+        const key = keys[balance.accountIndex]?.pubkey.toBase58();
+        if (balance.owner !== ownerAddress && !(key && walletAccounts.has(key))) continue;
+        if (!assetLabels[balance.mint]) continue;
+        const current = deltas.get(balance.mint) ?? { delta: BigInt(0), decimals: balance.uiTokenAmount.decimals };
+        current.delta += BigInt(balance.uiTokenAmount.amount) * BigInt(sign);
+        current.decimals = balance.uiTokenAmount.decimals;
+        deltas.set(balance.mint, current);
+      }
+    };
+    collect(transaction.meta.preTokenBalances, -1);
+    collect(transaction.meta.postTokenBalances, 1);
+
+    const changes = [...deltas.entries()].flatMap(([mint, value]) => {
+      if (value.delta === BigInt(0)) return [];
+      const asset = assetLabels[mint];
+      const uiDelta = Number(value.delta) / (10 ** value.decimals);
+      return [{
+        mint,
+        kind: asset.kind,
+        delta: uiDelta,
+        valueUsd: Math.abs(uiDelta * asset.priceUsd),
+        label: `${formatTokenDelta(uiDelta)} ${asset.ticker}`,
+      }];
+    });
+    if (!changes.length) return null;
+
+    const cashDelta = changes.find((change) => change.kind === "cash")?.delta ?? 0;
+    const vaultDelta = changes.some((change) => change.kind === "vault" && change.delta > 0);
+    const vaultOut = changes.some((change) => change.kind === "vault" && change.delta < 0);
+    const assetIn = changes.some((change) => change.kind === "asset" && change.delta > 0);
+    const type = cashDelta < 0 && vaultDelta
+      ? "Вклад"
+      : cashDelta < 0 && assetIn
+        ? "Покупка доли"
+        : cashDelta > 0 && vaultOut
+          ? "Вывод из вклада"
+          : cashDelta > 0
+            ? "Пополнение"
+            : vaultOut || vaultDelta
+              ? "Движение долей"
+              : "Операция с активом";
+    const activityType: "withdraw" | "invest" | "buy" | "topup" = cashDelta > 0 && vaultOut
+      ? "withdraw"
+      : cashDelta < 0 && vaultDelta
+        ? "invest"
+        : cashDelta < 0 && assetIn
+          ? "buy"
+          : cashDelta > 0
+            ? "topup"
+            : "buy";
+    return {
+      id: item.signature,
+      title: `${type} · ${changes.map((change) => change.label).join(", ")}`,
+      type: activityType,
+      amountUsd: Math.max(...changes.map((change) => change.valueUsd)),
+      at: (item.blockTime ?? transaction.blockTime ?? Math.floor(Date.now() / 1000)) * 1000,
+      signature: item.signature,
+      explorerUrl: explorerUrl(item.signature),
+    };
+  }));
+
+  return rows.filter((item): item is NonNullable<typeof item> => item !== null)
+    .sort((left, right) => right.at - left.at);
 }
 
 export function explorerUrl(signature: string) {
   return `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
+}
+
+export function explorerAddressUrl(address: string) {
+  return `https://explorer.solana.com/address/${address}?cluster=devnet`;
 }

@@ -24,7 +24,7 @@ const subscribeToMountedState = () => () => {};
 const getMountedState = () => true;
 const getServerMountedState = () => false;
 
-export function ProfileScreen() {
+export function PortfolioSettings() {
   const {
     displayCurrency,
     setDisplayCurrency,
@@ -33,6 +33,7 @@ export function ProfileScreen() {
     marketData,
     resetDemo,
   } = useAppStore();
+  const devnet = useDevnet();
   const [confirmReset, setConfirmReset] = useState(false);
   const reset = () => {
     resetDemo();
@@ -51,6 +52,7 @@ export function ProfileScreen() {
       <AccrualPreference
         acceleratedAccrual={acceleratedAccrual}
         onChange={setAcceleratedAccrual}
+        mode={devnet.mode}
       />
       <ThemeSection />
       <WalletSection />
@@ -124,10 +126,20 @@ function PreferenceSection({
 function AccrualPreference({
   acceleratedAccrual,
   onChange,
+  mode,
 }: {
   acceleratedAccrual: boolean;
   onChange: (enabled: boolean) => void;
+  mode: "devnet" | "demo";
 }) {
+  if (mode === "devnet") {
+    return (
+      <Card className="gap-2 rounded-2xl p-4">
+        <h2 className="font-semibold">Ускоренное начисление</h2>
+        <p className="text-sm text-muted-foreground">Работает только в демо-режиме. В Solana devnet цена доли меняется в реальном времени.</p>
+      </Card>
+    );
+  }
   return (
     <Card className="flex-row items-center justify-between gap-4 rounded-2xl p-4">
       <div>
@@ -187,11 +199,11 @@ function DemoInfoSection() {
       <h2 className="font-semibold">О демо-режиме</h2>
       <p className="text-sm leading-5 text-muted-foreground">
         {devnet.mode === "devnet"
-          ? "Тестовые доллары, вклады и покупка OFFICE-DEMO проходят в Solana devnet; записи портфеля хранятся в браузере. Активы и доходность остаются демонстрационными."
+          ? "Тестовые доллары, доли вкладов и OFFICE-DEMO хранятся как токены в Solana devnet. Стоимость и доходность показаны для демонстрации."
           : "Баланс, вклады, покупки и начисления здесь симулируются и хранятся в браузере. Реальные деньги не переводятся."}
       </p>
       <p className="text-sm leading-5 text-muted-foreground">
-        {acceleratedAccrual
+        {devnet.mode === "demo" && acceleratedAccrual
           ? "В демо включён ускоренный режим: 1 секунда = 1 день."
           : "Начисления идут в реальном времени."} Доход не гарантирован. Не банковский вклад, не застраховано фондом гарантирования депозитов.
       </p>

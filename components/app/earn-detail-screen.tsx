@@ -17,20 +17,24 @@ import { useAppStore } from "@/lib/store";
 import { getStrategyApy } from "@/lib/market-data";
 import { accruedPosition, type YieldStrategy } from "@/lib/yields";
 import { useNow } from "@/lib/useNow";
+import { useDevnet } from "@/lib/useDevnet";
 
 export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
   const { positions, cashUsd, displayCurrency, hydrated, acceleratedAccrual, marketData } = useAppStore();
+  const devnet = useDevnet();
   const now = useNow();
   const [amount, setAmount] = useState(1000);
   const [investOpen, setInvestOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const position = positions[strategy.id];
   const apy = getStrategyApy(strategy.id, marketData.yields);
-  const currentEarned = position && now !== null
-    ? accruedPosition(position, apy, now, acceleratedAccrual)
+  const currentEarned = position
+    ? devnet.mode === "devnet"
+      ? position.earnedCarryUsd ?? 0
+      : now !== null ? accruedPosition(position, apy, now, acceleratedAccrual) : 0
     : 0;
-  const currentPosition = position && now !== null
-    ? { value: position.principal + currentEarned, earned: currentEarned }
+  const currentPosition = position
+    ? { value: devnet.mode === "devnet" ? position.valueUsd ?? (position.principal + currentEarned) : position.principal + currentEarned, earned: currentEarned }
     : undefined;
 
   return (
@@ -57,7 +61,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
               {hydrated ? formatMoney(cashUsd, displayCurrency) : "…"}
             </p>
           </div>
-          {position && acceleratedAccrual ? <span className="text-xs text-muted-foreground">Ускоренный режим</span> : null}
+          {position && devnet.mode === "demo" && acceleratedAccrual ? <span className="text-xs text-muted-foreground">Ускоренный режим</span> : null}
           {position ? (
             <Button
               variant="outline"

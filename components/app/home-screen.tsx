@@ -39,9 +39,11 @@ export function HomeScreen() {
   const positionValues = YIELD_STRATEGIES.flatMap((strategy) => {
     const position = positions[strategy.id];
     if (!position) return [];
-    const earned = now === null
-      ? 0
-      : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
+    const earned = devnet.mode === "devnet"
+      ? position.earnedCarryUsd ?? 0
+      : now === null
+        ? 0
+        : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
     return [{ strategy, position, earned }];
   });
   const holdingValues = DEMO_ASSETS.flatMap((asset) => {
@@ -104,7 +106,10 @@ export function HomeScreen() {
       />
 
       <section className="space-y-4">
-        <h2 className="text-base font-semibold">Портфель</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Портфель</h2>
+          <Link href="/portfolio" className="text-sm text-muted-foreground hover:text-foreground">Весь портфель →</Link>
+        </div>
         {devnet.mode === "devnet" && (devnet.portfolio?.unassignedDepositsUsd ?? 0) > 0 ? (
           <Card className="gap-3 rounded-2xl p-4">
             <div>

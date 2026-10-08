@@ -8,6 +8,7 @@ import { useAppStore, type Holding, type YieldPosition } from "@/lib/store";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { getStrategyApy } from "@/lib/market-data";
 import { MarketDataNote } from "@/components/app/market-data-note";
+import { useDevnet } from "@/lib/useDevnet";
 
 type PositionItem = {
   strategy: YieldStrategy;
@@ -28,6 +29,7 @@ export function PositionSection({
   currency: "USD" | "KZT";
 }) {
   const { acceleratedAccrual } = useAppStore();
+  const devnet = useDevnet();
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -38,7 +40,9 @@ export function PositionSection({
         {positions.map((item) => <PositionCard key={item.strategy.id} item={item} currency={currency} />)}
       </div>
       <p className="text-xs text-muted-foreground">
-        {acceleratedAccrual ? "Ускоренный режим начислений: 1 секунда = 1 день." : "Начисления идут в реальном времени."}
+        {devnet.mode === "devnet"
+          ? "Стоимость позиции следует цене долей в Solana devnet."
+          : acceleratedAccrual ? "Ускоренный режим начислений: 1 секунда = 1 день." : "Начисления идут в реальном времени."}
       </p>
     </section>
   );
@@ -46,6 +50,7 @@ export function PositionSection({
 
 function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" | "KZT" }) {
   const { acceleratedAccrual, marketData } = useAppStore();
+  const devnet = useDevnet();
   const { strategy, position, earned } = item;
   const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
   return (
@@ -57,7 +62,9 @@ function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" 
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{strategy.name}</span>
           <span className="mt-1 block text-xs text-muted-foreground">
-            Вложено {formatMoney(position.principal, currency)} · {formatApy(getStrategyApy(strategy.id, marketData.yields))}
+            {devnet.mode === "devnet"
+              ? `${position.shares?.toLocaleString("ru-RU", { maximumFractionDigits: 6 }) ?? "0"} ${strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO"} · ${formatApy(getStrategyApy(strategy.id, marketData.yields))}`
+              : `Вложено ${formatMoney(position.principal, currency)} · ${formatApy(getStrategyApy(strategy.id, marketData.yields))}`}
           </span>
         </span>
         <span className="text-right">
@@ -66,7 +73,7 @@ function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" 
           </span>
           <span className="mt-1 block text-xs tabular-nums text-emerald-600 dark:text-emerald-400">
             +{formatEarningsMoney(earned, currency)}
-            {acceleratedAccrual ? <span className="ml-1 rounded-full border px-1.5 py-0.5">Ускоренный режим</span> : null}
+            {devnet.mode === "devnet" ? <span className="ml-1 rounded-full border px-1.5 py-0.5">В сети Solana</span> : acceleratedAccrual ? <span className="ml-1 rounded-full border px-1.5 py-0.5">Ускоренный режим</span> : null}
           </span>
         </span>
       </Link>
@@ -84,6 +91,7 @@ export function HoldingsSection({
   holdings: HoldingItem[];
   currency: "USD" | "KZT";
 }) {
+  const devnet = useDevnet();
   return (
     <section className="space-y-3">
       <h2 className="text-base font-semibold">Ваши активы</h2>
@@ -97,7 +105,7 @@ export function HoldingsSection({
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{asset.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {holding.units.toLocaleString("ru-RU")} долей · демо
+                  {holding.units.toLocaleString("ru-RU")} {devnet.mode === "devnet" ? "OFFICE-DEMO" : "долей · демо"}
                 </span>
               </span>
               <span className="font-medium tabular-nums">{formatMoney(holding.costUsd, currency)}</span>

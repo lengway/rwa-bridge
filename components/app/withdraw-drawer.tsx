@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useWallet } from "@crossmint/client-sdk-react-ui";
 import { ArrowUpFromLine, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
@@ -17,32 +18,46 @@ import { useNow } from "@/lib/useNow";
 import { useDevnet } from "@/lib/useDevnet";
 import { getStrategyApy } from "@/lib/market-data";
 import { Badge } from "@/components/ui/badge";
+import { isCrossmintConfigured } from "@/lib/config";
 
 type CompletedWithdrawal = {
   amount: number;
   title: string;
+  shares?: number;
+  shareTicker?: string;
   explorerUrl?: string;
   note?: string;
   isCardWithdrawal?: boolean;
 };
 
-export function WithdrawDrawer({
-  open,
-  onOpenChange,
-  onAddMoney,
-}: {
+type WithdrawDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddMoney?: () => void;
-}) {
+};
+
+export function WithdrawDrawer(props: WithdrawDrawerProps) {
+  if (!isCrossmintConfigured) return <WithdrawDrawerContents {...props} wallet={null} />;
+  return <WithdrawDrawerWithWallet {...props} />;
+}
+
+function WithdrawDrawerWithWallet(props: WithdrawDrawerProps) {
+  const { wallet } = useWallet();
+  return <WithdrawDrawerContents {...props} wallet={wallet ?? null} />;
+}
+
+function WithdrawDrawerContents({
+  open,
+  onOpenChange,
+  onAddMoney,
+  wallet,
+}: WithdrawDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null }) {
   const {
     positions,
     displayCurrency,
     withdraw,
     cashUsd,
     recordCardWithdrawal,
-    acceleratedAccrual,
-    marketData,
   } = useAppStore();
   const devnet = useDevnet();
   const now = useNow();
@@ -81,7 +96,7 @@ export function WithdrawDrawer({
   }) => {
     if (cardWithdrawalRecorded.current) return false;
     cardWithdrawalRecorded.current = true;
-    const recorded = recordCardWithdrawal(amount, details);
+    const recorded = details.onchain ? true : recordCardWithdrawal(amount, details);
     if (!recorded) {
       cardWithdrawalRecorded.current = false;
       setError("Недостаточно средств на балансе для вывода.");
@@ -95,50 +110,57 @@ export function WithdrawDrawer({
       note: details.note,
       isCardWithdrawal: true,
     });
-    if (details.onchain) void devnet.refresh();
+    if (details.onchain) void devnet.refreshPortfolio();
     toast.success(details.onchain ? "Тестовые доллары списаны с баланса" : "Демо-вывод записан");
     return true;
   };
 
-  const withdrawPosition = async (strategy: YieldStrategy) => {
+  const withdrawPosition = async (strategy: YieldStrategy, requestedShares?: number) => {
     if (processingId) return;
     setError(null);
     if (devnet.mode === "devnet") {
       const position = positions[strategy.id];
       if (!position || !devnet.walletAddress) return;
-      const earnedUsd = now === null
-        ? position.earnedCarryUsd ?? 0
-        : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
+      const shares = requestedShares ?? position.shares ?? 0;
+      const vaultMint = strategy.id === "ondo-usdy" ? devnet.vaultUsdyMint : devnet.vaultKzgbMint;
+      if (!wallet || !devnet.treasuryOwner || !vaultMint || shares <= 0) {
+        setError("Не удалось подключить кошелёк или токен доли.");
+        return;
+      }
       setProcessingId(strategy.id);
       try {
+        const transfer = await wallet.send(devnet.treasuryOwner, vaultMint, String(shares));
+        if (!transfer.hash) throw new Error("Кошелёк не вернул подпись перевода долей.");
         const response = await fetch("/api/devnet/withdraw", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             walletAddress: devnet.walletAddress,
             productId: strategy.id,
-            principalUsd: position.principal,
-            earnedUsd,
+            signature: transfer.hash,
+            shares,
           }),
         });
         const result = await response.json() as {
           signature?: unknown;
           explorerUrl?: unknown;
           amountUsd?: unknown;
+          sharesRedeemed?: unknown;
           error?: unknown;
         };
-        if (!response.ok || typeof result.signature !== "string" || typeof result.explorerUrl !== "string") {
+        if (!response.ok || typeof result.signature !== "string" || typeof result.explorerUrl !== "string"
+          || typeof result.amountUsd !== "number" || typeof result.sharesRedeemed !== "number") {
           throw new Error(typeof result.error === "string" ? result.error : "Не удалось вернуть средства.");
         }
-        const amount = withdraw(strategy.id, {
-          onchain: true,
-          signature: result.signature,
+        setCompleted({
+          amount: result.amountUsd,
+          title: strategy.name,
+          shares: result.sharesRedeemed,
+          shareTicker: strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO",
           explorerUrl: result.explorerUrl,
         });
-        if (!amount) throw new Error("Не удалось обновить состояние вклада.");
-        setCompleted({ amount, title: strategy.name, explorerUrl: result.explorerUrl });
-        void devnet.refresh();
-        toast.success("Средства возвращены в кошелёк");
+        void devnet.refreshPortfolio();
+        toast.success("Доли погашены, тестовые доллары отправлены");
       } catch (requestError) {
         const message = requestError instanceof Error ? requestError.message : "";
         setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось вернуть тестовые доллары. Попробуйте ещё раз.");
@@ -162,7 +184,7 @@ export function WithdrawDrawer({
       description={method === "card"
         ? "Вывод на карту через MoonPay. В тестовом режиме списание тестовых долларов симулируется."
         : devnet.mode === "devnet"
-        ? "Верните тестовые доллары из вклада в свой Solana-кошелёк."
+        ? "Отправьте доли на погашение. Казначейство вернёт тестовые доллары по текущей цене доли."
         : "Верните средства из вклада на баланс приложения."}
     >
       {completed ? (
@@ -172,7 +194,7 @@ export function WithdrawDrawer({
           sentence={completed.isCardWithdrawal
             ? "Вывод на карту записан в историю операций."
             : devnet.mode === "devnet"
-              ? `Средства из вклада «${completed.title}» возвращены в ваш кошелёк.`
+              ? `Погашено ${completed.shares?.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${completed.shareTicker}; тестовые доллары отправлены в ваш кошелёк.`
               : `Средства из вклада «${completed.title}» вернулись на баланс.`}
           note={completed.note}
           onDone={() => changeOpen(false)}
@@ -303,17 +325,27 @@ function WithdrawPosition({
   onWithdraw,
 }: {
   strategy: YieldStrategy;
-  position: { principal: number; since: number; earnedCarryUsd?: number };
+  position: { principal: number; since: number; earnedCarryUsd?: number; shares?: number; priceUsd?: number };
   now: number | null;
   currency: "USD" | "KZT";
   processing: boolean;
-  onWithdraw: (strategy: YieldStrategy) => void;
+  onWithdraw: (strategy: YieldStrategy, shares?: number) => void;
 }) {
   const { marketData, acceleratedAccrual } = useAppStore();
-  const earned = now === null
-    ? (position.earnedCarryUsd ?? 0)
-    : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
-  const payout = position.principal + earned;
+  const devnet = useDevnet();
+  const availableShares = position.shares ?? position.principal;
+  const [sharesInput, setSharesInput] = useState(String(availableShares));
+  const requestedShares = Number(sharesInput);
+  const validShares = Number.isFinite(requestedShares) && requestedShares > 0 && requestedShares <= availableShares;
+  const earned = devnet.mode === "devnet"
+    ? position.earnedCarryUsd ?? 0
+    : now === null
+      ? (position.earnedCarryUsd ?? 0)
+      : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
+  const payout = devnet.mode === "devnet"
+    ? requestedShares * (position.priceUsd ?? 1)
+    : position.principal + earned;
+  const shareTicker = strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO";
 
   return (
     <Card className="gap-3 p-4">
@@ -321,16 +353,41 @@ function WithdrawPosition({
         <div>
           <p className="font-medium">{strategy.name}</p>
           <p className="text-xs text-muted-foreground">
-            Вложено {formatMoney(position.principal, currency)}
+            {devnet.mode === "devnet"
+              ? `${availableShares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${shareTicker} · ${formatMoney(position.principal + earned, currency)}`
+              : `Вложено ${formatMoney(position.principal, currency)}`}
           </p>
         </div>
         <span className="text-right text-sm tabular-nums text-emerald-600 dark:text-emerald-400">
-          +{formatEarningsMoney(earned, currency)}
-          {acceleratedAccrual ? <Badge variant="outline" className="mt-1">Ускоренный режим</Badge> : null}
+          {devnet.mode === "devnet"
+            ? `+${formatEarningsMoney(earned, currency)}`
+            : `+${formatEarningsMoney(earned, currency)}`}
+          {devnet.mode === "demo" && acceleratedAccrual ? <Badge variant="outline" className="mt-1">Ускоренный режим</Badge> : null}
         </span>
       </div>
-      <Button variant="outline" className="w-full" onClick={() => onWithdraw(strategy)} disabled={processing}>
-        <ArrowUpFromLine />{processing ? "Возвращаем…" : `Вывести ${formatMoney(payout, currency)}`}
+      {devnet.mode === "devnet" ? (
+        <label className="space-y-1.5 text-sm">
+          <span>Долей к погашению</span>
+          <Input
+            type="number"
+            min="0.000001"
+            step="0.000001"
+            max={availableShares}
+            inputMode="decimal"
+            value={sharesInput}
+            onChange={(event) => setSharesInput(event.target.value)}
+          />
+          <span className="block text-xs text-muted-foreground">Оценка возврата: {formatMoney(payout, currency)}</span>
+          {!validShares ? <span className="block text-xs text-destructive">Укажите сумму не больше доступного баланса.</span> : null}
+        </label>
+      ) : null}
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={() => onWithdraw(strategy, devnet.mode === "devnet" ? requestedShares : undefined)}
+        disabled={processing || (devnet.mode === "devnet" && !validShares)}
+      >
+        <ArrowUpFromLine />{processing ? "Погашаем…" : `Вывести ${formatMoney(payout, currency)}`}
       </Button>
     </Card>
   );

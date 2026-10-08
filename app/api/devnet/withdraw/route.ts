@@ -2,17 +2,24 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { YIELD_STRATEGIES } from "@/lib/yields";
-import { appendWithdrawal, getAvailablePrincipal, withLedgerKeyLock } from "@/lib/devnet-ledger";
+import { appendWithdrawal, findLedgerWithdrawal, hasLedgerSignature, updateWithdrawal, withLedgerKeyLock } from "@/lib/devnet-ledger";
 import { isConfigured, isValidWalletAddress, safeError, unavailableResponse } from "@/lib/devnet-route";
-import { explorerUrl, sendFromTreasury } from "@/lib/solana-server";
+import {
+  burnTreasuryVaultShares,
+  explorerUrl,
+  sendFromTreasury,
+  verifyIncomingPayment,
+} from "@/lib/solana-server";
+import { getVaultQuote } from "@/lib/vaults";
+import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 
 export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
   const body = await request.json().catch(() => null) as {
     walletAddress?: unknown;
     productId?: unknown;
-    principalUsd?: unknown;
-    earnedUsd?: unknown;
+    signature?: unknown;
+    shares?: unknown;
   } | null;
   if (!isValidWalletAddress(body?.walletAddress)) {
     return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
@@ -20,41 +27,71 @@ export async function POST(request: Request) {
   if (typeof body?.productId !== "string" || !YIELD_STRATEGIES.some((item) => item.id === body.productId)) {
     return NextResponse.json({ error: "Неизвестный продукт дохода." }, { status: 400 });
   }
-  const principal = body?.principalUsd;
-  const earned = body?.earnedUsd;
-  if (typeof principal !== "number" || !Number.isFinite(principal) || principal < 0 || principal > 10000) {
-    return NextResponse.json({ error: "Сумма вклада должна быть от $0 до $10 000." }, { status: 400 });
+  if (typeof body?.shares !== "number" || !Number.isFinite(body.shares) || body.shares <= 0 || body.shares > 100_000) {
+    return NextResponse.json({ error: "Укажите корректное количество долей." }, { status: 400 });
   }
-  if (typeof earned !== "number" || !Number.isFinite(earned) || earned < 0 || earned > principal * 0.25) {
-    return NextResponse.json({ error: "Начисление не может превышать 25% от суммы вклада." }, { status: 400 });
-  }
-  const amountUsd = principal + earned;
-  if (amountUsd <= 0) {
-    return NextResponse.json({ error: "Сумма вывода должна быть больше $0." }, { status: 400 });
+  if (typeof body?.signature !== "string" || body.signature.length < 32 || body.signature.length > 100) {
+    return NextResponse.json({ error: "Не указана подпись перевода долей." }, { status: 400 });
   }
 
   const walletAddress = body.walletAddress;
   const productId = body.productId;
+  const transferSignature = body.signature;
+  const requestedShares = body.shares;
 
-  return withLedgerKeyLock(`withdraw:${walletAddress}:${productId}`, async () => {
-    const recordedDeposit = await getAvailablePrincipal(walletAddress, productId);
-    if (principal > recordedDeposit + 0.000001) {
-      return NextResponse.json({ error: "Сумма основного вклада превышает подтверждённые пополнения." }, { status: 400 });
-    }
-
+  return withLedgerKeyLock(`withdraw:${transferSignature}`, async () => {
     try {
-      const signature = await sendFromTreasury(walletAddress, amountUsd);
-      await appendWithdrawal(walletAddress, {
-        productId,
-        principalUsd: principal,
-        earnedUsd: earned,
-        signature,
-        at: Date.now(),
+      let withdrawal = await findLedgerWithdrawal(walletAddress, transferSignature);
+      if (withdrawal && (withdrawal.productId !== productId || Math.abs((withdrawal.shares ?? 0) - requestedShares) > 0.000001)) {
+        return NextResponse.json({ error: "Эта транзакция уже использовалась для другого вывода." }, { status: 409 });
+      }
+
+      if (!withdrawal) {
+        if (await hasLedgerSignature(transferSignature)) {
+          return NextResponse.json({ error: "Эта транзакция уже была использована." }, { status: 409 });
+        }
+        const quote = await getVaultQuote(productId);
+        const receivedShares = await verifyIncomingPayment({
+          signature: transferSignature,
+          fromOwner: walletAddress,
+          minAmountUi: requestedShares,
+          mintAddress: quote.mint,
+        });
+        const roundedShares = Math.floor((receivedShares + Number.EPSILON) * 1_000_000) / 1_000_000;
+        if (roundedShares <= 0) throw new Error("Перевод долей не найден.");
+        withdrawal = {
+          productId,
+          signature: transferSignature,
+          at: Date.now(),
+          shares: roundedShares,
+          amountUsd: roundedShares * quote.priceUsd,
+          priceUsd: quote.priceUsd,
+        };
+        await appendWithdrawal(walletAddress, withdrawal);
+      }
+
+      if (!withdrawal.payoutSignature) {
+        const payoutSignature = await sendFromTreasury(walletAddress, withdrawal.amountUsd ?? 0);
+        withdrawal = await updateWithdrawal(walletAddress, transferSignature, { payoutSignature });
+      }
+      if (!withdrawal.burnSignature) {
+        const burnSignature = await burnTreasuryVaultShares(productId, withdrawal.shares ?? 0);
+        withdrawal = await updateWithdrawal(walletAddress, transferSignature, { burnSignature });
+      }
+      invalidateDevnetPortfolio(walletAddress);
+
+      return NextResponse.json({
+        sharesRedeemed: withdrawal.shares,
+        priceUsd: withdrawal.priceUsd,
+        amountUsd: withdrawal.amountUsd,
+        signature: withdrawal.payoutSignature,
+        payoutSignature: withdrawal.payoutSignature,
+        burnSignature: withdrawal.burnSignature,
+        explorerUrl: withdrawal.payoutSignature ? explorerUrl(withdrawal.payoutSignature) : undefined,
       });
-      return NextResponse.json({ signature, explorerUrl: explorerUrl(signature), amountUsd });
     } catch (error) {
       return NextResponse.json({
-        error: safeError(error, "Не удалось вернуть тестовые доллары из казначейства."),
+        error: safeError(error, "Не удалось погасить доли в Solana devnet."),
       }, { status: 502 });
     }
   });

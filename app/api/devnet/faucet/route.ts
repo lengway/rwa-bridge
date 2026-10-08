@@ -9,6 +9,7 @@ import {
   unavailableResponse,
 } from "@/lib/devnet-route";
 import { ensureFeeSol, explorerUrl, mintTestDollars } from "@/lib/solana-server";
+import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 
 const faucetUsage = new Map<string, { amount: number; startedAt: number }>();
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
   try {
     await ensureFeeSol(body.walletAddress);
     const signature = await mintTestDollars(body.walletAddress, body.amountUsd);
+    invalidateDevnetPortfolio(body.walletAddress);
     return NextResponse.json({ signature, explorerUrl: explorerUrl(signature) });
   } catch (error) {
     const latestUsage = faucetUsage.get(body.walletAddress);

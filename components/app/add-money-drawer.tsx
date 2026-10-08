@@ -64,7 +64,7 @@ export function AddMoneyDrawer({
     note?: string,
     extra?: { onchain?: boolean; signature?: string; explorerUrl?: string },
   ) => {
-    topUp(value, source, extra);
+    if (!extra?.onchain) topUp(value, source, extra);
     setSuccess({ amount: value, sentence, note, explorerUrl: extra?.explorerUrl });
     if (extra?.onchain) void devnet.refresh();
     toast.success("Баланс пополнен");

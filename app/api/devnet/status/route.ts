@@ -16,6 +16,8 @@ export async function GET() {
     configured: devnetConfig.configured && Boolean(treasury),
     usdMint: devnetConfig.usdMint || null,
     assetMint: devnetConfig.assetMint || null,
+    vaultUsdyMint: devnetConfig.vaultUsdyMint || null,
+    vaultKzgbMint: devnetConfig.vaultKzgbMint || null,
     treasury,
     treasuryOwner: devnetConfig.authority?.publicKey.toBase58() ?? null,
   });

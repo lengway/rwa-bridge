@@ -48,7 +48,7 @@ function InvestDrawerContents({
   const devnet = useDevnet();
   const [amount, setAmount] = useState("50");
   const [accepted, setAccepted] = useState(false);
-  const [success, setSuccess] = useState<{ amount: number; explorerUrl?: string } | null>(null);
+  const [success, setSuccess] = useState<{ amount: number; shares?: number; shareTicker?: string; explorerUrl?: string } | null>(null);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,14 +94,21 @@ function InvestDrawerContents({
             signature,
           }),
         });
-        const result = await response.json() as { ok?: unknown; explorerUrl?: unknown; error?: unknown };
-        if (!response.ok || result.ok !== true || typeof result.explorerUrl !== "string") {
+        const result = await response.json() as {
+          ok?: unknown;
+          sharesMinted?: unknown;
+          mintSignature?: unknown;
+          explorerUrl?: unknown;
+          error?: unknown;
+        };
+        if (!response.ok || result.ok !== true || typeof result.explorerUrl !== "string"
+          || typeof result.sharesMinted !== "number" || typeof result.mintSignature !== "string") {
           throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить перевод.");
         }
-        invest(strategy.id, amountValue, { onchain: true, signature, explorerUrl: result.explorerUrl });
-        setSuccess({ amount: amountValue, explorerUrl: result.explorerUrl });
-        void devnet.refresh();
-        toast.success("Вклад открыт");
+        const shareTicker = strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO";
+        setSuccess({ amount: amountValue, shares: result.sharesMinted, shareTicker, explorerUrl: result.explorerUrl });
+        void devnet.refreshPortfolio();
+        toast.success("Доли выпущены в Solana");
       } catch (requestError) {
         const message = requestError instanceof Error ? requestError.message : "";
         setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось выполнить перевод. Проверьте баланс тестовых долларов и попробуйте ещё раз.");
@@ -128,7 +135,7 @@ function InvestDrawerContents({
         <DrawerSuccess
           amount={success.amount}
           sentence={devnet.mode === "devnet"
-            ? `Перевод тестовых долларов во вклад «${strategy.name}» подтверждён.`
+            ? `Вы получили ${success.shares?.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${success.shareTicker}. Доли выпущены в Solana devnet.`
             : `Вклад «${strategy.name}» открыт. Начисления показаны в демо-режиме.`}
           onDone={() => changeOpen(false)}
           secondaryHref="/home"
@@ -180,9 +187,11 @@ function InvestDrawerContents({
             <EarningsLine label="За месяц" amount={earningsMonth} currency={displayCurrency} />
             <EarningsLine label="За год" amount={earningsYear} currency={displayCurrency} />
             <p className="text-xs text-muted-foreground">
-              Расчёт по текущему ориентиру. Доход не гарантирован. {acceleratedAccrual
-                ? "Ускоренный режим: 1 секунда = 1 день."
-                : "Начисление идёт в реальном времени."}
+              Расчёт по текущему ориентиру. Доход не гарантирован. {devnet.mode === "devnet"
+                ? "В devnet цена доли растёт в реальном времени, а доли хранятся как SPL-токены."
+                : acceleratedAccrual
+                  ? "Ускоренный режим: 1 секунда = 1 день."
+                  : "Начисление идёт в реальном времени."}
             </p>
           </Card>
 

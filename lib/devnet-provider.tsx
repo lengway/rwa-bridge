@@ -30,7 +30,15 @@ export function DevnetProvider({
         if (!cancelled) setStatus(value);
       })
       .catch(() => {
-        if (!cancelled) setStatus({ configured: false, usdMint: null, assetMint: null, treasury: null, treasuryOwner: null });
+        if (!cancelled) setStatus({
+          configured: false,
+          usdMint: null,
+          assetMint: null,
+          vaultUsdyMint: null,
+          vaultKzgbMint: null,
+          treasury: null,
+          treasuryOwner: null,
+        });
       });
     return () => { cancelled = true; };
   }, []);
@@ -74,24 +82,7 @@ function DevnetRuntime({
 }) {
   const loggedInAddress = authStatus === "logged-in" ? walletAddress : null;
   const mode = status?.configured && loggedInAddress ? "devnet" : "demo";
-  const [balanceState, setBalanceState] = useState<{ walletAddress: string; balance: DevnetBalance } | null>(null);
   const [portfolioState, setPortfolioState] = useState<{ walletAddress: string; portfolio: DevnetPortfolio } | null>(null);
-
-  const refreshBalance = useCallback(async () => {
-    if (mode !== "devnet" || !loggedInAddress) {
-      return;
-    }
-    try {
-      const response = await fetch(`/api/devnet/balance?wallet=${encodeURIComponent(loggedInAddress)}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const value = await response.json() as DevnetBalance;
-      if (Number.isFinite(value.usd) && Number.isFinite(value.assetUnits)) {
-        setBalanceState({ walletAddress: loggedInAddress, balance: value });
-      }
-    } catch {
-      // Leave the last confirmed balance visible during transient RPC failures.
-    }
-  }, [loggedInAddress, mode]);
 
   const refreshPortfolio = useCallback(async () => {
     if (mode !== "devnet" || !loggedInAddress) return;
@@ -99,7 +90,11 @@ function DevnetRuntime({
       const response = await fetch(`/api/devnet/portfolio?wallet=${encodeURIComponent(loggedInAddress)}`, { cache: "no-store" });
       if (!response.ok) return;
       const value = await response.json() as DevnetPortfolio;
-      if (Array.isArray(value.positions) && Array.isArray(value.holdings) && Array.isArray(value.activity)) {
+      if (Array.isArray(value.positions)
+        && Array.isArray(value.holdings)
+        && Array.isArray(value.activity)
+        && Array.isArray(value.history)
+        && value.wallet?.address === loggedInAddress) {
         setPortfolioState({ walletAddress: loggedInAddress, portfolio: value });
       }
     } catch {
@@ -107,9 +102,7 @@ function DevnetRuntime({
     }
   }, [loggedInAddress, mode]);
 
-  const refresh = useCallback(async () => {
-    await Promise.all([refreshBalance(), refreshPortfolio()]);
-  }, [refreshBalance, refreshPortfolio]);
+  const refresh = refreshPortfolio;
 
   useEffect(() => {
     if (mode !== "devnet") {
@@ -117,10 +110,10 @@ function DevnetRuntime({
     }
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refreshBalance();
+      if (document.visibilityState === "visible") void refreshPortfolio();
     }, 15_000);
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") void refreshBalance();
+      if (document.visibilityState === "visible") void refreshPortfolio();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
@@ -128,25 +121,31 @@ function DevnetRuntime({
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [mode, refresh, refreshBalance]);
+  }, [mode, refresh, refreshPortfolio]);
 
-  const onchain = mode === "devnet" && balanceState?.walletAddress === loggedInAddress
-    ? balanceState.balance
-    : null;
   const portfolio = mode === "devnet" && portfolioState?.walletAddress === loggedInAddress
     ? portfolioState.portfolio
     : null;
+  const onchain = useMemo<DevnetBalance | null>(() => portfolio ? {
+    usd: portfolio.cashUsd,
+    assetUnits: portfolio.holdings
+      .filter((holding) => holding.kind === "asset")
+      .reduce((total, holding) => total + holding.balance, 0),
+  } : null, [portfolio]);
   const value = useMemo<DevnetState>(() => ({
     mode,
     walletAddress: loggedInAddress,
     usdMint: status?.usdMint ?? null,
+    assetMint: status?.assetMint ?? null,
+    vaultUsdyMint: status?.vaultUsdyMint ?? null,
+    vaultKzgbMint: status?.vaultKzgbMint ?? null,
     treasury: status?.treasury ?? null,
     treasuryOwner: status?.treasuryOwner ?? null,
     onchain,
     portfolio,
     refresh,
     refreshPortfolio,
-  }), [loggedInAddress, mode, onchain, portfolio, refresh, refreshPortfolio, status?.treasury, status?.treasuryOwner, status?.usdMint]);
+  }), [loggedInAddress, mode, onchain, portfolio, refresh, refreshPortfolio, status?.assetMint, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
 
   return <DevnetContext.Provider value={value}>{children}</DevnetContext.Provider>;
 }

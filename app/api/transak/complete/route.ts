@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { isValidWalletAddress } from "@/lib/devnet-route";
 import { devnetConfig, explorerUrl, mintTestDollars } from "@/lib/solana-server";
+import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 import { getOrder, type TransakOrder } from "@/lib/transak";
 
 type CreditResult = { status: "completed"; amountUsd: number; signature: string; explorerUrl: string };
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
   creditInFlightOrderIds.add(body.orderId);
   try {
     const signature = await mintTestDollars(body.walletAddress, amountUsd);
+    invalidateDevnetPortfolio(body.walletAddress);
     const result: CreditResult = {
       status: "completed",
       amountUsd,

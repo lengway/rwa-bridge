@@ -42,7 +42,7 @@ function GreetingContents({ email, loggedIn = false }: { email?: string; loggedI
         variant="ghost"
         size="icon-lg"
         nativeButton={false}
-        render={<Link href="/profile" />}
+        render={<Link href="/portfolio" />}
         aria-label="Открыть профиль"
         className="rounded-full"
       >

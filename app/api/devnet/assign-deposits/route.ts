@@ -5,6 +5,7 @@ import { appendDeposits, getLedgerWallet, hasLedgerSignature, type LedgerDeposit
 import { isConfigured, isValidWalletAddress, safeError, unavailableResponse } from "@/lib/devnet-route";
 import { YIELD_STRATEGIES } from "@/lib/yields";
 import { getUnassignedIncomingPayments, verifyIncomingPayment } from "@/lib/solana-server";
+import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 
 export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Не найдено неподтверждённых переводов в казначейство." }, { status: 400 });
     }
     const updated = await appendDeposits(body.walletAddress, deposits);
+    invalidateDevnetPortfolio(body.walletAddress);
     const assignedUsd = deposits.reduce((total, item) => total + item.amountUsd, 0);
     return NextResponse.json({ ok: true, assignedUsd, count: updated.deposits.length });
   } catch (error) {

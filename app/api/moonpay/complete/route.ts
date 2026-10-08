@@ -9,6 +9,7 @@ import {
 } from "@/lib/moonpay";
 import { isValidWalletAddress } from "@/lib/devnet-route";
 import { devnetConfig, explorerUrl, mintTestDollars } from "@/lib/solana-server";
+import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 
 type BuyCredit = { amountUsd: number; signature: string; explorerUrl: string };
 
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
   try {
     // Sandbox delivers test SOL; mirror the USD baseCurrencyAmount in the app's devnet test dollars instead.
     const signature = await mintTestDollars(body.walletAddress, amountUsd);
+    invalidateDevnetPortfolio(body.walletAddress);
     const result: BuyCredit = {
       amountUsd,
       signature,
