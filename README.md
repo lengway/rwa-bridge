@@ -1,7 +1,63 @@
-# RWA Bridge — фундамент для хакатона
+# RWA Bridge
 
-**Полный ресерч рынка, конкурентов, регуляторных рисков и плана запуска:**
-[reports/Web3 asset onramp layer.md](../reports/Web3%20asset%20onramp%20layer.md)
+**A seamless yield layer between everyday money and tokenized real-world assets, on Solana.**
+
+Sign in with email, get an embedded Solana wallet, add money, and earn yield from tokenized US Treasuries or own fractional real estate. No seed phrases, no gas, no jargon. Every balance in the app is a token in the user's own wallet.
+
+- **Live app (Solana devnet, test money):** https://plain.lengway.me
+- **Bank embedding demo:** https://plain.lengway.me/demo-bank
+- **Architecture and money flows:** [docs/architecture.md](docs/architecture.md)
+- **User stories:** [docs/user-stories.md](docs/user-stories.md)
+- **Demo script:** [docs/demo-script.md](docs/demo-script.md)
+
+## What works today
+
+| Flow | What happens on Solana devnet |
+|---|---|
+| Email login | Crossmint smart wallet created for the user |
+| Add money: test ATM | Server mints test dollars (USDC stand-in) to the wallet |
+| Add money: card (Transak, MoonPay test modes) | Provider order verified server-side, then test dollars minted |
+| Add money: inside a bank | Bank-style confirmation in tenge, then test dollars minted |
+| Deposit into a yield vault | User-signed transfer to the treasury, verified, then vault share tokens (vUSDY-DEMO / vKZGB-DEMO) minted; share price follows the live APY |
+| Withdraw | Shares sent back and burned, dollars paid at the current share price |
+| Buy a fractional asset | Payment verified, OFFICE-DEMO tokens minted 1:1 |
+| Send to any wallet / card off-ramp | Plain SPL transfer / MoonPay sell widget (deposit simulated on devnet) |
+| Portfolio | Read from the wallet's token accounts with explorer links and on-chain history |
+| Receipts | Email per operation via Gmail SMTP, only to the verified login email |
+
+Live data: USD/KZT from the National Bank of Kazakhstan, USDY APY from DefiLlama, 3-month T-bill from the US Treasury, quotes from Transak and MoonPay. Each number shows its source and date.
+
+## On-chain addresses (devnet)
+
+| Token | Mint |
+|---|---|
+| Test dollar | `Hx7e212hfKYHNV5jdfV4R9NQ5JHCdt9w1g4aGYk7cSaV` |
+| vUSDY-DEMO | `NybngzX175W1p8xoL1yikAV2WnpQzHihMKgGnmifPD4` |
+| vKZGB-DEMO | `Fn1idY7FZB4C3JaV5yZorqPUTg8sZN3ZHgqCp7mMJiAi` |
+| OFFICE-DEMO | `51UTD1qdeMmfudZdcWXgBVUoZNu4etKRDzRbkfBi9NR9` |
+| Treasury owner | `8Mdmu9GN72J1scQC15SAa9pvDGpNMNJhxrPbCi3nQ6iD` |
+
+## Honest status
+
+This is a devnet build with test money. Vault shares are priced from the live USDY yield, but we do not hold real USDY yet. The office building and the local bond token are fictional demos. Card providers run in their test modes. No bank, exchange or issuer named in the app is a partner.
+
+## Stack
+
+Next.js 16 (App Router), React 19, TypeScript, Tailwind v4, shadcn/ui on Base UI, Crossmint embedded wallets, @solana/web3.js, @solana/spl-token, Transak and MoonPay APIs, nodemailer. Deployed on a VPS behind nginx and Cloudflare (`scripts/deploy.sh`).
+
+## Run locally
+
+```bash
+cp .env.example .env.local   # fill in Crossmint, Transak, MoonPay keys
+npm install
+node scripts/setup-devnet.mjs   # creates the devnet mints, needs devnet SOL on the authority
+npm run dev
+node scripts/devnet-smoke.mjs   # end-to-end check of every money flow
+```
+
+---
+
+# Разработка (RU)
 
 Один вход (email, без seed-фразы) → тестовые доллары в Solana devnet → портфель из
 вкладов и токенизированных активов на одном экране. Контекст и полный план — в документе
