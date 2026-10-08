@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { useAppStore } from "@/lib/store";
 import { isCrossmintConfigured } from "@/lib/config";
 import { useDevnet } from "@/lib/useDevnet";
 import { KztEstimate } from "@/components/app/kzt-estimate";
+import { useBankEmbed } from "@/lib/useBankEmbed";
 
 type SuccessState = {
   amount: number;
@@ -31,17 +32,25 @@ export function AddMoneyDrawer({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { topUp } = useAppStore();
+  const { topUp, marketData } = useAppStore();
   const devnet = useDevnet();
+  const bankEmbed = useBankEmbed();
   const [amount, setAmount] = useState("50");
-  const [method, setMethod] = useState("devnet-faucet");
+  const [method, setMethod] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<SuccessState | null>(null);
+  const [bankPaymentPending, setBankPaymentPending] = useState(false);
+  const [bankMessage, setBankMessage] = useState<string | null>(null);
+  const bankRequestRef = useRef<{ id: string; amountUsd: number } | null>(null);
   const amountValue = Number(amount);
   const valid = Number.isFinite(amountValue) && amountValue >= 1 && amountValue <= 1000;
-  const methods = ["devnet-faucet", "transak", "moonpay", "crossmint", "mercuryo", "kaspi", "freedom"]
+  const methods = (bankEmbed
+    ? ["devnet-faucet", "transak", "moonpay", "crossmint", "mercuryo"]
+    : ["devnet-faucet", "transak", "moonpay", "crossmint", "mercuryo", "kaspi", "freedom"])
     .map((id) => ONRAMP_OPTIONS.find((option) => option.id === id))
     .filter((option): option is NonNullable<typeof option> => Boolean(option));
+
+  const selectedMethod = method ?? (bankEmbed ? "bank-demo" : "devnet-faucet");
 
   const changeOpen = (nextOpen: boolean) => {
     setSuccess(null);
@@ -60,6 +69,88 @@ export function AddMoneyDrawer({
     if (extra?.onchain) void devnet.refresh();
     toast.success("Баланс пополнен");
   }, [devnet, topUp]);
+
+  const handleBankPaymentResult = useCallback(async (request: { id: string; amountUsd: number }) => {
+    if (devnet.mode === "devnet" && devnet.walletAddress) {
+      setProcessing(true);
+      setBankMessage(null);
+      try {
+        const response = await fetch("/api/devnet/faucet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress: devnet.walletAddress, amountUsd: request.amountUsd }),
+        });
+        const result = await response.json() as { signature?: unknown; explorerUrl?: unknown; error?: unknown };
+        if (!response.ok || typeof result.signature !== "string" || typeof result.explorerUrl !== "string") {
+          throw new Error(typeof result.error === "string" ? result.error : "Не удалось выпустить тестовые доллары.");
+        }
+        complete(
+          request.amountUsd,
+          "bank-demo",
+          "Оплата подтверждена в приложении Демо-банка.",
+          "Тестовые доллары выпущены в Solana devnet.",
+          { onchain: true, signature: result.signature, explorerUrl: result.explorerUrl },
+        );
+      } catch {
+        setBankMessage("Банк подтвердил оплату, но не удалось выпустить тестовые доллары. Попробуйте позже.");
+      } finally {
+        setProcessing(false);
+      }
+      return;
+    }
+
+    complete(
+      request.amountUsd,
+      "bank-demo",
+      "Оплата подтверждена в приложении Демо-банка.",
+      "Тестовая оплата — деньги не списываются.",
+    );
+  }, [complete, devnet.mode, devnet.walletAddress]);
+
+  useEffect(() => {
+    if (!bankEmbed) return;
+    const onMessage = (event: MessageEvent<unknown>) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent) return;
+      if (typeof event.data !== "object" || event.data === null) return;
+      const data = event.data as { type?: unknown; id?: unknown; status?: unknown };
+      const request = bankRequestRef.current;
+      if (
+        data.type !== "rwa-bridge:payment-result"
+        || typeof data.id !== "string"
+        || !request
+        || data.id !== request.id
+      ) return;
+
+      bankRequestRef.current = null;
+      setBankPaymentPending(false);
+      if (data.status === "cancelled") {
+        setBankMessage("Оплата отменена");
+        toast.error("Оплата отменена");
+      } else if (data.status === "paid") {
+        void handleBankPaymentResult(request);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [bankEmbed, handleBankPaymentResult]);
+
+  const requestBankPayment = () => {
+    if (!valid || bankPaymentPending || processing || !bankEmbed) return;
+    const request = {
+      id: window.crypto.randomUUID(),
+      amountUsd: amountValue,
+    };
+    bankRequestRef.current = request;
+    setBankMessage(null);
+    setBankPaymentPending(true);
+    window.parent.postMessage({
+      type: "rwa-bridge:payment-request",
+      id: request.id,
+      amountUsd: request.amountUsd,
+      amountKzt: request.amountUsd * marketData.rate.usdKzt,
+      description: "Пополнение баланса RWA Bridge",
+    }, window.location.origin);
+  };
 
   const selectAnotherMethod = useCallback(() => {
     setMethod("");
@@ -97,9 +188,9 @@ export function AddMoneyDrawer({
     if (!valid || processing) return;
     setProcessing(true);
     window.setTimeout(() => {
-      const source = method === "devnet-faucet" || method === "moonpay" || method === "crossmint" || method === "mercuryo" || method === "transak"
-        ? `${method}-demo`
-        : method;
+      const source = selectedMethod === "devnet-faucet" || selectedMethod === "moonpay" || selectedMethod === "crossmint" || selectedMethod === "mercuryo" || selectedMethod === "transak"
+        ? `${selectedMethod}-demo`
+        : selectedMethod;
       complete(
         amountValue,
         source,
@@ -162,18 +253,42 @@ export function AddMoneyDrawer({
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Способ пополнения</h3>
             <div className="space-y-2">
+              {bankEmbed ? (
+                <MethodOption
+                  key="bank-demo"
+                  id="bank-demo"
+                  selected={selectedMethod === "bank-demo"}
+                  onSelect={setMethod}
+                  hideRecommended
+                />
+              ) : null}
               {methods.map((option) => (
                 <MethodOption
                   key={option.id}
                   id={option.id}
-                  selected={method === option.id}
+                  selected={selectedMethod === option.id}
                   onSelect={setMethod}
+                  hideRecommended={bankEmbed}
                 />
               ))}
             </div>
           </div>
 
-          {open && method === "devnet-faucet" && valid ? (
+          {open && selectedMethod === "bank-demo" && valid ? (
+            <div className="space-y-3">
+              {bankPaymentPending ? (
+                <p role="status" className="rounded-xl bg-muted px-3 py-3 text-sm text-muted-foreground">
+                  Подтвердите оплату в приложении банка…
+                </p>
+              ) : null}
+              {bankMessage ? <p className="text-xs text-muted-foreground">{bankMessage}</p> : null}
+              <Button className="w-full" onClick={requestBankPayment} disabled={bankPaymentPending || processing}>
+                {bankPaymentPending ? "Ожидаем подтверждения…" : `Пополнить ${formatMoney(amountValue)}`}
+              </Button>
+            </div>
+          ) : null}
+
+          {open && selectedMethod === "devnet-faucet" && valid ? (
             <DevnetFaucetPath
               amount={amountValue}
               serverConfigured={Boolean(devnet.usdMint && devnet.treasury)}
@@ -189,7 +304,7 @@ export function AddMoneyDrawer({
               )}
             />
           ) : null}
-          {open && method === "transak" && valid ? (
+          {open && selectedMethod === "transak" && valid ? (
             <TransakPath
               amount={amountValue}
               onDemo={addMockMoney}
@@ -200,7 +315,7 @@ export function AddMoneyDrawer({
           ) : null}
 
           {open && !success ? (
-            <div hidden={method !== "moonpay"}>
+            <div hidden={selectedMethod !== "moonpay"}>
               <MoonPayBuyPath
                 amount={amountValue}
                 onDemo={addMockMoney}
@@ -210,7 +325,7 @@ export function AddMoneyDrawer({
             </div>
           ) : null}
 
-          {open && method === "crossmint" && valid ? (
+          {open && selectedMethod === "crossmint" && valid ? (
             <CrossmintPath
               amount={amountValue}
               onDemo={addMockMoney}
@@ -219,10 +334,10 @@ export function AddMoneyDrawer({
               processing={processing}
             />
           ) : null}
-          {open && method === "mercuryo" && valid ? (
+          {open && selectedMethod === "mercuryo" && valid ? (
             <MercuryoPath amount={amountValue} onDemo={addMockMoney} processing={processing} />
           ) : null}
-          {open && (method === "kaspi" || method === "freedom") ? (
+          {open && (selectedMethod === "kaspi" || selectedMethod === "freedom") ? (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 Это концепт. Деньги не списываются, баланс изменится только в демо-режиме.

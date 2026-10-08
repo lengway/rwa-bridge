@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Activity, ArrowLeft, BriefcaseBusiness, House, Landmark, UserRound } from "lucide-react";
+import { useBankEmbed } from "@/lib/useBankEmbed";
 
 const tabs = [
   { href: "/home", label: "Главная", icon: House },
@@ -22,6 +24,7 @@ const titles: Record<string, string> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const bankEmbed = useBankEmbed();
   const isEarnDetail = /^\/earn\/[^/]+/.test(pathname);
   const isAssetDetail = /^\/assets\/[^/]+/.test(pathname);
   const isDetail = isEarnDetail || isAssetDetail;
@@ -30,6 +33,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     : isAssetDetail
       ? "Детали актива"
       : (titles[pathname] ?? "RWA Bridge");
+
+  useEffect(() => {
+    if (!bankEmbed) return;
+    const root = document.documentElement;
+    const hadDarkClass = root.classList.contains("dark");
+    root.classList.remove("dark");
+    return () => {
+      if (hadDarkClass) root.classList.add("dark");
+    };
+  }, [bankEmbed]);
 
   return (
     <div className="min-h-dvh bg-muted/40">

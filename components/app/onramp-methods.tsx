@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
-import { Coins, CreditCard, Plus } from "lucide-react";
+import { Coins, CreditCard, Landmark, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CrossmintOnramp } from "@/components/CrossmintOnramp";
@@ -22,12 +22,15 @@ export function MethodOption({
   id,
   selected,
   onSelect,
+  hideRecommended = false,
 }: {
   id: string;
   selected: boolean;
   onSelect: (id: string) => void;
+  hideRecommended?: boolean;
 }) {
   const labels: Record<string, string> = {
+    "bank-demo": "Со счёта в Демо-банке",
     "devnet-faucet": "Тестовый банкомат",
     moonpay: "Карта · MoonPay",
     transak: "Карта · Transak",
@@ -37,7 +40,7 @@ export function MethodOption({
     freedom: "Freedom",
   };
   const hint = ONRAMP_OPTIONS.find((option) => option.id === id)?.hint;
-  const MethodIcon = id === "devnet-faucet" ? Coins : CreditCard;
+  const MethodIcon = id === "bank-demo" ? Landmark : id === "devnet-faucet" ? Coins : CreditCard;
 
   return (
     <button
@@ -52,11 +55,14 @@ export function MethodOption({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {labels[id]}
+          {id === "bank-demo" ? <Badge variant="secondary">Мгновенно</Badge> : null}
           {id === "devnet-faucet" ? <Badge variant="outline">Без карты</Badge> : null}
-          {id === "transak" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
+          {id === "transak" && !hideRecommended ? <Badge variant="secondary">Рекомендуем</Badge> : null}
           {id === "kaspi" || id === "freedom" ? <Badge variant="outline">Концепт</Badge> : null}
         </span>
-        {hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}
+        {id === "bank-demo" ? (
+          <span className="mt-1 block text-xs text-muted-foreground">Оплата подтверждается в приложении банка</span>
+        ) : hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}
       </span>
       <span className={`mt-1 size-4 rounded-full border ${selected ? "border-foreground bg-foreground ring-2 ring-background ring-offset-1 ring-offset-foreground" : "border-muted-foreground/40"}`} />
     </button>

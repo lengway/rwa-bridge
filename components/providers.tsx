@@ -12,6 +12,7 @@ import { MarketDataProvider } from "@/lib/useMarketData";
 import { DevnetProvider } from "@/lib/devnet-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { BankEmbedProvider } from "@/lib/useBankEmbed";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const app = (
@@ -20,7 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <DevnetProvider crossmintEnabled={isCrossmintConfigured}>
           <MarketDataProvider>
             <AppStoreProvider>
-              {children}
+              <BankEmbedProvider>{children}</BankEmbedProvider>
               <Toaster position="top-center" />
             </AppStoreProvider>
           </MarketDataProvider>

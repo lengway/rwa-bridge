@@ -127,7 +127,7 @@ app/
     activity/             — история операций по дням
     profile/              — аккаунт, настройки и демо-данные
   portfolio/page.tsx      — перенаправление на /home
-  demo-bank/page.tsx      — нейтральный экран банка с мостом внутри
+  demo-bank/page.tsx      — вымышленный супер-апп Демо-банка с RWA Bridge и тестовой оплатой внутри
   api/devnet/            — faucet, балансы, платежи и вывод тестовых токенов
   api/moonpay/           — sandbox status, подписанные ссылки и проверка buy/sell транзакций
   api/onramp-order/      — создаёт заказ онрампа Crossmint (карта → USDC)
