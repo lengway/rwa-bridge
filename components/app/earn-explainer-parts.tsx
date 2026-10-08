@@ -9,9 +9,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import type { YieldStrategy } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
 import { useAppStore } from "@/lib/store";
-import { formatApy } from "@/lib/format";
 import { getStrategyApy } from "@/lib/market-data";
-import { MarketDataNote } from "@/components/app/market-data-note";
+import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 
 export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
   const devnet = useDevnet();
@@ -108,7 +107,10 @@ export function EligibilitySection({ strategy }: { strategy: YieldStrategy }) {
 
 export function TechnicalDetails({ strategy }: { strategy: YieldStrategy }) {
   const { marketData } = useAppStore();
-  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
+  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
+  const apyData = strategy.id === "ondo-usdy"
+    ? marketData.availability.usdy ? marketData.yields.usdy : null
+    : marketData.yields.kaseGov;
   const apy = getStrategyApy(strategy.id, marketData.yields);
   const copyMint = async () => {
     if (!strategy.mintAddress) return;
@@ -138,13 +140,13 @@ export function TechnicalDetails({ strategy }: { strategy: YieldStrategy }) {
           {strategy.sourceUrl ? (
             <div className="space-y-1">
               <p>
-                Документация эмитента: <a href={strategy.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">адрес токена</a>. APY {formatApy(apy)}.
+                Документация эмитента: <a href={strategy.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">адрес токена</a>. APY {marketApyLabel(apy, apyAvailable)}.
               </p>
               <MarketDataNote data={apyData} />
             </div>
           ) : (
             <div className="space-y-1">
-              <p>Ориентир {formatApy(apy)}. Это демонстрационный показатель, не предложение от биржи или банка.</p>
+              <p>Ориентир {marketApyLabel(apy, apyAvailable)}. Это демонстрационный показатель, не предложение от биржи или банка.</p>
               <MarketDataNote data={apyData} />
             </div>
           )}

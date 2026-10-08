@@ -13,13 +13,20 @@ import { DevnetProvider } from "@/lib/devnet-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { BankEmbedProvider } from "@/lib/useBankEmbed";
+import type { MarketDataInitialData } from "@/lib/market-data";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  initialMarketData,
+}: {
+  children: React.ReactNode;
+  initialMarketData: MarketDataInitialData | null;
+}) {
   const app = (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
         <DevnetProvider crossmintEnabled={isCrossmintConfigured}>
-          <MarketDataProvider>
+          <MarketDataProvider initialData={initialMarketData}>
             <AppStoreProvider>
               <BankEmbedProvider>{children}</BankEmbedProvider>
               <Toaster position="top-center" />

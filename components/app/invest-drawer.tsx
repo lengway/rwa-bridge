@@ -12,13 +12,13 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { isCrossmintConfigured } from "@/lib/config";
-import { formatApy, formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
+import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
 import type { YieldStrategy } from "@/lib/yields";
 import { getStrategyApy } from "@/lib/market-data";
 import { KztEstimate } from "@/components/app/kzt-estimate";
-import { MarketDataNote } from "@/components/app/market-data-note";
+import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 
 type InvestDrawerProps = {
   open: boolean;
@@ -46,7 +46,10 @@ function InvestDrawerContents({
 }: InvestDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null; jwt: string | null }) {
   const { cashUsd, displayCurrency, invest, marketData, acceleratedAccrual } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
-  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
+  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
+  const apyData = strategy.id === "ondo-usdy"
+    ? marketData.availability.usdy ? marketData.yields.usdy : null
+    : marketData.yields.kaseGov;
   const devnet = useDevnet();
   const [amount, setAmount] = useState("50");
   const [accepted, setAccepted] = useState(false);
@@ -60,8 +63,8 @@ function InvestDrawerContents({
     && amountValue > 0
     && amountValue <= cashUsd
     && (devnet.mode !== "devnet" || (amountValue >= 1 && amountValue <= 1000));
-  const earningsMonth = Math.max(0, amountValue) * apy / 12;
-  const earningsYear = Math.max(0, amountValue) * apy;
+  const earningsMonth = apyAvailable ? Math.max(0, amountValue) * apy / 12 : Number.NaN;
+  const earningsYear = apyAvailable ? Math.max(0, amountValue) * apy : Number.NaN;
 
   const changeOpen = (nextOpen: boolean) => {
     setSuccess(null);
@@ -138,7 +141,7 @@ function InvestDrawerContents({
       open={open}
       onOpenChange={changeOpen}
       title={`Вложить · ${strategy.name}`}
-      description={`${strategy.ticker} · ${formatApy(apy)} годовых по указанному ориентиру`}
+      description={`${strategy.ticker} · ${marketApyLabel(apy, apyAvailable)} годовых по указанному ориентиру`}
     >
       {success ? (
         <DrawerSuccess

@@ -2,12 +2,12 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { formatApy, formatEarningsMoney, formatMoney } from "@/lib/format";
+import { formatEarningsMoney, formatMoney } from "@/lib/format";
 import type { YieldStrategy } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
 import { getStrategyApy } from "@/lib/market-data";
 import { useAppStore } from "@/lib/store";
-import { MarketDataNote } from "@/components/app/market-data-note";
+import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 
 export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
   if (strategy.kind === "demo") {
@@ -20,7 +20,10 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
   const devnet = useDevnet();
   const { marketData } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
-  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
+  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
+  const apyData = strategy.id === "ondo-usdy"
+    ? marketData.availability.usdy ? marketData.yields.usdy : null
+    : marketData.yields.kaseGov;
   return (
     <section className="space-y-4 pt-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -34,8 +37,8 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
       <div>
         <p className="text-sm text-muted-foreground">{strategy.name}</p>
         <div className="mt-1 flex items-baseline gap-2">
-          <p className="text-5xl font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400">
-            {formatApy(apy)}
+          <p className={`font-semibold tracking-tight tabular-nums ${apyAvailable ? "text-5xl text-emerald-700 dark:text-emerald-400" : "text-sm font-normal text-muted-foreground"}`}>
+            {marketApyLabel(apy, apyAvailable)}
           </p>
           <p className="text-sm text-muted-foreground">годовых</p>
         </div>
@@ -45,8 +48,8 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
       </div>
       {strategy.id === "ondo-usdy" ? (
         <p className="text-xs leading-5 text-muted-foreground">
-          Доходность 3-мес. казначейских векселей США: {formatApy(marketData.yields.tbill3m.apy)}.{" "}
-          <MarketDataNote data={marketData.yields.tbill3m} />
+          Доходность 3-мес. казначейских векселей США: {marketApyLabel(marketData.yields.tbill3m.apy, marketData.availability.tbill3m)}.{" "}
+          <MarketDataNote data={marketData.availability.tbill3m ? marketData.yields.tbill3m : null} />
         </p>
       ) : null}
       <p className="text-sm leading-6">{strategy.description}</p>
@@ -72,7 +75,10 @@ export function ProjectionCalculator({
 }) {
   const { marketData, acceleratedAccrual } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
-  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
+  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
+  const apyData = strategy.id === "ondo-usdy"
+    ? marketData.availability.usdy ? marketData.yields.usdy : null
+    : marketData.yields.kaseGov;
   const years = [0, 1, 2, 3, 4, 5];
   const projection = (year: number) => amount * (1 + apy * year);
   const points = years.map((year, index) => {
@@ -113,8 +119,8 @@ export function ProjectionCalculator({
         <span>$10 000</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <ProjectedReturn label="За месяц" amount={amount * apy / 12} currency={currency} />
-        <ProjectedReturn label="За год" amount={amount * apy} currency={currency} />
+        <ProjectedReturn label="За месяц" amount={apyAvailable ? amount * apy / 12 : Number.NaN} currency={currency} />
+        <ProjectedReturn label="За год" amount={apyAvailable ? amount * apy : Number.NaN} currency={currency} />
       </div>
       <ProjectionChart amount={amount} projection={projection} points={points} years={years} />
       {currentPosition ? (

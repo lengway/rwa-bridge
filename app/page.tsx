@@ -12,7 +12,7 @@ import { formatApy, formatMoney } from "@/lib/format";
 import { KZ_BOND_DEMO, ONDO_USDY } from "@/lib/yields";
 import { useMarketData } from "@/lib/useMarketData";
 import { formatDataDate, getStrategyApy, type DatedMetric } from "@/lib/market-data";
-import { MarketDataNote } from "@/components/app/market-data-note";
+import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 
 type DevnetStatus = {
   configured?: boolean;
@@ -93,9 +93,15 @@ export default function LandingPage() {
             <div className="grid grid-cols-2 gap-3 border-t pt-4">
               <div className="rounded-xl bg-muted/60 p-3">
                 <p className="text-xs text-muted-foreground">Ориентир USDY</p>
-                <p className="mt-1 font-semibold">{formatApy(usdyApy)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Данные на {formatDataDate(usdyData.asOf)}</p>
-                <a href={usdyData.source.url} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-muted-foreground underline underline-offset-2">{usdyData.source.name}</a>
+                <p className={`mt-1 font-semibold ${marketData.availability.usdy ? "" : "text-sm font-normal text-muted-foreground"}`}>
+                  {marketApyLabel(usdyApy, marketData.availability.usdy)}
+                </p>
+                {marketData.availability.usdy ? (
+                  <>
+                    <p className="mt-1 text-xs text-muted-foreground">Данные на {formatDataDate(usdyData.asOf)}</p>
+                    <a href={usdyData.source.url} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs text-muted-foreground underline underline-offset-2">{usdyData.source.name}</a>
+                  </>
+                ) : <MarketDataNote data={null} />}
               </div>
               <div className="rounded-xl bg-muted/60 p-3">
                 <p className="text-xs text-muted-foreground">Демо-актив OFFICE</p>
@@ -118,7 +124,7 @@ export default function LandingPage() {
         <section className="space-y-5 py-8">
           <SectionHeading eyebrow="Продукты и ставки" title="Доходность на понятных активах" description="Показатели обновляются из указанных источников и сопровождаются датой. Это ориентиры, не обещание дохода; сделки с реальными активами не совершаются." />
           <div className="grid gap-3 sm:grid-cols-3">
-            <ProductCard title="Долларовый вклад" label={`${formatApy(usdyApy)} · ориентир`} detail={`Ориентир по USDY и доходности 3-месячных казначейских векселей США: ${formatApy(marketData.yields.tbill3m.apy)}. В devnet используется vUSDY-DEMO.`} data={usdyData} secondaryData={marketData.yields.tbill3m} href="/earn/ondo-usdy" />
+            <ProductCard title="Долларовый вклад" label={`${marketApyLabel(usdyApy, marketData.availability.usdy)} · ориентир`} detail={`Ориентир по USDY и доходности 3-месячных казначейских векселей США: ${marketApyLabel(marketData.yields.tbill3m.apy, marketData.availability.tbill3m)}. В devnet используется vUSDY-DEMO.`} data={marketData.availability.usdy ? usdyData : null} secondaryData={marketData.availability.tbill3m ? marketData.yields.tbill3m : null} href="/earn/ondo-usdy" />
             <ProductCard title="Тенговые облигации" label={`${formatApy(kaseApy)} · демо`} detail="Ориентир индекса доходности гособлигаций KASE. В devnet выпускается vKZGB-DEMO, не токен облигации." data={kaseData} href="/earn/kz-bond-demo" />
             <ProductCard title="Офисное здание" label="OFFICE-DEMO · от $10" detail="Вымышленный объект для демонстрации покупки доли. Токен не подтверждает право собственности." href="/assets/demo-office" />
           </div>
@@ -246,12 +252,12 @@ function ValueCard({ icon, title, text }: { icon: React.ReactNode; title: string
   return <Card className="gap-3 rounded-2xl p-5"><span className="flex size-10 items-center justify-center rounded-full bg-muted [&_svg]:size-5">{icon}</span><div><h3 className="font-semibold">{title}</h3><p className="mt-1 text-sm leading-5 text-muted-foreground">{text}</p></div></Card>;
 }
 
-function ProductCard({ title, label, detail, href, data, secondaryData }: { title: string; label: string; detail: string; href: string; data?: DatedMetric; secondaryData?: DatedMetric }) {
+function ProductCard({ title, label, detail, href, data, secondaryData }: { title: string; label: string; detail: string; href: string; data?: DatedMetric | null; secondaryData?: DatedMetric | null }) {
   return (
     <Card className="h-full gap-3 rounded-2xl p-5 transition-colors hover:bg-muted/40">
       <Link href={href} className="block flex-1 space-y-3"><Badge variant="secondary" className="w-fit">{label}</Badge><h3 className="font-semibold">{title}</h3><p className="text-sm leading-5 text-muted-foreground">{detail}</p><span className="inline-flex items-center gap-1 text-sm font-medium">Подробнее <ArrowRight className="size-4" /></span></Link>
-      {data ? <MarketDataNote data={data} plain /> : null}
-      {secondaryData ? <MarketDataNote data={secondaryData} plain /> : null}
+      {data !== undefined ? <MarketDataNote data={data} plain /> : null}
+      {secondaryData !== undefined ? <MarketDataNote data={secondaryData} plain /> : null}
     </Card>
   );
 }

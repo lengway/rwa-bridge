@@ -1,6 +1,20 @@
+import { formatApy } from "@/lib/format";
 import { formatDataDate, type DatedMetric, type KztRateData } from "@/lib/market-data";
 
-export function MarketDataNote({ data, plain = false }: { data: DatedMetric | KztRateData; plain?: boolean }) {
+export function marketApyLabel(apy: number, available: boolean) {
+  return available ? formatApy(apy) : "Загружаем ставку…";
+}
+
+export function MarketDataNote({
+  data,
+  plain = false,
+  loadingText = "Загружаем ставку…",
+}: {
+  data: DatedMetric | KztRateData | null;
+  plain?: boolean;
+  loadingText?: string;
+}) {
+  if (!data) return <span className="text-xs text-muted-foreground">{loadingText}</span>;
   const manualUpdate = "manualUpdate" in data && data.manualUpdate;
   return (
     <span className="text-xs text-muted-foreground">

@@ -113,14 +113,17 @@ export function BalanceCard({
       <p className="-mt-3 text-xs text-muted-foreground">
         В пересчёте в тенге — по курсу НБ РК.
       </p>
-      <MarketDataNote data={marketData.rate} />
-      <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
-        <ChartNoAxesCombined className="size-4" />
-        {hydrated ? (
+      <MarketDataNote
+        data={marketData.availability.rate ? marketData.rate : null}
+        loadingText="Загружаем курс…"
+      />
+      {hydrated && earnings !== 0 ? (
+        <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+          <ChartNoAxesCombined className="size-4" />
           <span>+{formatEarningsMoney(earnings, currency)} доход за всё время</span>
-        ) : <Skeleton className="h-4 w-40" />}
-        {acceleratedAccrual ? <Badge variant="outline">Ускоренный режим</Badge> : null}
-      </div>
+          {acceleratedAccrual ? <Badge variant="outline">Ускоренный режим</Badge> : null}
+        </div>
+      ) : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
     </Card>
   );
 }

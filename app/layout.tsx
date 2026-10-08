@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { readCurrentMarketData } from "@/lib/market-server";
+import type { MarketDataInitialData } from "@/lib/market-data";
 
 const geist = Geist({
   subsets: ["latin", "cyrillic"],
@@ -27,7 +30,25 @@ export const viewport: Viewport = {
   themeColor: "#1f1f1f",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+async function getInitialMarketData(): Promise<MarketDataInitialData | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      readCurrentMarketData(),
+      new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), 1_500);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
+
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Next 16's connection() keeps this process-cache lookup request-time, so build prerenders cannot freeze market data.
+  await connection();
+  const initialMarketData = await getInitialMarketData();
+
   return (
     <html
       lang="ru"
@@ -35,7 +56,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <Providers initialMarketData={initialMarketData}>{children}</Providers>
       </body>
     </html>
   );

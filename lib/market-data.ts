@@ -24,7 +24,25 @@ export type KztRateData = {
   stale: boolean;
 };
 
-export type MarketData = { rate: KztRateData; yields: YieldData };
+export type MarketDataAvailability = {
+  rate: boolean;
+  usdy: boolean;
+  tbill3m: boolean;
+};
+
+export type MarketDataInitialData = {
+  rate: KztRateData | null;
+  yields: {
+    usdy: DatedMetric | null;
+    tbill3m: DatedMetric | null;
+  };
+};
+
+export type MarketData = {
+  rate: KztRateData;
+  yields: YieldData;
+  availability: MarketDataAvailability;
+};
 
 export const FALLBACK_KZT_DATA: KztRateData = {
   usdKzt: FALLBACK_KZT_RATE,
@@ -72,6 +90,7 @@ export const FALLBACK_YIELD_DATA: YieldData = {
 export const INITIAL_MARKET_DATA: MarketData = {
   rate: FALLBACK_KZT_DATA,
   yields: FALLBACK_YIELD_DATA,
+  availability: { rate: false, usdy: false, tbill3m: false },
 };
 
 export function getStrategyApy(strategyId: string, yields: YieldData) {

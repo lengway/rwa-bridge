@@ -36,8 +36,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatApy, formatMoney } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { useMarketData } from "@/lib/useMarketData";
+import { marketApyLabel } from "@/components/app/market-data-note";
 import { toast } from "sonner";
 
 type PaymentRequest = {
@@ -89,7 +90,7 @@ export function DemoBankScreen() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const slides = [
-    { title: "Доход на долларах", detail: `от ${formatApy(marketData.yields.usdy.apy)} годовых`, tag: "Новое", tone: "from-[#e5352b] via-[#f04b3f] to-[#ff866c]", icon: Sparkles },
+    { title: "Доход на долларах", detail: `от ${marketApyLabel(marketData.yields.usdy.apy, marketData.availability.usdy)} годовых`, tag: "Новое", tone: "from-[#e5352b] via-[#f04b3f] to-[#ff866c]", icon: Sparkles },
     { title: "Кэшбэк до 10%", detail: "Больше пользы в каждом дне", tag: "Предложение", tone: "from-[#ffbd71] via-[#ff9a72] to-[#f77373]", icon: BadgePercent },
     { title: "Переводы без комиссии", detail: "Отправляйте близким удобно", tag: "Для вас", tone: "from-[#777de8] via-[#8e8bed] to-[#b9a0f4]", icon: ArrowLeftRight },
   ];
@@ -133,7 +134,7 @@ export function DemoBankScreen() {
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [marketData.rate.usdKzt]);
+  }, [marketData.availability.rate, marketData.rate.usdKzt]);
 
   useEffect(() => {
     if (payment?.status !== "processing") return;
@@ -376,8 +377,8 @@ export function DemoBankScreen() {
                   </div>
 
                   <div className="py-6 text-center">
-                    <p className="text-[34px] font-semibold tracking-tight tabular-nums">{formatTenge(payment.amountKzt)}</p>
-                    <p className="mt-1 text-sm text-[#858990]">≈ {formatMoney(payment.amountUsd)} · {marketData.rate.stale ? "ориентировочный курс" : "курс приложения"}</p>
+                    <p className="text-[34px] font-semibold tracking-tight tabular-nums">{marketData.availability.rate ? formatTenge(payment.amountKzt) : "Загружаем курс…"}</p>
+                    <p className="mt-1 text-sm text-[#858990]">≈ {formatMoney(payment.amountUsd)} · {marketData.availability.rate ? marketData.rate.stale ? "ориентировочный курс" : "курс приложения" : "ожидаем курс НБ РК"}</p>
                   </div>
 
                   <div className="divide-y divide-[#eeeeef] rounded-2xl border border-[#eeeeef] px-4">

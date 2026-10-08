@@ -1,7 +1,7 @@
 import "server-only";
 
-import { getStrategyApy } from "@/lib/market-data";
-import { readYieldData } from "@/lib/market-data-server";
+import { FALLBACK_YIELD_DATA, getStrategyApy } from "@/lib/market-data";
+import { readYieldData } from "@/lib/market-server";
 import { getVaultCheckpoint, setVaultCheckpoint, withLedgerKeyLock } from "@/lib/devnet-ledger";
 import { devnetConfig } from "@/lib/solana-server";
 import { YIELD_STRATEGIES } from "@/lib/yields";
@@ -33,7 +33,7 @@ export async function getVaultQuote(productId: string, now = Date.now()) {
   if (!strategy || !vault || !vault.mint) throw new Error("Неизвестный продукт дохода.");
 
   return withLedgerKeyLock(`vault-checkpoint:${productId}`, async () => {
-    const yields = await readYieldData();
+    const yields = await readYieldData() ?? FALLBACK_YIELD_DATA;
     const apy = Math.max(0, getStrategyApy(productId, yields));
     let checkpoint = await getVaultCheckpoint(productId);
     if (!checkpoint) {

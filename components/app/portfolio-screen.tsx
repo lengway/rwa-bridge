@@ -139,9 +139,11 @@ export function PortfolioScreen() {
         <div>
           <p className="text-sm text-muted-foreground">Общая стоимость</p>
           <p className="mt-1 text-3xl font-semibold tabular-nums">{formatMoney(totalValue, displayCurrency)}</p>
-          <p className={`mt-1 text-sm tabular-nums ${todayChange >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-            {todayChange >= 0 ? "+" : "−"}{formatEarningsMoney(Math.abs(todayChange), displayCurrency)} за сегодня
-          </p>
+          {todayChange !== 0 ? (
+            <p className={`mt-1 text-sm tabular-nums ${todayChange >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+              {todayChange >= 0 ? "+" : "−"}{formatEarningsMoney(Math.abs(todayChange), displayCurrency)} за сегодня
+            </p>
+          ) : null}
         </div>
         {allocationTotal > 0 ? (
           <div className="space-y-3">

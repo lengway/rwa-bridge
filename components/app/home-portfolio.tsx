@@ -3,11 +3,11 @@ import { ArrowDownToLine, BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DEMO_ASSETS } from "@/lib/assets";
-import { formatApy, formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
+import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore, type Holding, type YieldPosition } from "@/lib/store";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { getStrategyApy } from "@/lib/market-data";
-import { MarketDataNote } from "@/components/app/market-data-note";
+import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 import { useDevnet } from "@/lib/useDevnet";
 
 type PositionItem = {
@@ -52,7 +52,11 @@ function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" 
   const { acceleratedAccrual, marketData } = useAppStore();
   const devnet = useDevnet();
   const { strategy, position, earned } = item;
-  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
+  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
+  const apyData = strategy.id === "ondo-usdy"
+    ? marketData.availability.usdy ? marketData.yields.usdy : null
+    : marketData.yields.kaseGov;
+  const apyLabel = marketApyLabel(getStrategyApy(strategy.id, marketData.yields), apyAvailable);
   return (
     <Card className="gap-0 rounded-2xl p-0 transition-colors hover:bg-muted/40">
       <Link href={`/earn/${strategy.id}`} className="flex items-center gap-3 p-4">
@@ -63,8 +67,8 @@ function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" 
           <span className="block truncate font-medium">{strategy.name}</span>
           <span className="mt-1 block text-xs text-muted-foreground">
             {devnet.mode === "devnet"
-              ? `${formatQuantity(position.shares ?? 0)} ${strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO"} · ${formatApy(getStrategyApy(strategy.id, marketData.yields))}`
-              : `Вложено ${formatMoney(position.principal, currency)} · ${formatApy(getStrategyApy(strategy.id, marketData.yields))}`}
+              ? `${formatQuantity(position.shares ?? 0)} ${strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO"} · ${apyLabel}`
+              : `Вложено ${formatMoney(position.principal, currency)} · ${apyLabel}`}
           </span>
         </span>
         <span className="text-right">
@@ -121,13 +125,14 @@ export function PromoCard() {
   const strategy = YIELD_STRATEGIES[0];
   const { marketData } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
-  const apyData = marketData.yields.usdy;
+  const apyAvailable = marketData.availability.usdy;
+  const apyData = apyAvailable ? marketData.yields.usdy : null;
   return (
     <Card className="gap-3 rounded-2xl border-emerald-600/20 bg-emerald-500/5 p-5">
       <Link href={`/earn/${strategy.id}`} className="block space-y-3">
         <div className="flex items-center justify-between">
-          <Badge variant="secondary" className="text-emerald-700 dark:text-emerald-300">
-            {formatApy(apy)} годовых
+          <Badge variant="secondary" className={apyAvailable ? "text-emerald-700 dark:text-emerald-300" : "font-normal text-muted-foreground"}>
+            {marketApyLabel(apy, apyAvailable)} годовых
           </Badge>
           <ArrowDownToLine className="size-4 text-emerald-700 dark:text-emerald-300" />
         </div>

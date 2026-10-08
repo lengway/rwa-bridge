@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { formatApy } from "@/lib/format";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { RiskBadge } from "@/components/app/earn-detail-parts";
 import { useDevnet } from "@/lib/useDevnet";
 import { useAppStore } from "@/lib/store";
 import { getStrategyApy } from "@/lib/market-data";
-import { MarketDataNote } from "@/components/app/market-data-note";
+import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 
 export function EarnList() {
   const devnet = useDevnet();
@@ -42,7 +41,10 @@ export function EarnList() {
 function YieldCard({ strategy }: { strategy: YieldStrategy }) {
   const { marketData } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
-  const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
+  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
+  const apyData = strategy.id === "ondo-usdy"
+    ? marketData.availability.usdy ? marketData.yields.usdy : null
+    : marketData.yields.kaseGov;
   return (
     <Card className="gap-4 rounded-2xl p-5 transition-colors hover:bg-muted/40">
       <Link href={`/earn/${strategy.id}`} className="block space-y-4">
@@ -57,8 +59,8 @@ function YieldCard({ strategy }: { strategy: YieldStrategy }) {
         </div>
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-3xl font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400">
-              {formatApy(apy)}
+            <p className={`text-3xl font-semibold tracking-tight tabular-nums ${apyAvailable ? "text-emerald-700 dark:text-emerald-400" : "text-sm font-normal text-muted-foreground"}`}>
+              {marketApyLabel(apy, apyAvailable)}
             </p>
             <p className="text-xs text-muted-foreground">ориентир годовых</p>
           </div>

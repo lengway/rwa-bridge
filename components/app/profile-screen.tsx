@@ -51,7 +51,7 @@ export function PortfolioSettings() {
       <PreferenceSection
         currency={displayCurrency}
         onCurrencyChange={setDisplayCurrency}
-        rate={marketData.rate}
+        rate={marketData.availability.rate ? marketData.rate : null}
       />
       <AccrualPreference
         acceleratedAccrual={acceleratedAccrual}
@@ -197,7 +197,7 @@ function PreferenceSection({
 }: {
   currency: "USD" | "KZT";
   onCurrencyChange: (currency: "USD" | "KZT") => void;
-  rate: ReturnType<typeof useAppStore>["marketData"]["rate"];
+  rate: ReturnType<typeof useAppStore>["marketData"]["rate"] | null;
 }) {
   return (
     <Card className="gap-4 rounded-2xl p-4">
@@ -206,7 +206,7 @@ function PreferenceSection({
         <p className="mt-1 text-sm text-muted-foreground">
           Пересчёт в тенге — по курсу НБ РК.
         </p>
-        <MarketDataNote data={rate} />
+        <MarketDataNote data={rate} loadingText="Загружаем курс…" />
       </div>
       <div className="grid grid-cols-2 gap-2">
         {(["USD", "KZT"] as const).map((value) => (
