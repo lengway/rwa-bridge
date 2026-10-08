@@ -1,11 +1,33 @@
+"use client";
+
+import Link from "next/link";
 import { BriefcaseBusiness } from "lucide-react";
-import { AssetListCard } from "@/components/app/asset-parts";
+import { AssetListCard, ExistingHolding } from "@/components/app/asset-parts";
 import { Card } from "@/components/ui/card";
 import { DEMO_ASSETS } from "@/lib/assets";
+import { useAppStore } from "@/lib/store";
 
 export function AssetsScreen() {
+  const { holdings } = useAppStore();
+  const ownedAssets = DEMO_ASSETS.flatMap((asset) => {
+    const holding = holdings[asset.id];
+    return holding ? [{ asset, holding }] : [];
+  });
+
   return (
     <div className="space-y-6">
+      {ownedAssets.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Ваши доли</h2>
+          <div className="space-y-2">
+            {ownedAssets.map(({ asset, holding }) => (
+              <Link key={asset.id} href={`/assets/${asset.id}`} className="block">
+                <ExistingHolding units={holding.units} costUsd={holding.costUsd} />
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">Доли в недвижимости</h2>
         <p className="text-sm leading-5 text-muted-foreground">

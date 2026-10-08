@@ -387,14 +387,33 @@ export function useAppStore() {
   const context = useContext(AppStoreContext);
   if (!context) throw new Error("useAppStore must be used within an AppStoreProvider");
   const devnet = useDevnet();
-  const positions = Object.fromEntries(
-    Object.entries(context.positions)
-      .filter(([key]) => devnet.mode === "devnet" ? key.startsWith("devnet:") : !key.startsWith("devnet:"))
-      .map(([key, position]) => [devnet.mode === "devnet" ? key.slice("devnet:".length) : key, position]),
-  );
+  const positions = devnet.mode === "devnet"
+    ? Object.fromEntries((devnet.portfolio?.positions ?? []).map((position) => [position.productId, {
+      principal: position.principalUsd,
+      since: position.since,
+      earnedCarryUsd: position.earnedCarryUsd,
+    }]))
+    : Object.fromEntries(Object.entries(context.positions)
+      .filter(([key]) => !key.startsWith("devnet:")));
+  const holdings = devnet.mode === "devnet"
+    ? Object.fromEntries((devnet.portfolio?.holdings ?? []).map((holding) => [holding.assetId, {
+      units: holding.units,
+      costUsd: holding.costUsd,
+    }]))
+    : context.holdings;
+  const activity = devnet.mode === "devnet"
+    ? (() => {
+      const serverActivity = devnet.portfolio?.activity ?? [];
+      const signatures = new Set(serverActivity.map((item) => item.signature));
+      return [...serverActivity, ...context.activity.filter((item) => !item.signature || !signatures.has(item.signature))]
+        .sort((left, right) => right.at - left.at);
+    })()
+    : context.activity;
   return {
     ...context,
     positions,
+    holdings,
+    activity,
     cashUsd: devnet.mode === "devnet" ? (devnet.onchain?.usd ?? 0) : context.cashUsd,
   };
 }

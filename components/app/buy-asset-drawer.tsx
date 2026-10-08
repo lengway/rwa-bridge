@@ -70,37 +70,69 @@ function BuyAssetDrawerContents({
 
     if (devnet.mode === "devnet") {
       if (!devnet.treasuryOwner) {
-        setError("Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
+        const message = "Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.";
+        setError(message);
+        toast.error(message);
         setProcessing(false);
         return;
       }
       if (!wallet || !devnet.walletAddress || !devnet.usdMint) {
-        setError("Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.");
+        const message = "Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.";
+        setError(message);
+        toast.error(message);
         setProcessing(false);
         return;
       }
       try {
         setProgress("Подписываем перевод…");
         const payment = await wallet.send(devnet.treasuryOwner, devnet.usdMint, String(amountValue));
+        if (!payment.hash) throw new Error("Кошелёк не вернул подпись перевода.");
         setProgress("Проверяем в сети…");
-        const response = await fetch("/api/devnet/buy-asset", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            walletAddress: devnet.walletAddress,
-            assetId: asset.id,
-            amountUsd: amountValue,
-            signature: payment.hash,
-          }),
-        });
-        const data = await response.json() as {
-          signature?: unknown;
-          explorerUrl?: unknown;
-          units?: unknown;
-          error?: unknown;
+        const requestPurchase = async () => {
+          const response = await fetch("/api/devnet/buy-asset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              walletAddress: devnet.walletAddress,
+              assetId: asset.id,
+              amountUsd: amountValue,
+              signature: payment.hash,
+            }),
+          });
+          const data = await response.json() as {
+            signature?: unknown;
+            explorerUrl?: unknown;
+            units?: unknown;
+            error?: unknown;
+            stage?: unknown;
+          };
+          if (response.ok && typeof data.signature === "string" && typeof data.explorerUrl === "string") {
+            return {
+              signature: data.signature,
+              explorerUrl: data.explorerUrl,
+              units: typeof data.units === "number" ? data.units : undefined,
+            };
+          }
+          const failure = new Error(typeof data.error === "string" ? data.error : "Не удалось подтвердить покупку.") as Error & { stage?: unknown };
+          failure.stage = data.stage;
+          throw failure;
         };
-        if (!response.ok || typeof data.signature !== "string" || typeof data.explorerUrl !== "string") {
-          throw new Error(typeof data.error === "string" ? data.error : "Не удалось подтвердить покупку.");
+
+        let data: Awaited<ReturnType<typeof requestPurchase>> | null = null;
+        let lastRequestError: unknown;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            data = await requestPurchase();
+            break;
+          } catch (requestError) {
+            lastRequestError = requestError;
+            const stage = (requestError as { stage?: unknown }).stage;
+            if (stage !== "mint" && stage !== undefined) throw requestError;
+            if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 700 * (attempt + 1)));
+          }
+        }
+        if (!data) {
+          throw new Error("Оплата прошла, но доля не выдана. Мы повторим автоматически.", { cause: lastRequestError });
         }
         const purchasedUnits = typeof data.units === "number" ? data.units : units;
         const purchased = buy(asset.id, amountValue, {
@@ -116,7 +148,11 @@ function BuyAssetDrawerContents({
         toast.success("Покупка завершена");
       } catch (requestError) {
         const message = requestError instanceof Error ? requestError.message : "";
-        setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось выполнить покупку. Проверьте баланс тестовых долларов и попробуйте ещё раз.");
+        const visibleMessage = /[А-Яа-яЁё]/.test(message)
+          ? message
+          : "Не удалось выполнить покупку. Проверьте баланс тестовых долларов и попробуйте ещё раз.";
+        setError(visibleMessage);
+        toast.error(visibleMessage);
       } finally {
         setProcessing(false);
         setProgress(null);

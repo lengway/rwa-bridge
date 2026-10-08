@@ -9,7 +9,7 @@ import {
   safeError,
   unavailableResponse,
 } from "@/lib/devnet-route";
-import { devnetDeposits } from "@/lib/devnet-state";
+import { appendDeposit, hasLedgerSignature } from "@/lib/devnet-ledger";
 import { explorerUrl, verifyIncomingPayment } from "@/lib/solana-server";
 
 export async function POST(request: Request) {
@@ -34,9 +34,16 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (await hasLedgerSignature(body.signature)) {
+      throw new Error("Эта транзакция уже была использована.");
+    }
     await verifyIncomingPayment({ signature: body.signature, fromOwner: body.walletAddress, minAmountUi: body.amountUsd });
-    const key = `${body.walletAddress}:${body.productId}`;
-    devnetDeposits.set(key, (devnetDeposits.get(key) ?? 0) + body.amountUsd);
+    await appendDeposit(body.walletAddress, {
+      productId: body.productId,
+      amountUsd: body.amountUsd,
+      signature: body.signature,
+      at: Date.now(),
+    });
     return NextResponse.json({ ok: true, explorerUrl: explorerUrl(body.signature) });
   } catch (error) {
     return NextResponse.json({

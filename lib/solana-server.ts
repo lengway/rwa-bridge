@@ -193,8 +193,8 @@ export async function ensureFeeSol(ownerAddress: string) {
   return sendAndConfirmTransaction(connection, transaction, [feePayer], { commitment: "confirmed" });
 }
 
-// Demo replay protection is kept in memory and resets when the server restarts.
-const verifiedSignatures = new Set<string>();
+// Concurrent verification is guarded in-process; durable signature replay protection
+// lives in the devnet ledger.
 const pendingSignatures = new Set<string>();
 
 function balanceForOwner(
@@ -218,7 +218,7 @@ export async function verifyIncomingPayment({
   minAmountUi: number;
 }) {
   const { authority: mintAuthority, usdMint } = requiredConfig();
-  if (verifiedSignatures.has(signature) || pendingSignatures.has(signature)) {
+  if (pendingSignatures.has(signature)) {
     throw new Error("Эта транзакция уже была использована.");
   }
   pendingSignatures.add(signature);
@@ -252,11 +252,52 @@ export async function verifyIncomingPayment({
     if (treasuryAfter - treasuryBefore < minimum || userBefore - userAfter < minimum) {
       throw new Error("В сети не найден перевод нужной суммы от вашего кошелька в казначейство.");
     }
-    verifiedSignatures.add(signature);
     return true;
   } finally {
     pendingSignatures.delete(signature);
   }
+}
+
+export async function getUnassignedIncomingPayments(ownerAddress: string) {
+  const { authority: mintAuthority, usdMint } = requiredConfig();
+  const owner = new PublicKey(ownerAddress);
+  const treasuryAta = await getAssociatedTokenAddress(usdMint, mintAuthority.publicKey, true);
+  const ownerAta = await getAssociatedTokenAddress(usdMint, owner, true);
+  const signatures = await connection.getSignaturesForAddress(ownerAta, { limit: 100 }, "confirmed");
+  const incoming: Array<{ signature: string; amountUsd: number; at: number }> = [];
+
+  for (const signatureInfo of signatures) {
+    if (signatureInfo.err) continue;
+    const transaction = await connection.getParsedTransaction(signatureInfo.signature, {
+      maxSupportedTransactionVersion: 0,
+      commitment: "confirmed",
+    });
+    if (!transaction || transaction.meta?.err) continue;
+
+    const keys = transaction.transaction.message.accountKeys;
+    const treasuryIndex = keys.findIndex((key) => key.pubkey.equals(treasuryAta));
+    if (treasuryIndex < 0) continue;
+    const treasuryBefore = (transaction.meta?.preTokenBalances ?? [])
+      .filter((balance) => balance.accountIndex === treasuryIndex && balance.mint === usdMint.toBase58())
+      .reduce((total, balance) => total + BigInt(balance.uiTokenAmount.amount), BigInt(0));
+    const treasuryAfter = (transaction.meta?.postTokenBalances ?? [])
+      .filter((balance) => balance.accountIndex === treasuryIndex && balance.mint === usdMint.toBase58())
+      .reduce((total, balance) => total + BigInt(balance.uiTokenAmount.amount), BigInt(0));
+    const userBefore = balanceForOwner(transaction.meta?.preTokenBalances, ownerAddress, usdMint.toBase58());
+    const userAfter = balanceForOwner(transaction.meta?.postTokenBalances, ownerAddress, usdMint.toBase58());
+    const treasuryIncrease = treasuryAfter - treasuryBefore;
+    const userDecrease = userBefore - userAfter;
+    const transferAmount = treasuryIncrease < userDecrease ? treasuryIncrease : userDecrease;
+    if (transferAmount <= BigInt(0)) continue;
+
+    incoming.push({
+      signature: signatureInfo.signature,
+      amountUsd: Number(transferAmount) / TOKEN_SCALE,
+      at: (signatureInfo.blockTime ?? Math.floor(Date.now() / 1000)) * 1000,
+    });
+  }
+
+  return incoming;
 }
 
 export async function getWalletTokenBalances(ownerAddress: string) {
