@@ -79,7 +79,7 @@ export function ProviderQuote({
           : `≈ ${amountLabel} ${matchingQuote.cryptoCode} на выплату · комиссия ≈ $${feeLabel}`}
       </p>
       <p>
-        <a href={matchingQuote.source.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+        <a href={matchingQuote.source.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           {matchingQuote.source.name}
         </a>
         {" · котировка на "}{dateLabel}{matchingQuote.stale ? " · последняя сохранённая котировка" : null}

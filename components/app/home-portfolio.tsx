@@ -3,7 +3,7 @@ import { ArrowDownToLine, BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DEMO_ASSETS } from "@/lib/assets";
-import { formatApy, formatEarningsMoney, formatMoney } from "@/lib/format";
+import { formatApy, formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore, type Holding, type YieldPosition } from "@/lib/store";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { getStrategyApy } from "@/lib/market-data";
@@ -63,7 +63,7 @@ function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" 
           <span className="block truncate font-medium">{strategy.name}</span>
           <span className="mt-1 block text-xs text-muted-foreground">
             {devnet.mode === "devnet"
-              ? `${position.shares?.toLocaleString("ru-RU", { maximumFractionDigits: 6 }) ?? "0"} ${strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO"} · ${formatApy(getStrategyApy(strategy.id, marketData.yields))}`
+              ? `${formatQuantity(position.shares ?? 0)} ${strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO"} · ${formatApy(getStrategyApy(strategy.id, marketData.yields))}`
               : `Вложено ${formatMoney(position.principal, currency)} · ${formatApy(getStrategyApy(strategy.id, marketData.yields))}`}
           </span>
         </span>
@@ -105,7 +105,7 @@ export function HoldingsSection({
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{asset.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {holding.units.toLocaleString("ru-RU")} {devnet.mode === "devnet" ? "OFFICE-DEMO" : "долей · демо"}
+                  {formatQuantity(holding.units, 0)} {devnet.mode === "devnet" ? "OFFICE-DEMO" : "долей · демо"}
                 </span>
               </span>
               <span className="font-medium tabular-nums">{formatMoney(holding.costUsd, currency)}</span>

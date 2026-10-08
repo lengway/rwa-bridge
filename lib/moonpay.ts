@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
 
 export type MoonPayFlow = "buy" | "sell";
 export type MoonPayEnvironment = "sandbox" | "production";
@@ -39,6 +40,95 @@ export function createWidgetUrl(flow: MoonPayFlow, params: URLSearchParams) {
   const url = new URL(widgetHosts[flow][moonpayConfig.environment]);
   url.search = params.toString();
   return signUrl(url.toString());
+}
+
+function normalizeIpv6(address: string) {
+  const lower = address.toLowerCase().split("%", 1)[0];
+  const ipv4Tail = lower.match(/(?:^|:)(\d{1,3}(?:\.\d{1,3}){3})$/)?.[1];
+  let source = lower;
+  if (ipv4Tail) {
+    const parts = ipv4Tail.split(".").map(Number);
+    if (parts.some((part) => part < 0 || part > 255)) return null;
+    const first = ((parts[0] << 8) | parts[1]).toString(16);
+    const second = ((parts[2] << 8) | parts[3]).toString(16);
+    source = `${lower.slice(0, lower.length - ipv4Tail.length)}${first}:${second}`;
+  }
+
+  const halves = source.split("::");
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0].split(":") : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - left.length - right.length;
+  if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) return null;
+  const groups = [...left, ...Array(missing).fill("0"), ...right].map((group) => {
+    if (!/^[0-9a-f]{1,4}$/.test(group)) return null;
+    return Number.parseInt(group, 16);
+  });
+  if (groups.length !== 8 || groups.some((group) => group === null)) return null;
+  const words = groups as number[];
+  if (words.slice(0, 5).every((word) => word === 0) && words[5] === 0xffff) {
+    return `${words[6] >> 8}.${words[6] & 255}.${words[7] >> 8}.${words[7] & 255}`;
+  }
+
+  let bestStart = -1;
+  let bestLength = 1;
+  for (let index = 0; index < words.length;) {
+    if (words[index] !== 0) {
+      index += 1;
+      continue;
+    }
+    let end = index;
+    while (end < words.length && words[end] === 0) end += 1;
+    if (end - index > bestLength) {
+      bestStart = index;
+      bestLength = end - index;
+    }
+    index = end;
+  }
+  const rendered = words.map((word) => word.toString(16));
+  if (bestStart < 0) return rendered.join(":");
+  const leftPart = rendered.slice(0, bestStart).join(":");
+  const rightPart = rendered.slice(bestStart + bestLength).join(":");
+  return `${leftPart}::${rightPart}`;
+}
+
+export function normalizeMoonPayIp(value: string) {
+  let address = value.trim();
+  if (address.startsWith("[")) {
+    const end = address.indexOf("]");
+    if (end < 0) return null;
+    address = address.slice(1, end);
+  } else if (/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(address)) {
+    address = address.slice(0, address.lastIndexOf(":"));
+  }
+  address = address.split("%", 1)[0];
+  const family = isIP(address);
+  if (family === 4) {
+    const parts = address.split(".").map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return null;
+    return { address: parts.join("."), family: 4 as const };
+  }
+  if (family === 6) {
+    const normalized = normalizeIpv6(address);
+    if (!normalized) return null;
+    return isIP(normalized) === 4
+      ? { address: normalized, family: 4 as const }
+      : { address: normalized, family: 6 as const };
+  }
+  return null;
+}
+
+export function getAllowedIpAddressHash(addresses: string[]) {
+  if (!secretKey) return null;
+  const unique = new Map<number, string>();
+  for (const rawAddress of addresses) {
+    const normalized = normalizeMoonPayIp(rawAddress);
+    if (normalized && !unique.has(normalized.family)) unique.set(normalized.family, normalized.address);
+  }
+  if (unique.size === 0) return null;
+  return [...unique.values()]
+    .map((address) => createHmac("sha256", secretKey).update(address).digest("base64"))
+    .join(",");
 }
 
 export function signUrl(value: string) {

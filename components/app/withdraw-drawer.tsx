@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { ArrowUpFromLine, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
@@ -11,7 +11,7 @@ import { MoonPaySellPath } from "@/components/app/moonpay-paths";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatEarningsMoney, formatMoney } from "@/lib/format";
+import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { accruedPosition, YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { useNow } from "@/lib/useNow";
@@ -37,13 +37,14 @@ type WithdrawDrawerProps = {
 };
 
 export function WithdrawDrawer(props: WithdrawDrawerProps) {
-  if (!isCrossmintConfigured) return <WithdrawDrawerContents {...props} wallet={null} />;
+  if (!isCrossmintConfigured) return <WithdrawDrawerContents {...props} wallet={null} jwt={null} />;
   return <WithdrawDrawerWithWallet {...props} />;
 }
 
 function WithdrawDrawerWithWallet(props: WithdrawDrawerProps) {
+  const { jwt } = useCrossmintAuth();
   const { wallet } = useWallet();
-  return <WithdrawDrawerContents {...props} wallet={wallet ?? null} />;
+  return <WithdrawDrawerContents {...props} wallet={wallet ?? null} jwt={jwt ?? null} />;
 }
 
 function WithdrawDrawerContents({
@@ -51,7 +52,8 @@ function WithdrawDrawerContents({
   onOpenChange,
   onAddMoney,
   wallet,
-}: WithdrawDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null }) {
+  jwt,
+}: WithdrawDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null; jwt: string | null }) {
   const {
     positions,
     displayCurrency,
@@ -63,6 +65,8 @@ function WithdrawDrawerContents({
   const now = useNow();
   const [completed, setCompleted] = useState<CompletedWithdrawal | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [pendingRedemption, setPendingRedemption] = useState<{ productId: string; signature: string; shares: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<"yield" | "card">("yield");
   const [cardAmount, setCardAmount] = useState("50");
@@ -123,21 +127,33 @@ function WithdrawDrawerContents({
       if (!position || !devnet.walletAddress) return;
       const shares = requestedShares ?? position.shares ?? 0;
       const vaultMint = strategy.id === "ondo-usdy" ? devnet.vaultUsdyMint : devnet.vaultKzgbMint;
-      if (!wallet || !devnet.treasuryOwner || !vaultMint || shares <= 0) {
+      const retryPending = pendingRedemption?.productId === strategy.id && pendingRedemption.shares === shares;
+      if (pendingRedemption && !retryPending) {
+        setError("Сначала повторите подтверждение предыдущего вывода.");
+        return;
+      }
+      if ((!wallet && !retryPending) || !devnet.treasuryOwner || !vaultMint || shares <= 0) {
         setError("Не удалось подключить кошелёк или токен доли.");
         return;
       }
       setProcessingId(strategy.id);
       try {
-        const transfer = await wallet.send(devnet.treasuryOwner, vaultMint, String(shares));
-        if (!transfer.hash) throw new Error("Кошелёк не вернул подпись перевода долей.");
+        let signature = retryPending ? pendingRedemption.signature : null;
+        if (!signature) {
+          setProgress("Подписываем перевод…");
+          const transfer = await wallet!.send(devnet.treasuryOwner, vaultMint, String(shares));
+          if (!transfer.hash) throw new Error("Кошелёк не вернул подпись перевода долей.");
+          signature = transfer.hash;
+          setPendingRedemption({ productId: strategy.id, signature, shares });
+        }
+        setProgress("Подтверждаем в сети…");
         const response = await fetch("/api/devnet/withdraw", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
           body: JSON.stringify({
             walletAddress: devnet.walletAddress,
             productId: strategy.id,
-            signature: transfer.hash,
+            signature,
             shares,
           }),
         });
@@ -159,13 +175,15 @@ function WithdrawDrawerContents({
           shareTicker: strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO",
           explorerUrl: result.explorerUrl,
         });
+        setPendingRedemption(null);
         void devnet.refreshPortfolio();
         toast.success("Доли погашены, тестовые доллары отправлены");
       } catch (requestError) {
         const message = requestError instanceof Error ? requestError.message : "";
-        setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось вернуть тестовые доллары. Попробуйте ещё раз.");
+        setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить вывод. Проверьте соединение и повторите подтверждение.");
       } finally {
         setProcessingId(null);
+        setProgress(null);
       }
       return;
     }
@@ -194,7 +212,7 @@ function WithdrawDrawerContents({
           sentence={completed.isCardWithdrawal
             ? "Вывод на карту записан в историю операций."
             : devnet.mode === "devnet"
-              ? `Погашено ${completed.shares?.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${completed.shareTicker}; тестовые доллары отправлены в ваш кошелёк.`
+              ? `Погашено ${formatQuantity(completed.shares ?? Number.NaN)} ${completed.shareTicker ?? "долей"}; тестовые доллары отправлены в ваш кошелёк.`
               : `Средства из вклада «${completed.title}» вернулись на баланс.`}
           note={completed.note}
           onDone={() => changeOpen(false)}
@@ -209,6 +227,7 @@ function WithdrawDrawerContents({
               type="button"
               role="tab"
               aria-selected={method === "yield"}
+              disabled={Boolean(processingId || pendingRedemption)}
               onClick={() => {
                 setMethod("yield");
               }}
@@ -220,6 +239,7 @@ function WithdrawDrawerContents({
               type="button"
               role="tab"
               aria-selected={method === "card"}
+              disabled={Boolean(processingId || pendingRedemption)}
               onClick={() => {
                 resetCardAmount();
                 setError(null);
@@ -241,6 +261,9 @@ function WithdrawDrawerContents({
                   now={now}
                   currency={displayCurrency}
                   processing={processingId === strategy.id}
+                  processingLabel={progress}
+                  pending={pendingRedemption?.productId === strategy.id}
+                  blocked={Boolean(pendingRedemption && pendingRedemption.productId !== strategy.id)}
                   onWithdraw={withdrawPosition}
                 />
               ))}
@@ -322,6 +345,9 @@ function WithdrawPosition({
   now,
   currency,
   processing,
+  processingLabel,
+  pending,
+  blocked,
   onWithdraw,
 }: {
   strategy: YieldStrategy;
@@ -329,6 +355,9 @@ function WithdrawPosition({
   now: number | null;
   currency: "USD" | "KZT";
   processing: boolean;
+  processingLabel: string | null;
+  pending: boolean;
+  blocked: boolean;
   onWithdraw: (strategy: YieldStrategy, shares?: number) => void;
 }) {
   const { marketData, acceleratedAccrual } = useAppStore();
@@ -354,7 +383,7 @@ function WithdrawPosition({
           <p className="font-medium">{strategy.name}</p>
           <p className="text-xs text-muted-foreground">
             {devnet.mode === "devnet"
-              ? `${availableShares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${shareTicker} · ${formatMoney(position.principal + earned, currency)}`
+              ? `${formatQuantity(availableShares)} ${shareTicker} · ${formatMoney(position.principal + earned, currency)}`
               : `Вложено ${formatMoney(position.principal, currency)}`}
           </p>
         </div>
@@ -376,6 +405,7 @@ function WithdrawPosition({
             inputMode="decimal"
             value={sharesInput}
             onChange={(event) => setSharesInput(event.target.value)}
+            disabled={processing || pending}
           />
           <span className="block text-xs text-muted-foreground">Оценка возврата: {formatMoney(payout, currency)}</span>
           {!validShares ? <span className="block text-xs text-destructive">Укажите сумму не больше доступного баланса.</span> : null}
@@ -385,9 +415,9 @@ function WithdrawPosition({
         variant="outline"
         className="w-full"
         onClick={() => onWithdraw(strategy, devnet.mode === "devnet" ? requestedShares : undefined)}
-        disabled={processing || (devnet.mode === "devnet" && !validShares)}
+        disabled={processing || blocked || (devnet.mode === "devnet" && !validShares && !pending)}
       >
-        <ArrowUpFromLine />{processing ? "Погашаем…" : `Вывести ${formatMoney(payout, currency)}`}
+        <ArrowUpFromLine />{processing ? (processingLabel ?? "Погашаем…") : pending ? "Повторить подтверждение" : `Вывести ${formatMoney(payout, currency)}`}
       </Button>
     </Card>
   );

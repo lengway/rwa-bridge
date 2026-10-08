@@ -10,6 +10,7 @@ import { ProviderSheet } from "@/components/app/provider-sheet";
 import { ProviderQuote } from "@/components/app/provider-quote";
 import { isCrossmintConfigured } from "@/lib/config";
 import { formatMoney } from "@/lib/format";
+import { russianActionError } from "@/lib/action-errors";
 import {
   buildMercuryoUrl,
   isMercuryoConfigured,
@@ -22,11 +23,13 @@ export function MethodOption({
   id,
   selected,
   onSelect,
+  disabled = false,
   hideRecommended = false,
 }: {
   id: string;
   selected: boolean;
   onSelect: (id: string) => void;
+  disabled?: boolean;
   hideRecommended?: boolean;
 }) {
   const labels: Record<string, string> = {
@@ -47,7 +50,8 @@ export function MethodOption({
       type="button"
       aria-pressed={selected}
       onClick={() => onSelect(id)}
-      className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors ${selected ? "border-foreground bg-muted/60" : "hover:bg-muted/40"}`}
+      disabled={disabled}
+      className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors disabled:opacity-50 ${selected ? "border-foreground bg-muted/60" : "hover:bg-muted/40"}`}
     >
       <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
         <MethodIcon className="size-4" />
@@ -105,12 +109,14 @@ type TransakOnchainCompletion = { amountUsd: number; signature: string; explorer
 export function TransakPath({
   amount,
   onDemo,
+  processing,
   onComplete,
   onCompleteOnchain,
   onSelectAnotherMethod,
 }: {
   amount: number;
   onDemo: () => void;
+  processing: boolean;
   onComplete: (amount: number) => void;
   onCompleteOnchain: (credit: TransakOnchainCompletion) => void;
   onSelectAnotherMethod: () => void;
@@ -146,6 +152,7 @@ export function TransakPath({
         message={setup.message ?? "Тестовый виджет Transak пока не настроен."}
         amount={amount}
         onDemo={onDemo}
+        processing={processing}
       />
     );
   }
@@ -155,6 +162,7 @@ export function TransakPath({
         message="Для входа в Transak добавьте NEXT_PUBLIC_CROSSMINT_API_KEY и настройте кошелёк."
         amount={amount}
         onDemo={onDemo}
+        processing={processing}
       />
     );
   }
@@ -163,6 +171,7 @@ export function TransakPath({
     <TransakSessionPath
       amount={amount}
       onDemo={onDemo}
+      processing={processing}
       onComplete={onComplete}
       onCompleteOnchain={onCompleteOnchain}
       onSelectAnotherMethod={onSelectAnotherMethod}
@@ -173,17 +182,19 @@ export function TransakPath({
 function TransakSessionPath({
   amount,
   onDemo,
+  processing,
   onComplete,
   onCompleteOnchain,
   onSelectAnotherMethod,
 }: {
   amount: number;
   onDemo: () => void;
+  processing: boolean;
   onComplete: (amount: number) => void;
   onCompleteOnchain: (credit: TransakOnchainCompletion) => void;
   onSelectAnotherMethod: () => void;
 }) {
-  const { login, status, user } = useCrossmintAuth();
+  const { login, status, user, jwt } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
   const [widgetUrl, setWidgetUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -245,7 +256,7 @@ function TransakSessionPath({
     try {
       const response = await fetch("/api/transak-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
         body: JSON.stringify({ walletAddress: wallet.address, amountUsd: amount, email: user?.email }),
       });
       const result = await response.json().catch(() => null) as {
@@ -269,9 +280,7 @@ function TransakSessionPath({
       setSheetOpen(true);
     } catch (requestError: unknown) {
       if (mounted.current) {
-        setError(requestError instanceof Error
-          ? requestError.message
-          : "Не удалось открыть виджет Transak.");
+        setError(russianActionError(requestError, "Не удалось открыть Transak. Проверьте соединение и повторите попытку."));
       }
     } finally {
       opening.current = false;
@@ -298,7 +307,7 @@ function TransakSessionPath({
       try {
         const response = await fetch("/api/transak/complete", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
           body: JSON.stringify({ orderId, walletAddress: wallet.address }),
         });
         const result = await response.json().catch(() => null) as {
@@ -354,9 +363,7 @@ function TransakSessionPath({
       } catch (requestError) {
         if (active) {
           setVerificationPending(true);
-          setError(requestError instanceof Error
-            ? requestError.message
-            : "Не удалось проверить покупку Transak.");
+          setError(russianActionError(requestError, "Не удалось проверить оплату Transak. Проверка повторится автоматически."));
         }
       } finally {
         requestPending = false;
@@ -371,7 +378,7 @@ function TransakSessionPath({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [closeWidget, onComplete, onCompleteOnchain, orderId, wallet?.address]);
+  }, [closeWidget, jwt, onComplete, onCompleteOnchain, orderId, wallet?.address]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -414,8 +421,8 @@ function TransakSessionPath({
         <Button variant="outline" className="w-full" onClick={login} disabled={authLoading}>
           {authLoading ? "Загружаем…" : "Войти"}
         </Button>
-        <Button className="w-full" onClick={onDemo}>
-          <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+        <Button className="w-full" onClick={onDemo} disabled={processing || loading}>
+          <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
         </Button>
       </div>
     );
@@ -425,8 +432,8 @@ function TransakSessionPath({
     return (
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>
-        <Button className="w-full" onClick={onDemo}>
-          <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+        <Button className="w-full" onClick={onDemo} disabled={processing}>
+          <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
         </Button>
       </div>
     );
@@ -449,9 +456,9 @@ function TransakSessionPath({
         {orderId && verificationPending ? <p className="text-xs text-muted-foreground">Проверяем оплату Transak…</p> : null}
         {pollTimedOut && orderId ? <p className="text-xs text-muted-foreground">Подтверждение задерживается. Попробуйте проверить оплату позже.</p> : null}
         {orderFailed && !widgetUrl ? <p className="text-xs text-destructive">Оплата не прошла. Попробуйте ещё раз.</p> : null}
-        {!widgetUrl && !loading && amount >= TRANSAK_MIN_USD ? (
-          <Button className="w-full" onClick={openWidget}>
-            {hasOpenedSession ? "Открыть Transak снова" : error ? "Повторить" : `Открыть Transak · ${formatMoney(amount)}`}
+        {!widgetUrl && amount >= TRANSAK_MIN_USD ? (
+          <Button className="w-full" onClick={openWidget} disabled={loading || verificationPending}>
+            {verificationPending ? "Проверяем оплату…" : loading ? "Открываем Transak…" : hasOpenedSession ? "Открыть Transak снова" : error ? "Повторить" : `Открыть Transak · ${formatMoney(amount)}`}
           </Button>
         ) : null}
         {!widgetUrl ? (
@@ -463,8 +470,8 @@ function TransakSessionPath({
           />
         ) : null}
         {!widgetUrl ? (
-          <Button variant="outline" className="w-full" onClick={onDemo}>
-            <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+          <Button variant="outline" className="w-full" onClick={onDemo} disabled={processing || loading || verificationPending}>
+            <Plus />{processing ? "Зачисляем…" : verificationPending ? "Проверяем оплату…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
           </Button>
         ) : null}
         {!sheetOpen ? (
@@ -504,16 +511,18 @@ function TransakDemoFallback({
   message,
   amount,
   onDemo,
+  processing,
 }: {
   message: string;
   amount: number;
   onDemo: () => void;
+  processing: boolean;
 }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">{message}</p>
-      <Button className="w-full" onClick={onDemo}>
-        <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+      <Button className="w-full" onClick={onDemo} disabled={processing}>
+        <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
       </Button>
     </div>
   );
@@ -541,6 +550,7 @@ export function CrossmintPath({
       onDemo={onDemo}
       onComplete={onComplete}
       onSelectAnotherMethod={onSelectAnotherMethod}
+      processing={processing}
     />
   );
 }
@@ -550,11 +560,13 @@ function CrossmintPathReady({
   onDemo,
   onComplete,
   onSelectAnotherMethod,
+  processing,
 }: {
   amount: number;
   onDemo: () => void;
   onComplete: (amount: number) => void;
   onSelectAnotherMethod: () => void;
+  processing: boolean;
 }) {
   const { login, user, status } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
@@ -591,8 +603,8 @@ function CrossmintPathReady({
           {loading ? "Загружаем…" : "Войти по email"}
         </Button>
       )}
-      <Button className="w-full" onClick={onDemo} disabled={loading}>
-        <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+      <Button className="w-full" onClick={onDemo} disabled={processing || loading}>
+        <Plus />{processing ? "Зачисляем…" : loading ? "Открываем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
       </Button>
     </div>
   );
@@ -610,15 +622,17 @@ export function MercuryoPath({
   if (!isCrossmintConfigured) {
     return <DemoPath method="Mercuryo" amount={amount} onDemo={onDemo} processing={processing} />;
   }
-  return <MercuryoPathReady amount={amount} onDemo={onDemo} />;
+  return <MercuryoPathReady amount={amount} onDemo={onDemo} processing={processing} />;
 }
 
 function MercuryoPathReady({
   amount,
   onDemo,
+  processing,
 }: {
   amount: number;
   onDemo: () => void;
+  processing: boolean;
 }) {
   const { login, user, status } = useCrossmintAuth();
   const { wallet } = useWallet();
@@ -641,7 +655,7 @@ function MercuryoPathReady({
     );
   }
   if (!isMercuryoConfigured) {
-    return <DemoPath method="Mercuryo" amount={amount} onDemo={onDemo} />;
+    return <DemoPath method="Mercuryo" amount={amount} onDemo={onDemo} processing={processing} />;
   }
   return (
     <div className="space-y-3">
@@ -651,8 +665,8 @@ function MercuryoPathReady({
       {status !== "logged-in" ? (
         <Button variant="outline" className="w-full" onClick={login}>Войти по email</Button>
       ) : null}
-      <Button className="w-full" onClick={onDemo}>
-        <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+      <Button className="w-full" onClick={onDemo} disabled={processing}>
+        <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
       </Button>
     </div>
   );

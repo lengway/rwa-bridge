@@ -12,6 +12,7 @@ import {
 } from "@/lib/solana-server";
 import { getVaultQuote } from "@/lib/vaults";
 import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
+import { notifyReceipt } from "@/lib/receipt-notifications";
 
 export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
@@ -79,8 +80,7 @@ export async function POST(request: Request) {
         withdrawal = await updateWithdrawal(walletAddress, transferSignature, { burnSignature });
       }
       invalidateDevnetPortfolio(walletAddress);
-
-      return NextResponse.json({
+      const response = {
         sharesRedeemed: withdrawal.shares,
         priceUsd: withdrawal.priceUsd,
         amountUsd: withdrawal.amountUsd,
@@ -88,7 +88,15 @@ export async function POST(request: Request) {
         payoutSignature: withdrawal.payoutSignature,
         burnSignature: withdrawal.burnSignature,
         explorerUrl: withdrawal.payoutSignature ? explorerUrl(withdrawal.payoutSignature) : undefined,
+      };
+      notifyReceipt(request, {
+        kind: "redemption",
+        amountUsd: withdrawal.amountUsd ?? 0,
+        details: `Погашено ${withdrawal.shares ?? 0} долей продукта ${productId}. Тестовые доллары отправлены в кошелёк.`,
+        explorerUrl: response.explorerUrl,
+        receiptId: transferSignature,
       });
+      return NextResponse.json(response);
     } catch (error) {
       return NextResponse.json({
         error: safeError(error, "Не удалось погасить доли в Solana devnet."),

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -15,7 +15,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "RWA Bridge",
-  description: "Демо-приложение для знакомства с вкладами и долями реальных активов.",
+  description: "Тестовый слой доходности на Solana devnet для банков и финтех-приложений.",
+  appleWebApp: {
+    capable: true,
+    title: "RWA Bridge",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1f1f1f",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

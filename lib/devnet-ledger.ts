@@ -2,6 +2,7 @@ import "server-only";
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 export type LedgerDeposit = {
   productId: string;
@@ -57,6 +58,15 @@ export type WalletLedger = {
 type Ledger = {
   wallets: Record<string, WalletLedger>;
   vaultCheckpoints: Record<string, VaultCheckpoint>;
+  emails: Record<string, EmailLedgerRecord>;
+};
+
+type EmailLedgerRecord = {
+  receiptsEnabled?: boolean;
+  welcomeSent?: boolean;
+  receiptDay?: string;
+  receiptCount?: number;
+  receiptIds?: string[];
 };
 
 // Production keeps the ledger outside the release folder (atomic rename would replace a symlink).
@@ -101,8 +111,10 @@ async function readLedgerFile(): Promise<Ledger> {
     const vaultCheckpoints = parsed.vaultCheckpoints && typeof parsed.vaultCheckpoints === "object"
       ? parsed.vaultCheckpoints
       : {};
+    const emails = parsed.emails && typeof parsed.emails === "object" ? parsed.emails : {};
     return {
       vaultCheckpoints,
+      emails,
       wallets: Object.fromEntries(Object.entries(wallets).map(([wallet, value]) => {
         const record = value as Partial<WalletLedger>;
         return [wallet, {
@@ -114,9 +126,72 @@ async function readLedgerFile(): Promise<Ledger> {
       })),
     };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { wallets: {}, vaultCheckpoints: {} };
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { wallets: {}, vaultCheckpoints: {}, emails: {} };
     throw error;
   }
+}
+
+function emailKey(email: string) {
+  return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+}
+
+export function getEmailPreferences(email: string) {
+  return exclusive(async () => {
+    const record = (await readLedgerFile()).emails[emailKey(email)];
+    return { receiptsEnabled: record?.receiptsEnabled ?? true };
+  });
+}
+
+export function setEmailPreferences(email: string, receiptsEnabled: boolean) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const key = emailKey(email);
+    ledger.emails[key] = { ...ledger.emails[key], receiptsEnabled };
+    await writeLedgerFile(ledger);
+    return { receiptsEnabled };
+  });
+}
+
+export function reserveEmailReceipt(email: string, receiptId: string, now = Date.now()) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const key = emailKey(email);
+    const record = ledger.emails[key] ?? {};
+    const receiptKey = createHash("sha256").update(receiptId).digest("hex");
+    if (record.receiptIds?.includes(receiptKey)) return false;
+    if (record.receiptsEnabled === false) return false;
+    const day = new Date(now).toISOString().slice(0, 10);
+    const count = record.receiptDay === day ? (record.receiptCount ?? 0) : 0;
+    if (count >= 20) return false;
+    ledger.emails[key] = {
+      ...record,
+      receiptDay: day,
+      receiptCount: count + 1,
+      receiptIds: [...(record.receiptIds ?? []).slice(-199), receiptKey],
+    };
+    await writeLedgerFile(ledger);
+    return true;
+  });
+}
+
+export function claimWelcomeEmail(email: string, now = Date.now()) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const key = emailKey(email);
+    const record = ledger.emails[key] ?? {};
+    if (record.welcomeSent) return false;
+    const day = new Date(now).toISOString().slice(0, 10);
+    const count = record.receiptDay === day ? (record.receiptCount ?? 0) : 0;
+    if (count >= 20) return false;
+    ledger.emails[key] = {
+      ...record,
+      welcomeSent: true,
+      receiptDay: day,
+      receiptCount: count + 1,
+    };
+    await writeLedgerFile(ledger);
+    return true;
+  });
 }
 
 async function writeLedgerFile(ledger: Ledger) {

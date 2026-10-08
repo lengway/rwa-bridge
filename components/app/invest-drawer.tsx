@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useWallet } from "@crossmint/client-sdk-react-ui";
+import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { ArrowDownToLine } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { isCrossmintConfigured } from "@/lib/config";
-import { formatApy, formatEarningsMoney, formatMoney } from "@/lib/format";
+import { formatApy, formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
 import type { YieldStrategy } from "@/lib/yields";
@@ -27,13 +27,14 @@ type InvestDrawerProps = {
 };
 
 export function InvestDrawer(props: InvestDrawerProps) {
-  if (!isCrossmintConfigured) return <InvestDrawerContents {...props} wallet={null} />;
+  if (!isCrossmintConfigured) return <InvestDrawerContents {...props} wallet={null} jwt={null} />;
   return <InvestDrawerWithWallet {...props} />;
 }
 
 function InvestDrawerWithWallet(props: InvestDrawerProps) {
+  const { jwt } = useCrossmintAuth();
   const { wallet } = useWallet();
-  return <InvestDrawerContents {...props} wallet={wallet ?? null} />;
+  return <InvestDrawerContents {...props} wallet={wallet ?? null} jwt={jwt ?? null} />;
 }
 
 function InvestDrawerContents({
@@ -41,7 +42,8 @@ function InvestDrawerContents({
   onOpenChange,
   strategy,
   wallet,
-}: InvestDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null }) {
+  jwt,
+}: InvestDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null; jwt: string | null }) {
   const { cashUsd, displayCurrency, invest, marketData, acceleratedAccrual } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
   const apyData = strategy.id === "ondo-usdy" ? marketData.yields.usdy : marketData.yields.kaseGov;
@@ -52,6 +54,7 @@ function InvestDrawerContents({
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pendingSignature, setPendingSignature] = useState<string | null>(null);
   const amountValue = Number(amount);
   const valid = Number.isFinite(amountValue)
     && amountValue > 0
@@ -67,26 +70,31 @@ function InvestDrawerContents({
   };
 
   const handleInvest = async () => {
-    if (!accepted || !valid || processing) return;
+    if (!accepted || (!valid && !pendingSignature) || processing) return;
     setError(null);
     if (devnet.mode === "devnet") {
       if (!devnet.treasuryOwner) {
         setError("Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
         return;
       }
-      if (!wallet || !devnet.walletAddress || !devnet.usdMint) {
+      if (!devnet.walletAddress || !devnet.usdMint || (!wallet && !pendingSignature)) {
         setError("Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.");
         return;
       }
       setProcessing(true);
       try {
-        setProgress("Подписываем перевод…");
-        const transaction = await wallet.send(devnet.treasuryOwner, devnet.usdMint, String(amountValue));
-        const signature = transaction.hash;
-        setProgress("Проверяем в сети…");
+        let signature = pendingSignature;
+        if (!signature) {
+          setProgress("Подписываем перевод…");
+          const transaction = await wallet!.send(devnet.treasuryOwner, devnet.usdMint, String(amountValue));
+          if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
+          signature = transaction.hash;
+          setPendingSignature(signature);
+        }
+        setProgress("Подтверждаем в сети…");
         const response = await fetch("/api/devnet/invest", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
           body: JSON.stringify({
             walletAddress: devnet.walletAddress,
             productId: strategy.id,
@@ -107,11 +115,12 @@ function InvestDrawerContents({
         }
         const shareTicker = strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO";
         setSuccess({ amount: amountValue, shares: result.sharesMinted, shareTicker, explorerUrl: result.explorerUrl });
+        setPendingSignature(null);
         void devnet.refreshPortfolio();
         toast.success("Доли выпущены в Solana");
       } catch (requestError) {
         const message = requestError instanceof Error ? requestError.message : "";
-        setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось выполнить перевод. Проверьте баланс тестовых долларов и попробуйте ещё раз.");
+        setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить перевод. Проверьте соединение и повторите подтверждение.");
       } finally {
         setProcessing(false);
         setProgress(null);
@@ -135,7 +144,7 @@ function InvestDrawerContents({
         <DrawerSuccess
           amount={success.amount}
           sentence={devnet.mode === "devnet"
-            ? `Вы получили ${success.shares?.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${success.shareTicker}. Доли выпущены в Solana devnet.`
+            ? `Вы получили ${formatQuantity(success.shares ?? Number.NaN)} ${success.shareTicker ?? "доли"}. Доли выпущены в Solana devnet.`
             : `Вклад «${strategy.name}» открыт. Начисления показаны в демо-режиме.`}
           onDone={() => changeOpen(false)}
           secondaryHref="/home"
@@ -160,6 +169,7 @@ function InvestDrawerContents({
                 inputMode="decimal"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
+                disabled={processing || Boolean(pendingSignature)}
                 className="h-12 pr-16 text-xl font-semibold tabular-nums"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -174,6 +184,7 @@ function InvestDrawerContents({
                 size="sm"
                 className="h-auto p-0"
                 onClick={() => setAmount(String(cashUsd))}
+                disabled={processing || Boolean(pendingSignature)}
               >
                 Вложить всё
               </Button>
@@ -218,8 +229,8 @@ function InvestDrawerContents({
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           {progress ? <p className="text-center text-xs text-muted-foreground">{progress}</p> : null}
-          <Button className="w-full" onClick={handleInvest} disabled={!accepted || !valid || processing}>
-            <ArrowDownToLine />{processing ? (progress ?? "Обрабатываем…") : `Вложить ${formatMoney(amountValue || 0)}`}
+          <Button className="w-full" onClick={handleInvest} disabled={!accepted || (!valid && !pendingSignature) || processing}>
+            <ArrowDownToLine />{processing ? (progress ?? "Обрабатываем…") : pendingSignature ? "Повторить подтверждение" : `Вложить ${formatMoney(amountValue || 0)}`}
           </Button>
         </div>
       )}

@@ -76,6 +76,10 @@ function AccountSectionReady() {
   );
 }
 
+function shortWalletAddress(address: string) {
+  return address.length > 18 ? `${address.slice(0, 8)}…${address.slice(-6)}` : address;
+}
+
 export function WalletSection() {
   if (!isCrossmintConfigured) {
     return (
@@ -97,12 +101,15 @@ export function WalletSection() {
 }
 
 function WalletSectionReady() {
+  const { jwt } = useCrossmintAuth();
   const { wallet } = useWallet();
   const devnet = useDevnet();
   const { recordWalletSend } = useAppStore();
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("10");
   const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState<string | null>(null);
+  const [pendingTransfer, setPendingTransfer] = useState<{ signature: string; recipient: string; amountUsd: number } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const address = wallet?.address;
   const amountValue = Number(amount);
@@ -121,23 +128,46 @@ function WalletSectionReady() {
   };
 
   const sendTokens = async () => {
-    if (!wallet || !devnet.usdMint || !recipientValid || !amountValid || sending) return;
+    if (!wallet || !devnet.usdMint || (!pendingTransfer && (!recipientValid || !amountValid)) || sending) return;
     setSending(true);
     setSendError(null);
     try {
-      const transaction = await wallet.send(recipient.trim(), devnet.usdMint, String(amountValue));
-      const signature = transaction.hash;
-      const explorer = `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
-      recordWalletSend(amountValue, signature, explorer);
+      let transfer = pendingTransfer;
+      if (!transfer) {
+        setSendProgress("Подписываем перевод…");
+        const transaction = await wallet.send(recipient.trim(), devnet.usdMint, String(amountValue));
+        if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
+        transfer = { signature: transaction.hash, recipient: recipient.trim(), amountUsd: amountValue };
+        setPendingTransfer(transfer);
+      }
+      setSendProgress("Подтверждаем в сети…");
+      const response = await fetch("/api/devnet/wallet-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+        body: JSON.stringify({
+          walletAddress: address,
+          recipientAddress: transfer.recipient,
+          amountUsd: transfer.amountUsd,
+          signature: transfer.signature,
+        }),
+      });
+      const result = await response.json().catch(() => null) as { ok?: unknown; error?: unknown } | null;
+      if (!response.ok || result?.ok !== true) {
+        throw new Error(typeof result?.error === "string" ? result.error : "Перевод пока не подтверждён в Solana devnet.");
+      }
+      const explorer = `https://explorer.solana.com/tx/${encodeURIComponent(transfer.signature)}?cluster=devnet`;
+      recordWalletSend(transfer.amountUsd, transfer.signature, explorer);
       void devnet.refresh();
+      setPendingTransfer(null);
       setRecipient("");
       setAmount("10");
       toast.success("Тестовые доллары отправлены");
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      setSendError(/[А-Яа-яЁё]/.test(message) ? message : "Перевод не выполнен. Проверьте адрес и баланс тестовых долларов.");
+      setSendError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить перевод. Повторите проверку через несколько секунд.");
     } finally {
       setSending(false);
+      setSendProgress(null);
     }
   };
 
@@ -152,7 +182,7 @@ function WalletSectionReady() {
         <CollapsibleContent className="space-y-3 border-t p-4">
           {address ? (
             <>
-              <p className="break-all font-mono text-xs leading-5">{address}</p>
+              <p className="font-mono text-xs leading-5" title={address}>{shortWalletAddress(address)}</p>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={copyAddress}>
                   <Copy />Копировать
@@ -165,7 +195,7 @@ function WalletSectionReady() {
                     <a
                       href={`https://explorer.solana.com/address/${address}?cluster=devnet`}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                     />
                   }
                 >
@@ -191,6 +221,7 @@ function WalletSectionReady() {
                       placeholder="Адрес Solana"
                       autoComplete="off"
                       spellCheck={false}
+                      disabled={sending || Boolean(pendingTransfer)}
                     />
                   </label>
                   {recipient.length > 0 && !recipientValid ? (
@@ -206,6 +237,7 @@ function WalletSectionReady() {
                       inputMode="decimal"
                       value={amount}
                       onChange={(event) => setAmount(event.target.value)}
+                      disabled={sending || Boolean(pendingTransfer)}
                     />
                   </label>
                   {amountValue > balance ? (
@@ -214,8 +246,8 @@ function WalletSectionReady() {
                     </p>
                   ) : null}
                   {sendError ? <p className="text-xs text-destructive">{sendError}</p> : null}
-                  <Button className="w-full" onClick={sendTokens} disabled={!recipientValid || !amountValid || sending}>
-                    <Send />{sending ? "Отправляем…" : `Отправить ${formatMoney(amountValue || 0)}`}
+                  <Button className="w-full" onClick={sendTokens} disabled={sending || (!pendingTransfer && (!recipientValid || !amountValid))}>
+                    <Send />{sending ? (sendProgress ?? "Отправляем…") : pendingTransfer ? "Повторить подтверждение" : `Отправить ${formatMoney(amountValue || 0)}`}
                   </Button>
                 </Card>
               ) : null}

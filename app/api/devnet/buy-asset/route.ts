@@ -12,6 +12,7 @@ import {
 import { appendPurchase, findLedgerPurchase, hasLedgerSignature, withLedgerKeyLock } from "@/lib/devnet-ledger";
 import { explorerUrl, mintAsset, verifyIncomingPayment } from "@/lib/solana-server";
 import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
+import { notifyReceipt } from "@/lib/receipt-notifications";
 
 export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
@@ -44,11 +45,19 @@ export async function POST(request: Request) {
       if (existingPurchase.assetId !== assetId || Math.abs(existingPurchase.amountUsd - amountUsd) > 0.000001) {
         return NextResponse.json({ error: "Эта транзакция уже использовалась для другой покупки.", stage: "verify" }, { status: 409 });
       }
-      return NextResponse.json({
+      const response = {
         signature: existingPurchase.mintSignature,
         explorerUrl: explorerUrl(existingPurchase.mintSignature),
         units: existingPurchase.units,
+      };
+      notifyReceipt(request, {
+        kind: "asset-purchase",
+        amountUsd: existingPurchase.amountUsd,
+        details: `Выпущено ${existingPurchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} единиц OFFICE-DEMO. Это демонстрационный актив.`,
+        explorerUrl: response.explorerUrl,
+        receiptId: existingPurchase.paymentSignature,
       });
+      return NextResponse.json(response);
     }
 
     try {
@@ -87,7 +96,15 @@ export async function POST(request: Request) {
         at: Date.now(),
       });
       invalidateDevnetPortfolio(walletAddress);
-      return NextResponse.json({ signature: purchase.mintSignature, explorerUrl: explorerUrl(purchase.mintSignature), units: purchase.units });
+      const response = { signature: purchase.mintSignature, explorerUrl: explorerUrl(purchase.mintSignature), units: purchase.units };
+      notifyReceipt(request, {
+        kind: "asset-purchase",
+        amountUsd: purchase.amountUsd,
+        details: `Выпущено ${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} единиц OFFICE-DEMO. Это демонстрационный актив.`,
+        explorerUrl: response.explorerUrl,
+        receiptId: purchase.paymentSignature,
+      });
+      return NextResponse.json(response);
     } catch (error) {
       return NextResponse.json({
         error: safeError(error, "Доля выпущена, но не удалось сохранить покупку."),

@@ -325,6 +325,40 @@ export async function verifyIncomingPayment({
   }
 }
 
+export async function verifyOutgoingWalletTransfer({
+  signature,
+  fromOwner,
+  toOwner,
+  minAmountUi,
+}: {
+  signature: string;
+  fromOwner: string;
+  toOwner: string;
+  minAmountUi: number;
+}) {
+  const { usdMint } = requiredConfig();
+  let transaction = null;
+  for (let attempt = 0; attempt < 9; attempt += 1) {
+    transaction = await connection.getParsedTransaction(signature, {
+      maxSupportedTransactionVersion: 0,
+      commitment: "confirmed",
+    });
+    if (transaction) break;
+    if (attempt < 8) await new Promise((resolve) => setTimeout(resolve, 2500));
+  }
+  if (!transaction || !transaction.meta || transaction.meta.err) return null;
+  const mint = usdMint.toBase58();
+  const fromBefore = balanceForOwner(transaction.meta.preTokenBalances, fromOwner, mint);
+  const fromAfter = balanceForOwner(transaction.meta.postTokenBalances, fromOwner, mint);
+  const toBefore = balanceForOwner(transaction.meta.preTokenBalances, toOwner, mint);
+  const toAfter = balanceForOwner(transaction.meta.postTokenBalances, toOwner, mint);
+  const sent = fromBefore - fromAfter;
+  const received = toAfter - toBefore;
+  const minimum = toTokenAmount(minAmountUi);
+  if (sent < minimum || received < minimum) return null;
+  return Number(sent < received ? sent : received) / TOKEN_SCALE;
+}
+
 export async function getUnassignedIncomingPayments(ownerAddress: string) {
   const { authority: mintAuthority, usdMint } = requiredConfig();
   const owner = new PublicKey(ownerAddress);

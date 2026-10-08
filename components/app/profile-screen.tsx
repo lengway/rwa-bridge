@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { Check, RotateCcw } from "lucide-react";
+import { useCrossmintAuth } from "@crossmint/client-sdk-react-ui";
 import { toast } from "sonner";
 import { AccountSection, WalletSection } from "@/components/app/profile-account";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
+import { isCrossmintConfigured } from "@/lib/config";
 import { MarketDataNote } from "@/components/app/market-data-note";
 
 const subscribeToMountedState = () => () => {};
@@ -44,6 +46,8 @@ export function PortfolioSettings() {
   return (
     <div className="space-y-6">
       <AccountSection />
+      <EmailPreferenceSection />
+      <InstallAppHint />
       <PreferenceSection
         currency={displayCurrency}
         onCurrencyChange={setDisplayCurrency}
@@ -85,6 +89,104 @@ export function PortfolioSettings() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function EmailPreferenceSection() {
+  if (!isCrossmintConfigured) {
+    return <Card className="gap-2 rounded-2xl p-4"><h2 className="font-semibold">Письма о каждой операции</h2><p className="text-sm text-muted-foreground">Настройка доступна после входа по email.</p></Card>;
+  }
+  return <EmailPreferenceSectionReady />;
+}
+
+function EmailPreferenceSectionReady() {
+  const { jwt, status } = useCrossmintAuth();
+  const [enabled, setEnabled] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    if (status !== "logged-in" || !jwt) return;
+    let active = true;
+    Promise.resolve()
+      .then(() => {
+        if (!active) return null;
+        setLoading(true);
+        setError(null);
+        return fetch("/api/me/preferences", { headers: { Authorization: `Bearer ${jwt}` }, cache: "no-store" });
+      })
+      .then((response) => response ? response : null)
+      .then(async (response) => {
+        if (!response) return null;
+        const result = await response.json() as { receiptsEnabled?: unknown; error?: unknown };
+        if (!response.ok || typeof result.receiptsEnabled !== "boolean") {
+          throw new Error(typeof result.error === "string" ? result.error : "Не удалось загрузить настройки писем.");
+        }
+        if (active) setEnabled(result.receiptsEnabled);
+        return true;
+      })
+      .catch(() => { if (active) setError("Не удалось загрузить настройку писем. Проверьте соединение и повторите попытку."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [jwt, retry, status]);
+
+  const savePreference = async (nextEnabled: boolean) => {
+    if (!jwt || saving) return;
+    const previous = enabled;
+    setEnabled(nextEnabled);
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/me/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+        body: JSON.stringify({ receiptsEnabled: nextEnabled }),
+      });
+      const result = await response.json() as { receiptsEnabled?: unknown; error?: unknown };
+      if (!response.ok || result.receiptsEnabled !== nextEnabled) {
+        throw new Error(typeof result.error === "string" ? result.error : "Не удалось сохранить настройку.");
+      }
+    } catch {
+      setEnabled(previous);
+      setError("Не удалось сохранить настройку. Попробуйте ещё раз.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loggedIn = status === "logged-in" && Boolean(jwt);
+  return (
+    <Card className="flex-row items-center justify-between gap-4 rounded-2xl p-4">
+      <div className="min-w-0">
+        <h2 className="font-semibold">Письма о каждой операции</h2>
+        <p className="mt-1 text-sm leading-5 text-muted-foreground">
+          {loggedIn ? "Квитанции об операциях отправляются на email аккаунта." : "Войдите по email, чтобы получать квитанции."}
+        </p>
+        {error ? (
+          <div className="mt-2 space-y-1">
+            <p className="text-xs text-destructive">{error}</p>
+            <Button variant="link" className="h-auto p-0 text-xs" onClick={() => setRetry((value) => value + 1)}>Повторить загрузку</Button>
+          </div>
+        ) : null}
+      </div>
+      <Switch
+        checked={enabled}
+        onCheckedChange={(value) => void savePreference(value)}
+        disabled={!loggedIn || loading || saving}
+        aria-label="Письма о каждой операции"
+      />
+    </Card>
+  );
+}
+
+function InstallAppHint() {
+  return (
+    <Card className="gap-2 rounded-2xl p-4">
+      <h2 className="font-semibold">Установить приложение</h2>
+      <p className="text-sm leading-5 text-muted-foreground">iPhone: откройте сайт в Safari и выберите «Поделиться» → «На экран Домой». Android: откройте меню Chrome и выберите «Установить приложение».</p>
+    </Card>
   );
 }
 
@@ -196,7 +298,7 @@ function DemoInfoSection() {
   const { acceleratedAccrual } = useAppStore();
   return (
     <Card className="gap-3 rounded-2xl p-4">
-      <h2 className="font-semibold">О демо-режиме</h2>
+      <h2 className="font-semibold">{devnet.mode === "devnet" ? "О тестовой сети" : "О демо-режиме"}</h2>
       <p className="text-sm leading-5 text-muted-foreground">
         {devnet.mode === "devnet"
           ? "Тестовые доллары, доли вкладов и OFFICE-DEMO хранятся как токены в Solana devnet. Стоимость и доходность показаны для демонстрации."

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DEMO_OFFICE_ASSET } from "@/lib/assets";
-import { formatEarningsMoney, formatMoney } from "@/lib/format";
+import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet, type DevnetPortfolio } from "@/lib/useDevnet";
 import { accruedPosition, YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
@@ -99,7 +99,8 @@ export function PortfolioScreen() {
       .filter((holding) => category.id === holding.kind || category.id === holding.productId || category.id === holding.assetId)
       .reduce((sum, holding) => sum + holding.valueUsd, 0),
   }));
-  const allocationTotal = allocationValues.reduce((sum, item) => sum + item.value, 0);
+  const visibleAllocationValues = allocationValues.filter((item) => Number.isFinite(item.value) && item.value > 0);
+  const allocationTotal = visibleAllocationValues.reduce((sum, item) => sum + item.value, 0);
 
   const openInvest = (holding?: DisplayHolding) => {
     const strategy = YIELD_STRATEGIES.find((item) => item.id === holding?.productId) ?? YIELD_STRATEGIES[0];
@@ -145,16 +146,18 @@ export function PortfolioScreen() {
         {allocationTotal > 0 ? (
           <div className="space-y-3">
             <div className="flex h-2.5 overflow-hidden rounded-full bg-muted" aria-label="Распределение портфеля">
-              {allocationValues.filter((item) => item.value > 0).map((item) => (
+              {visibleAllocationValues.map((item) => (
                 <span key={item.id} className={item.color} style={{ width: `${item.value / allocationTotal * 100}%` }} />
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              {allocationValues.map((item) => (
-                <div key={item.id} className="flex min-w-0 items-center gap-2 text-xs">
+            <div className="grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-3">
+              {visibleAllocationValues.map((item) => (
+                <div key={item.id} className="flex min-w-0 items-start gap-2 text-xs">
                   <span className={`size-2 shrink-0 rounded-full ${item.color}`} />
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.name}</span>
-                  <span className="shrink-0 font-medium tabular-nums">{formatMoney(item.value, displayCurrency)}</span>
+                  <span className="min-w-0 flex-1 text-muted-foreground">{item.name}</span>
+                  <span className="shrink-0 text-right font-medium tabular-nums">
+                    {formatMoney(item.value, displayCurrency)} · {allocationTotal > 0 ? `${formatQuantity(item.value / allocationTotal * 100, 1)}%` : "0%"}
+                  </span>
                 </div>
               ))}
             </div>
@@ -235,7 +238,7 @@ function HoldingRow({ holding, currency, onchain }: { holding: DisplayHolding; c
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{holding.name}</span>
           <span className="mt-1 block truncate text-xs text-muted-foreground">
-            {holding.balance.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} {holding.ticker}
+            {formatQuantity(holding.balance)} {holding.ticker}
           </span>
         </span>
         <span className="text-right">
@@ -271,9 +274,9 @@ function WalletCard({ portfolio, onCopy }: { portfolio: DevnetPortfolio | null; 
       </div>
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground">SOL для комиссий</span>
-        <span className="font-medium tabular-nums">{portfolio.wallet.solBalance.toLocaleString("ru-RU", { maximumFractionDigits: 5 })} SOL</span>
+        <span className="font-medium tabular-nums">{formatQuantity(portfolio.wallet.solBalance, 5)} SOL</span>
       </div>
-      <Button variant="outline" className="w-full" nativeButton={false} render={<a href={portfolio.wallet.explorerUrl} target="_blank" rel="noreferrer" />}>
+      <Button variant="outline" className="w-full" nativeButton={false} render={<a href={portfolio.wallet.explorerUrl} target="_blank" rel="noopener noreferrer" />}>
         <ExternalLink />Открыть в обозревателе
       </Button>
     </Card>
@@ -303,7 +306,7 @@ function HoldingDetails({
   const canWithdraw = holding.kind === "vault";
   const canBuy = holding.kind === "asset" || holding.kind === "cash";
   return (
-    <DrawerFrame open onOpenChange={onOpenChange} title={holding.name} description={`${holding.balance.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${holding.ticker} · ${formatMoney(holding.valueUsd, currency)}`}>
+    <DrawerFrame open onOpenChange={onOpenChange} title={holding.name} description={`${formatQuantity(holding.balance)} ${holding.ticker} · ${formatMoney(holding.valueUsd, currency)}`}>
       <div className="space-y-4">
         <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
           <span className="text-muted-foreground">Цена токена</span><span className="font-medium">{formatMoney(holding.priceUsd, currency)}</span>
@@ -336,10 +339,10 @@ function AddressLine({ label, address, explorerUrl, onCopy }: { label: string; a
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
         <div className="flex gap-1">
           <Button variant="ghost" size="icon" aria-label={`Скопировать ${label}`} onClick={onCopy}><Copy /></Button>
-          <Button variant="ghost" size="icon" aria-label={`Открыть ${label} в обозревателе`} nativeButton={false} render={<a href={explorerUrl} target="_blank" rel="noreferrer" />}><ExternalLink /></Button>
+          <Button variant="ghost" size="icon" aria-label={`Открыть ${label} в обозревателе`} nativeButton={false} render={<a href={explorerUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /></Button>
         </div>
       </div>
-      <p className="break-all font-mono text-[11px] leading-4">{address}</p>
+      <p className="font-mono text-[11px] leading-4" title={address}>{shortAddress(address)}</p>
     </div>
   );
 }
@@ -354,7 +357,7 @@ function OnchainHistory({ rows }: { rows: DevnetPortfolio["history"] }) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium leading-5">{row.title}</p>
             <p className="mt-1 text-xs text-muted-foreground">{new Date(row.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
-            <a href={row.explorerUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs underline underline-offset-4">Solana Explorer <ExternalLink className="size-3" /></a>
+            <a href={row.explorerUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs underline underline-offset-4">Solana Explorer <ExternalLink className="size-3" /></a>
           </div>
         </Card>
       ))}

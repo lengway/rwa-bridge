@@ -1,15 +1,16 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { isIP } from "node:net";
 import { NextResponse } from "next/server";
 import { isValidAmount, isValidWalletAddress } from "@/lib/devnet-route";
 import {
   createWidgetUrl,
+  getAllowedIpAddressHash,
   getMoonPayCurrencyParam,
   getSandboxSellSolAmount,
   MOONPAY_MISSING_SECRET_MESSAGE,
   moonpayConfig,
+  normalizeMoonPayIp,
   type MoonPayFlow,
 } from "@/lib/moonpay";
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
   if (!isValidWalletAddress(body?.walletAddress)) {
     return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
   }
-  if (typeof body?.userIp !== "string" || isIP(body.userIp) === 0) {
+  if (typeof body?.userIp !== "string" || !normalizeMoonPayIp(body.userIp)) {
     return NextResponse.json({ error: "Не удалось определить IP-адрес MoonPay." }, { status: 400 });
   }
   if (!isValidAmount(body?.amountUsd, minimum, 1000)) {
@@ -53,8 +54,13 @@ export async function POST(request: Request) {
     theme: "light",
   });
 
-  // Use the IP reported to the browser by MoonPay: the browser and server can have different public IPs on dual-stack networks. This binding protects only the user's own session.
-  params.set("allowedIpAddress", body.userIp);
+  const forwardedIp = request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim();
+  const serverIp = forwardedIp || request.headers.get("cf-connecting-ip") || request.headers.get("x-real-ip") || "";
+  const allowedIpAddress = getAllowedIpAddressHash([body.userIp, serverIp]);
+  if (!allowedIpAddress) {
+    return NextResponse.json({ error: "Не удалось определить IP-адрес MoonPay." }, { status: 400 });
+  }
+  params.set("allowedIpAddress", allowedIpAddress);
   const currency = getMoonPayCurrencyParam(flow);
   params.set(currency.name, currency.value);
 

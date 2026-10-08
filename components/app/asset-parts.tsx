@@ -3,7 +3,7 @@ import { ArrowRight, Building2, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatQuantity } from "@/lib/format";
 import type { BridgeAsset } from "@/lib/assets";
 
 export function TowerArtwork() {
@@ -114,7 +114,7 @@ export function ExistingHolding({ units, costUsd }: { units: number; costUsd: nu
       </span>
       <div className="min-w-0 flex-1">
         <p className="font-medium">В вашем портфеле</p>
-        <p className="text-xs text-muted-foreground">{units.toLocaleString("ru-RU")} долей</p>
+        <p className="text-xs text-muted-foreground">{formatQuantity(units, 0)} долей</p>
       </div>
       <p className="font-medium tabular-nums">{formatMoney(costUsd)}</p>
     </Card>

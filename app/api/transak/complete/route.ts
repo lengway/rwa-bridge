@@ -5,6 +5,7 @@ import { isValidWalletAddress } from "@/lib/devnet-route";
 import { devnetConfig, explorerUrl, mintTestDollars } from "@/lib/solana-server";
 import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 import { getOrder, type TransakOrder } from "@/lib/transak";
+import { notifyReceipt } from "@/lib/receipt-notifications";
 
 type CreditResult = { status: "completed"; amountUsd: number; signature: string; explorerUrl: string };
 
@@ -68,7 +69,16 @@ export async function POST(request: Request) {
   }
 
   const previousCredit = creditedOrders.get(body.orderId);
-  if (previousCredit) return NextResponse.json(previousCredit);
+  if (previousCredit) {
+    notifyReceipt(request, {
+      kind: "transak",
+      amountUsd: previousCredit.amountUsd,
+      details: "Тестовые доллары зачислены после серверной проверки завершённого заказа Transak.",
+      explorerUrl: previousCredit.explorerUrl,
+      receiptId: body.orderId,
+    });
+    return NextResponse.json(previousCredit);
+  }
   if (creditedOrderIds.has(body.orderId) || creditInFlightOrderIds.has(body.orderId)) {
     return NextResponse.json({ status: "pending" }, { status: 202 });
   }
@@ -85,6 +95,13 @@ export async function POST(request: Request) {
     };
     creditedOrderIds.add(body.orderId);
     creditedOrders.set(body.orderId, result);
+    notifyReceipt(request, {
+      kind: "transak",
+      amountUsd,
+      details: "Тестовые доллары зачислены после серверной проверки завершённого заказа Transak.",
+      explorerUrl: result.explorerUrl,
+      receiptId: body.orderId,
+    });
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ error: "Покупка подтверждена, но не удалось зачислить тестовые доллары." }, { status: 502 });

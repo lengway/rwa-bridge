@@ -1,0 +1,107 @@
+import "server-only";
+
+import nodemailer, { type Transporter } from "nodemailer";
+
+export type ReceiptKind =
+  | "welcome"
+  | "faucet"
+  | "bank-demo"
+  | "transak"
+  | "moonpay"
+  | "invest"
+  | "redemption"
+  | "asset-purchase"
+  | "wallet-send";
+
+export type Receipt = {
+  to: string;
+  kind: ReceiptKind;
+  amountUsd: number;
+  details: string;
+  explorerUrl?: string;
+};
+
+const labels: Record<ReceiptKind, string> = {
+  welcome: "Добро пожаловать",
+  faucet: "Пополнение тестовыми долларами",
+  "bank-demo": "Пополнение через Демо-банк",
+  transak: "Пополнение через Transak",
+  moonpay: "Пополнение через MoonPay",
+  invest: "Вложение в тестовой сети",
+  redemption: "Погашение долей",
+  "asset-purchase": "Покупка демо-актива",
+  "wallet-send": "Перевод тестовых долларов",
+};
+
+let transport: Transporter | null = null;
+
+export function isMailerConfigured() {
+  return Boolean(
+    process.env.SMTP_HOST?.trim()
+    && process.env.SMTP_USER?.trim()
+    && process.env.SMTP_PASS
+    && process.env.MAIL_FROM?.trim()
+    && Number.isFinite(Number(process.env.SMTP_PORT)),
+  );
+}
+
+function getTransport() {
+  if (transport) return transport;
+  const host = process.env.SMTP_HOST?.trim();
+  const port = Number(process.env.SMTP_PORT);
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass || !Number.isFinite(port)) throw new Error("SMTP is not configured");
+  transport = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
+  return transport;
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
+}
+
+function safeExplorerUrl(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.hostname !== "explorer.solana.com") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function formatUsd(amountUsd: number) {
+  const amount = Number.isFinite(amountUsd) && amountUsd > 0 ? amountUsd : 0;
+  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(amount);
+}
+
+export async function sendReceipt({ to, kind, amountUsd, details, explorerUrl }: Receipt) {
+  if (!isMailerConfigured()) return;
+  const label = labels[kind];
+  const formattedAmount = formatUsd(amountUsd);
+  const href = safeExplorerUrl(explorerUrl);
+  const safeDetails = escapeHtml(details);
+  const button = href
+    ? `<a href="${escapeHtml(href)}" style="display:inline-block;background:#172554;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">Открыть в обозревателе</a>`
+    : "";
+  const isWelcome = kind === "welcome";
+  const html = `<!doctype html><html lang="ru"><body style="margin:0;background:#f4f6fa;color:#172033;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e8f0;border-radius:14px"><tr><td style="padding:28px"><p style="margin:0 0 24px;color:#64748b;font-size:14px;font-weight:700;letter-spacing:.04em">RWA Bridge</p><h1 style="margin:0 0 18px;font-size:24px;line-height:1.3">${isWelcome ? "Добро пожаловать" : escapeHtml(label)}</h1>${isWelcome ? "<p style=\"margin:0 0 20px;color:#475569;line-height:1.6\">Начните с тестового пополнения, откройте вклад или купите долю демо-актива. Все действия проходят в тестовой сети.</p>" : `<p style="margin:0 0 8px;color:#64748b;font-size:13px">Сумма</p><p style="margin:0 0 20px;font-size:24px;font-weight:700">${formattedAmount}</p><p style="margin:0 0 22px;color:#475569;line-height:1.6">${safeDetails}</p>`}${button ? `<p style="margin:0 0 26px">${button}</p>` : ""}<p style="margin:0;padding-top:18px;border-top:1px solid #e4e8f0;color:#64748b;font-size:12px;line-height:1.6">Тестовая сеть Solana devnet · тестовые деньги</p></td></tr></table></td></tr></table></body></html>`;
+  const text = isWelcome
+    ? "Добро пожаловать в RWA Bridge. Попробуйте тестовое пополнение, вклад или покупку доли демо-актива. Все действия проходят в тестовой сети Solana devnet на тестовые деньги."
+    : `RWA Bridge — ${label}\nСумма: ${formattedAmount}\n${details}${href ? `\nОткрыть в обозревателе: ${href}` : ""}\n\nТестовая сеть Solana devnet · тестовые деньги`;
+
+  await getTransport().sendMail({
+    from: process.env.MAIL_FROM,
+    to,
+    subject: `${isWelcome ? "Добро пожаловать в RWA Bridge" : `RWA Bridge · ${label}`}`,
+    text,
+    html,
+  });
+}

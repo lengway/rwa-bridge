@@ -25,13 +25,26 @@ type SuccessState = {
   explorerUrl?: string;
 };
 
-export function AddMoneyDrawer({
-  open,
-  onOpenChange,
-}: {
+type AddMoneyDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+};
+
+export function AddMoneyDrawer(props: AddMoneyDrawerProps) {
+  if (!isCrossmintConfigured) return <AddMoneyDrawerContent {...props} jwt={null} />;
+  return <AddMoneyDrawerWithAuth {...props} />;
+}
+
+function AddMoneyDrawerWithAuth(props: AddMoneyDrawerProps) {
+  const { jwt } = useCrossmintAuth();
+  return <AddMoneyDrawerContent {...props} jwt={jwt ?? null} />;
+}
+
+function AddMoneyDrawerContent({
+  open,
+  onOpenChange,
+  jwt,
+}: AddMoneyDrawerProps & { jwt: string | null }) {
   const { topUp, marketData } = useAppStore();
   const devnet = useDevnet();
   const bankEmbed = useBankEmbed();
@@ -77,8 +90,11 @@ export function AddMoneyDrawer({
       try {
         const response = await fetch("/api/devnet/faucet", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ walletAddress: devnet.walletAddress, amountUsd: request.amountUsd }),
+          headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          },
+          body: JSON.stringify({ walletAddress: devnet.walletAddress, amountUsd: request.amountUsd, source: "bank-demo" }),
         });
         const result = await response.json() as { signature?: unknown; explorerUrl?: unknown; error?: unknown };
         if (!response.ok || typeof result.signature !== "string" || typeof result.explorerUrl !== "string") {
@@ -105,7 +121,7 @@ export function AddMoneyDrawer({
       "Оплата подтверждена в приложении Демо-банка.",
       "Тестовая оплата — деньги не списываются.",
     );
-  }, [complete, devnet.mode, devnet.walletAddress]);
+  }, [complete, devnet.mode, devnet.walletAddress, jwt]);
 
   useEffect(() => {
     if (!bankEmbed) return;
@@ -232,6 +248,7 @@ export function AddMoneyDrawer({
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
                 className="h-11 text-lg tabular-nums"
+                disabled={processing || bankPaymentPending}
               />
               <span className="text-sm font-medium">USD</span>
             </div>
@@ -242,6 +259,7 @@ export function AddMoneyDrawer({
                   type="button"
                   variant={amount === String(value) ? "secondary" : "outline"}
                   onClick={() => setAmount(String(value))}
+                  disabled={processing || bankPaymentPending}
                 >
                   ${value}
                 </Button>
@@ -259,6 +277,7 @@ export function AddMoneyDrawer({
                   id="bank-demo"
                   selected={selectedMethod === "bank-demo"}
                   onSelect={setMethod}
+                  disabled={processing || bankPaymentPending}
                   hideRecommended
                 />
               ) : null}
@@ -268,6 +287,7 @@ export function AddMoneyDrawer({
                   id={option.id}
                   selected={selectedMethod === option.id}
                   onSelect={setMethod}
+                  disabled={processing}
                   hideRecommended={bankEmbed}
                 />
               ))}
@@ -283,12 +303,12 @@ export function AddMoneyDrawer({
               ) : null}
               {bankMessage ? <p className="text-xs text-muted-foreground">{bankMessage}</p> : null}
               <Button className="w-full" onClick={requestBankPayment} disabled={bankPaymentPending || processing}>
-                {bankPaymentPending ? "Ожидаем подтверждения…" : `Пополнить ${formatMoney(amountValue)}`}
+                {processing ? "Подтверждаем в сети…" : bankPaymentPending ? "Ожидаем подтверждения…" : `Пополнить ${formatMoney(amountValue)}`}
               </Button>
             </div>
           ) : null}
 
-          {open && selectedMethod === "devnet-faucet" && valid ? (
+      {open && selectedMethod === "devnet-faucet" && valid ? (
             <DevnetFaucetPath
               amount={amountValue}
               serverConfigured={Boolean(devnet.usdMint && devnet.treasury)}
@@ -308,6 +328,7 @@ export function AddMoneyDrawer({
             <TransakPath
               amount={amountValue}
               onDemo={addMockMoney}
+              processing={processing}
               onComplete={completeTransak}
               onCompleteOnchain={completeTransakOnchain}
               onSelectAnotherMethod={selectAnotherMethod}
@@ -319,6 +340,7 @@ export function AddMoneyDrawer({
               <MoonPayBuyPath
                 amount={amountValue}
                 onDemo={addMockMoney}
+                processing={processing}
                 onComplete={completeMoonPay}
                 onSelectAnotherMethod={selectAnotherMethod}
               />
@@ -377,7 +399,7 @@ function DevnetFaucetPath({
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">Войдите с настроенным Crossmint-кошельком, чтобы получить тестовые доллары в сети.</p>
         <Button className="w-full" onClick={onDemo} disabled={processing}>
-          <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+          <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
         </Button>
       </div>
     );
@@ -409,7 +431,7 @@ function DevnetFaucetReady({
   setProcessing: (value: boolean) => void;
   onComplete: (signature: string, explorerUrl: string) => void;
 }) {
-  const { login, status } = useCrossmintAuth();
+  const { login, status, jwt } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
   const [error, setError] = useState<string | null>(null);
   const ready = status === "logged-in" && wallet?.address;
@@ -421,7 +443,7 @@ function DevnetFaucetReady({
     try {
       const response = await fetch("/api/devnet/faucet", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
         body: JSON.stringify({ walletAddress: wallet.address, amountUsd: amount }),
       });
       const result = await response.json() as { signature?: unknown; explorerUrl?: unknown; error?: unknown };
@@ -446,7 +468,7 @@ function DevnetFaucetReady({
           {loading ? "Загружаем…" : "Войти"}
         </Button>
         <Button className="w-full" onClick={onDemo} disabled={processing}>
-          <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+          <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
         </Button>
       </div>
     );
@@ -457,7 +479,7 @@ function DevnetFaucetReady({
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">Тестовый банкомат пока не настроен. Можно продолжить в демо-режиме.</p>
         <Button className="w-full" onClick={onDemo} disabled={processing}>
-          <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+          <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
         </Button>
       </div>
     );
@@ -467,8 +489,8 @@ function DevnetFaucetReady({
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">Тестовые доллары появятся в кошельке после подтверждения транзакции.</p>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
-      <Button className="w-full" onClick={requestFaucet} disabled={processing}>
-        {processing ? "Выпускаем в сети…" : `Получить ${formatMoney(amount)}`}
+        <Button className="w-full" onClick={requestFaucet} disabled={processing}>
+        {processing ? "Подтверждаем в сети…" : `Получить ${formatMoney(amount)}`}
       </Button>
     </div>
   );

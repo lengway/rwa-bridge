@@ -13,6 +13,7 @@ import { appendDeposit, findLedgerDeposit, hasLedgerSignature, withLedgerKeyLock
 import { explorerUrl, mintVaultShares, verifyIncomingPayment } from "@/lib/solana-server";
 import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 import { getVaultQuote } from "@/lib/vaults";
+import { notifyReceipt } from "@/lib/receipt-notifications";
 
 export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
@@ -46,14 +47,23 @@ export async function POST(request: Request) {
       if (existing.productId !== productId || Math.abs(existing.amountUsd - amountUsd) > 0.000001) {
         return NextResponse.json({ error: "Эта транзакция уже использовалась для другого вклада." }, { status: 409 });
       }
-      return NextResponse.json({
+      const quote = await getVaultQuote(productId);
+      const response = {
         ok: true,
         sharesMinted: existing.shares,
         priceUsd: existing.priceUsd,
-        mint: (await getVaultQuote(productId)).mint,
+        mint: quote.mint,
         mintSignature: existing.mintSignature,
         explorerUrl: explorerUrl(existing.mintSignature),
+      };
+      notifyReceipt(request, {
+        kind: "invest",
+        amountUsd: existing.amountUsd,
+        details: `Выпущено ${existing.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долей ${productId}.`,
+        explorerUrl: response.explorerUrl,
+        receiptId: existing.signature,
       });
+      return NextResponse.json(response);
     }
 
     try {
@@ -75,14 +85,22 @@ export async function POST(request: Request) {
         mintSignature,
       });
       invalidateDevnetPortfolio(walletAddress);
-      return NextResponse.json({
+      const response = {
         ok: true,
         sharesMinted,
         priceUsd: quote.priceUsd,
         mint: quote.mint,
         mintSignature,
         explorerUrl: explorerUrl(mintSignature),
+      };
+      notifyReceipt(request, {
+        kind: "invest",
+        amountUsd,
+        details: `Выпущено ${sharesMinted.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долей ${productId}.`,
+        explorerUrl: response.explorerUrl,
+        receiptId: paymentSignature,
       });
+      return NextResponse.json(response);
     } catch (error) {
       return NextResponse.json({
         error: safeError(error, "Не удалось подтвердить перевод и выпустить доли в Solana devnet."),

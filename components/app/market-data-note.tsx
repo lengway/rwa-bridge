@@ -7,7 +7,7 @@ export function MarketDataNote({ data, plain = false }: { data: DatedMetric | Kz
       {plain ? (
         data.source.name
       ) : (
-        <a href={data.source.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+        <a href={data.source.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           {data.source.name}
         </a>
       )}

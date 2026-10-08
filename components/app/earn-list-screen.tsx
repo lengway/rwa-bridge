@@ -20,7 +20,7 @@ export function EarnList() {
         <p className="text-sm text-muted-foreground">Вклады с понятными условиями</p>
         <p className="text-xs text-muted-foreground">
           {devnet.mode === "devnet"
-            ? "Тестовые доллары переводятся в Solana devnet; доход по вкладам рассчитывается в приложении."
+            ? "Операции проходят в тестовой сети Solana (devnet). Доход по вкладам рассчитывается в приложении."
             : "Вложения и начисления здесь показаны в демо-режиме."}
         </p>
       </div>

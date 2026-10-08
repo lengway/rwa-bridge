@@ -10,6 +10,7 @@ import {
 import { isValidWalletAddress } from "@/lib/devnet-route";
 import { devnetConfig, explorerUrl, mintTestDollars } from "@/lib/solana-server";
 import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
+import { notifyReceipt } from "@/lib/receipt-notifications";
 
 type BuyCredit = { amountUsd: number; signature: string; explorerUrl: string };
 
@@ -62,7 +63,16 @@ export async function POST(request: Request) {
 
   const externalTransactionId = body.externalTransactionId;
   const previousCredit = creditedTransactions.get(externalTransactionId);
-  if (previousCredit) return NextResponse.json(previousCredit);
+  if (previousCredit) {
+    notifyReceipt(request, {
+      kind: "moonpay",
+      amountUsd: previousCredit.amountUsd,
+      details: "Тестовые доллары зачислены после серверной проверки завершённой покупки MoonPay.",
+      explorerUrl: previousCredit.explorerUrl,
+      receiptId: externalTransactionId,
+    });
+    return NextResponse.json(previousCredit);
+  }
   if (creditedTransactionIds.has(externalTransactionId) || creditInFlightIds.has(externalTransactionId)) {
     return NextResponse.json({ pending: true, status: "crediting" }, { status: 202 });
   }
@@ -79,6 +89,13 @@ export async function POST(request: Request) {
     };
     creditedTransactionIds.add(externalTransactionId);
     creditedTransactions.set(externalTransactionId, result);
+    notifyReceipt(request, {
+      kind: "moonpay",
+      amountUsd,
+      details: "Тестовые доллары зачислены после серверной проверки завершённой покупки MoonPay.",
+      explorerUrl: result.explorerUrl,
+      receiptId: externalTransactionId,
+    });
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ error: "Покупка подтверждена, но не удалось зачислить тестовые доллары." }, { status: 502 });

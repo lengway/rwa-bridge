@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
-import { ExternalLink, Plus } from "lucide-react";
+import { Copy, ExternalLink, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ProviderSheet } from "@/components/app/provider-sheet";
 import { ProviderQuote } from "@/components/app/provider-quote";
 import { formatMoney } from "@/lib/format";
+import { russianActionError } from "@/lib/action-errors";
 import { isCrossmintConfigured } from "@/lib/config";
 import { useDevnet } from "@/lib/useDevnet";
 
@@ -90,20 +92,22 @@ function MoonPayFallback({
   amount,
   environment,
   onDemo,
+  processing,
   onSelectAnotherMethod,
 }: {
   message: string;
   amount: number;
   environment: "sandbox" | "production";
   onDemo: () => void;
+  processing: boolean;
   onSelectAnotherMethod: () => void;
 }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">{message}</p>
       {environment === "sandbox" ? <p className="text-xs text-muted-foreground">{SANDBOX_BUY_NOTE}</p> : null}
-      <Button className="w-full" onClick={onDemo}>
-        <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+      <Button className="w-full" onClick={onDemo} disabled={processing}>
+        <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
       </Button>
       <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>
         Выбрать другой способ
@@ -115,11 +119,13 @@ function MoonPayFallback({
 export function MoonPayBuyPath({
   amount,
   onDemo,
+  processing,
   onComplete,
   onSelectAnotherMethod,
 }: {
   amount: number;
   onDemo: () => void;
+  processing: boolean;
   onComplete: (amountUsd: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => void;
   onSelectAnotherMethod: () => void;
 }) {
@@ -132,6 +138,7 @@ export function MoonPayBuyPath({
         amount={amount}
         environment={setup.environment}
         onDemo={onDemo}
+        processing={processing}
         onSelectAnotherMethod={onSelectAnotherMethod}
       />
     );
@@ -143,6 +150,7 @@ export function MoonPayBuyPath({
         amount={amount}
         environment={setup.environment}
         onDemo={onDemo}
+        processing={processing}
         onSelectAnotherMethod={onSelectAnotherMethod}
       />
     );
@@ -154,6 +162,7 @@ export function MoonPayBuyPath({
         amount={amount}
         environment={setup.environment}
         onDemo={onDemo}
+        processing={processing}
         onSelectAnotherMethod={onSelectAnotherMethod}
       />
     );
@@ -164,6 +173,7 @@ export function MoonPayBuyPath({
       amount={amount}
       environment={setup.environment}
       onDemo={onDemo}
+      processing={processing}
       onComplete={onComplete}
       onSelectAnotherMethod={onSelectAnotherMethod}
     />
@@ -174,16 +184,18 @@ function MoonPayBuyReady({
   amount,
   environment,
   onDemo,
+  processing,
   onComplete,
   onSelectAnotherMethod,
 }: {
   amount: number;
   environment: "sandbox" | "production";
   onDemo: () => void;
+  processing: boolean;
   onComplete: (amountUsd: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => void;
   onSelectAnotherMethod: () => void;
 }) {
-  const { login, status } = useCrossmintAuth();
+  const { login, status, jwt } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
   const [widgetUrl, setWidgetUrl] = useState<string | null>(null);
   const [externalTransactionId, setExternalTransactionId] = useState<string | null>(null);
@@ -219,7 +231,7 @@ function MoonPayBuyReady({
       }
       const response = await fetch("/api/moonpay/url", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
         body: JSON.stringify({ flow: "buy", walletAddress: wallet.address, amountUsd: amount, userIp: customer.ipAddress }),
       });
       const result = await response.json().catch(() => null) as WidgetResponse | null;
@@ -234,7 +246,7 @@ function MoonPayBuyReady({
       setWidgetUrl(parsedUrl.toString());
       setSheetOpen(true);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось открыть MoonPay.");
+      setError(russianActionError(requestError, "Не удалось открыть MoonPay. Проверьте соединение и повторите попытку."));
     } finally {
       opening.current = false;
       setLoading(false);
@@ -258,7 +270,7 @@ function MoonPayBuyReady({
       try {
         const response = await fetch("/api/moonpay/complete", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
           body: JSON.stringify({ externalTransactionId, walletAddress: wallet.address, flow: "buy" }),
         });
         const result = await response.json().catch(() => null) as {
@@ -307,7 +319,7 @@ function MoonPayBuyReady({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [externalTransactionId, onComplete, wallet?.address, widgetUrl]);
+  }, [externalTransactionId, jwt, onComplete, wallet?.address, widgetUrl]);
 
   if (status !== "logged-in") {
     const authLoading = status === "initializing" || status === "in-progress";
@@ -318,7 +330,9 @@ function MoonPayBuyReady({
         <Button variant="outline" className="w-full" onClick={login} disabled={authLoading}>
           {authLoading ? "Загружаем…" : "Войти"}
         </Button>
-        <Button className="w-full" onClick={onDemo}><Plus />Продолжить в демо-режиме · {formatMoney(amount)}</Button>
+        <Button className="w-full" onClick={onDemo} disabled={processing}>
+          <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
+        </Button>
         <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Выбрать другой способ</Button>
       </div>
     );
@@ -376,7 +390,7 @@ function MoonPayBuyReady({
             {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Оставьте виджет открытым и повторите проверку позже.</p> : null}
             {orderFailed ? <p className="text-xs text-destructive">Оплата не прошла. Попробуйте ещё раз.</p> : null}
             {((widgetUrl && !sheetOpen) || (!widgetUrl && amount >= 5 && !countryUnavailable)) && !loading ? (
-              <Button className="w-full" onClick={openWidget} disabled={loading}>
+              <Button className="w-full" onClick={openWidget} disabled={loading || processing}>
                 {widgetUrl ? "Открыть MoonPay снова" : error ? "Повторить" : `Открыть MoonPay · ${formatMoney(amount)}`}
               </Button>
             ) : null}
@@ -389,8 +403,8 @@ function MoonPayBuyReady({
               />
             ) : null}
             {!widgetUrl ? (
-              <Button variant="outline" className="w-full" onClick={onDemo}>
-                <Plus />Продолжить в демо-режиме · {formatMoney(amount)}
+              <Button variant="outline" className="w-full" onClick={onDemo} disabled={processing || loading}>
+                <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
               </Button>
             ) : null}
             {(!widgetUrl || !sheetOpen) ? (
@@ -536,7 +550,7 @@ function MoonPaySellReady({
   onWithdrawal: (amount: number, details: WithdrawalDetails) => boolean;
   onSelectAnotherMethod: () => void;
 }) {
-  const { login, status } = useCrossmintAuth();
+  const { login, status, jwt } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
   const devnet = useDevnet();
   const [widgetUrl, setWidgetUrl] = useState<string | null>(null);
@@ -551,6 +565,7 @@ function MoonPaySellReady({
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [countryUnavailable, setCountryUnavailable] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sendProgress, setSendProgress] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const opening = useRef(false);
 
@@ -576,7 +591,7 @@ function MoonPaySellReady({
       }
       const response = await fetch("/api/moonpay/url", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
         body: JSON.stringify({ flow: "sell", walletAddress: wallet.address, amountUsd: amount, userIp: customer.ipAddress }),
       });
       const result = await response.json().catch(() => null) as WidgetResponse | null;
@@ -591,7 +606,7 @@ function MoonPaySellReady({
       setStage("iframe");
       setSheetOpen(true);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось открыть MoonPay.");
+      setError(russianActionError(requestError, "Не удалось открыть MoonPay. Проверьте соединение и повторите попытку."));
     } finally {
       opening.current = false;
       setLoading(false);
@@ -675,8 +690,11 @@ function MoonPaySellReady({
     setSending(true);
     setError(null);
     try {
+      setSendProgress("Подписываем перевод…");
       // The sandbox deposit is simulated: our app's test dollar is not MoonPay's test SOL.
       const transfer = await wallet.send(devnet.treasuryOwner, devnet.usdMint, String(amount));
+      if (!transfer.hash) throw new Error("Кошелёк не вернул подпись перевода.");
+      setSendProgress("Подтверждаем в сети…");
       const explorerUrl = `https://explorer.solana.com/tx/${encodeURIComponent(transfer.hash)}?cluster=devnet`;
       const recorded = onWithdrawal(amount, {
         onchain: true,
@@ -688,10 +706,20 @@ function MoonPaySellReady({
       void devnet.refresh();
       setExternalTransactionId(null);
     } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "";
-      setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось списать тестовые доллары. Проверьте баланс и повторите попытку.");
+      setError(russianActionError(requestError, "Не удалось списать тестовые доллары. Проверьте баланс и повторите попытку."));
     } finally {
       setSending(false);
+      setSendProgress(null);
+    }
+  };
+
+  const copyDepositAddress = async () => {
+    if (!depositAddress) return;
+    try {
+      await navigator.clipboard.writeText(depositAddress);
+      toast.success("Адрес депозита скопирован");
+    } catch {
+      toast.error("Не удалось скопировать адрес");
     }
   };
 
@@ -726,7 +754,7 @@ function MoonPaySellReady({
           <p className="text-xs text-muted-foreground">Можно списать тестовые доллары с devnet-баланса без перевода через MoonPay.</p>
         ) : null}
         <Button className="w-full" onClick={simulateWithdrawal} disabled={!validAmount || sending}>
-          {sending ? "Отправляем…" : `Вывести в демо-режиме · ${formatMoney(amount)}`}
+          {sending ? (sendProgress ?? "Отправляем…") : `Вывести в демо-режиме · ${formatMoney(amount)}`}
         </Button>
       </div>
     );
@@ -763,7 +791,12 @@ function MoonPaySellReady({
                 ? "MoonPay ждёт перевод выбранной суммы."
                 : `MoonPay ждёт перевод ${currentCryptoAmount.toFixed(2)} ${environment === "sandbox" ? "SOL" : "USDC"}.`}
             </p>
-            {depositAddress ? <p className="break-all text-xs text-muted-foreground">Адрес депозита MoonPay: {depositAddress}</p> : null}
+            {depositAddress ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="min-w-0 flex-1 truncate font-mono" title={depositAddress}>Адрес депозита MoonPay: {`${depositAddress.slice(0, 7)}…${depositAddress.slice(-6)}`}</span>
+                <Button variant="ghost" size="icon" className="size-7 shrink-0" aria-label="Скопировать адрес депозита MoonPay" onClick={() => void copyDepositAddress()}><Copy /></Button>
+              </div>
+            ) : null}
             {devnet.mode === "devnet" ? (
               <p className="text-xs text-muted-foreground">
                 В тестовом режиме приложения тестовый доллар отличается от SOL MoonPay. Кнопка ниже только симулирует депозит и списывает тестовые доллары.
@@ -772,7 +805,7 @@ function MoonPaySellReady({
               <p className="text-xs text-muted-foreground">Демо-вывод только уменьшит локальный баланс; перевод MoonPay не отправляется.</p>
             )}
             <Button className="w-full" onClick={simulateWithdrawal} disabled={sending}>
-              {sending ? "Отправляем…" : devnet.mode === "devnet" ? "Отправить с баланса" : "Вывести в демо-режиме"}
+              {sending ? (sendProgress ?? "Отправляем…") : devnet.mode === "devnet" ? "Отправить с баланса" : "Вывести в демо-режиме"}
             </Button>
           </div>
         ) : null}
@@ -785,7 +818,7 @@ function MoonPaySellReady({
                 : "Продолжите демо-сценарий, чтобы списать сумму с локального баланса."}
             </p>
             <Button className="w-full" onClick={simulateWithdrawal} disabled={sending}>
-              {sending ? "Отправляем…" : devnet.mode === "devnet" ? "Списать тестовые доллары" : "Завершить демо-вывод"}
+              {sending ? (sendProgress ?? "Отправляем…") : devnet.mode === "devnet" ? "Списать тестовые доллары" : "Завершить демо-вывод"}
             </Button>
           </div>
         ) : null}

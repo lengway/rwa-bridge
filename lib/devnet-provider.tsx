@@ -60,8 +60,15 @@ function CrossmintDevnetRuntime({
   status: DevnetStatus | null;
   children: React.ReactNode;
 }) {
-  const { status: authStatus } = useCrossmintAuth();
+  const { status: authStatus, jwt } = useCrossmintAuth();
   const { wallet } = useWallet();
+  useEffect(() => {
+    if (authStatus !== "logged-in" || !jwt) return;
+    void fetch("/api/me/session", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${jwt}` },
+    }).catch(() => undefined);
+  }, [authStatus, jwt]);
   return (
     <DevnetRuntime status={status} authStatus={authStatus} walletAddress={wallet?.address ?? null}>
       {children}

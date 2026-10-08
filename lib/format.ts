@@ -7,7 +7,9 @@ export function setFormattedKztRate(rate: number) {
 }
 
 export function formatMoney(usd: number, currency: "USD" | "KZT" = "USD") {
+  if (!Number.isFinite(usd)) return "—";
   const value = currency === "KZT" ? usd * liveUsdKzt : usd;
+  if (!Number.isFinite(value)) return "—";
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: currency === "KZT" ? "KZT" : "USD",
@@ -16,8 +18,10 @@ export function formatMoney(usd: number, currency: "USD" | "KZT" = "USD") {
 }
 
 export function formatEarningsMoney(usd: number, currency: "USD" | "KZT" = "USD") {
+  if (!Number.isFinite(usd)) return "—";
   const smallAmount = Math.abs(usd) < 1;
   const value = currency === "KZT" ? usd * liveUsdKzt : usd;
+  if (!Number.isFinite(value)) return "—";
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency: currency === "KZT" ? "KZT" : "USD",
@@ -27,7 +31,13 @@ export function formatEarningsMoney(usd: number, currency: "USD" | "KZT" = "USD"
 }
 
 export function formatApy(apy: number) {
+  if (!Number.isFinite(apy)) return "—";
   return new Intl.NumberFormat("ru-RU", { style: "percent", maximumFractionDigits: 2 }).format(apy);
+}
+
+export function formatQuantity(value: number, maximumFractionDigits = 6) {
+  if (!Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits }).format(value);
 }
 
 export function formatActivityDay(timestamp: number, now = Date.now()) {
