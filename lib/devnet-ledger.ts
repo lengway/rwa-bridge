@@ -59,7 +59,8 @@ type Ledger = {
   vaultCheckpoints: Record<string, VaultCheckpoint>;
 };
 
-const LEDGER_PATH = path.join(process.cwd(), ".demo-ledger.json");
+// Production keeps the ledger outside the release folder (atomic rename would replace a symlink).
+const LEDGER_PATH = process.env.DEMO_LEDGER_PATH || path.join(process.cwd(), ".demo-ledger.json");
 let mutex: Promise<void> = Promise.resolve();
 const keyLocks = new Map<string, Promise<void>>();
 
