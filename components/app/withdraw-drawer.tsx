@@ -18,11 +18,14 @@ import { useAuth } from "@/lib/useAuth";
 
 type CompletedWithdrawal = {
   amount: number;
+  currency?: "USD" | "KZT";
   shares?: number;
   shareTicker?: string;
   explorerUrl?: string;
   note?: string;
   isCardWithdrawal?: boolean;
+  sentence?: string;
+  amountLabel?: string;
 };
 
 type WithdrawDrawerProps = {
@@ -53,7 +56,10 @@ function WithdrawDrawerContents({
   const [progress, setProgress] = useState<string | null>(null);
   const [pendingRedemption, setPendingRedemption] = useState<{ productId: string; signature: string; shares: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [method, setMethod] = useState<"yield" | "card">("yield");
+  const [method, setMethod] = useState<"yield" | "card" | "tenge">("yield");
+  const [tengeAmount, setTengeAmount] = useState("10000");
+  const [cardEnding, setCardEnding] = useState("");
+  const [pendingKzte, setPendingKzte] = useState<{ signature: string; amount: number } | null>(null);
   const [cardAmount, setCardAmount] = useState("50");
   const [cardAmountTouched, setCardAmountTouched] = useState(false);
   const cardWithdrawalRecorded = useRef(false);
@@ -63,6 +69,10 @@ function WithdrawDrawerContents({
     && cardAmountValue >= 20
     && cardAmountValue <= cashUsd
     && cardAmountValue <= 1000;
+  const kzteBalance = devnet.portfolio?.holdings.find((holding) => holding.kind === "kzte")?.balance ?? 0;
+  const tengeAmountValue = Number(tengeAmount);
+  const validTengeAmount = Number.isFinite(tengeAmountValue) && tengeAmountValue > 0 && tengeAmountValue <= kzteBalance;
+  const pendingKzteMatches = Boolean(pendingKzte && Math.abs(pendingKzte.amount - tengeAmountValue) < 0.000001);
 
   const resetCardAmount = () => {
     setCardAmount(String(Math.max(20, Math.min(50, Math.floor(cashUsd)))));
@@ -153,20 +163,73 @@ function WithdrawDrawerContents({
     }
   };
 
+  const redeemKzte = async () => {
+    const pendingMatches = pendingKzteMatches;
+    if (processingId || (!validTengeAmount && !pendingMatches) || cardEnding.length !== 4 || !devnet.walletAddress || !devnet.treasuryOwner || !devnet.kzteMint) return;
+    if (pendingKzte && !pendingMatches) {
+      setError("Сначала повторите подтверждение предыдущего вывода KZTE.");
+      return;
+    }
+    if (!wallet && !pendingMatches) {
+      setError("Не удалось подключить кошелёк KZTE.");
+      return;
+    }
+    setProcessingId("kzte");
+    setError(null);
+    try {
+      let signature = pendingMatches ? pendingKzte?.signature ?? null : null;
+      if (!signature) {
+        setProgress("Подписываем перевод KZTE…");
+        const transfer = await wallet!.send(devnet.treasuryOwner, devnet.kzteMint, String(tengeAmountValue));
+        if (!transfer.hash) throw new Error("Кошелёк не вернул подпись перевода KZTE.");
+        signature = transfer.hash;
+        setPendingKzte({ signature, amount: tengeAmountValue });
+      }
+      setProgress("Возвращаем KZTE в резерв Intebix…");
+      const response = await fetch("/api/devnet/kzte/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signature }),
+      });
+      const result = await response.json() as { amountKzt?: unknown; explorerUrl?: unknown; error?: unknown };
+      if (!response.ok || typeof result.amountKzt !== "number" || typeof result.explorerUrl !== "string") {
+        throw new Error(typeof result.error === "string" ? result.error : "Не удалось вывести KZTE.");
+      }
+      setCompleted({
+        amount: result.amountKzt,
+        currency: "KZT",
+        amountLabel: result.amountKzt.toLocaleString("ru-RU") + " ₸",
+        sentence: "Выплата " + result.amountKzt.toLocaleString("ru-RU") + " ₸ на карту ·· " + cardEnding + " через Intebix; KZTE возвращены в резерв Intebix.",
+        note: "Операция проведена в сети Solana devnet. Квитанция будет отправлена на email аккаунта.",
+        explorerUrl: result.explorerUrl,
+      });
+      setPendingKzte(null);
+      void devnet.refreshPortfolio();
+      toast.success("KZTE возвращены в резерв Intebix");
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : "";
+      setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить вывод KZTE. Проверьте соединение и повторите попытку.");
+    } finally {
+      setProcessingId(null);
+      setProgress(null);
+    }
+  };
+
   return (
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
       title="Вывести средства"
-      description={method === "card" ? "Перевод в MoonPay в сети devnet." : "Отправьте доли на погашение. Казначейство вернёт USD по текущей цене доли."}
+      description={method === "card" ? "Перевод в MoonPay в сети devnet." : method === "tenge" ? "KZTE возвращаются в резерв Intebix при выплате в тенге." : "Отправьте доли на погашение. Казначейство вернёт USD по текущей цене доли."}
     >
       {completed ? (
         <DrawerSuccess
           amount={completed.amount}
-          currency={displayCurrency}
-          sentence={completed.isCardWithdrawal
+          currency={completed.currency ?? displayCurrency}
+          amountLabel={completed.amountLabel}
+          sentence={completed.sentence ?? (completed.isCardWithdrawal
             ? "Перевод в MoonPay подтверждён в сети Solana devnet."
-            : `Погашено ${formatQuantity(completed.shares ?? Number.NaN)} ${completed.shareTicker ?? "долей"}; USD отправлены в ваш кошелёк.`}
+            : `Погашено ${formatQuantity(completed.shares ?? Number.NaN)} ${completed.shareTicker ?? "долей"}; USD отправлены в ваш кошелёк.`)}
           note={completed.note}
           onDone={() => changeOpen(false)}
           secondaryHref="/activity"
@@ -175,12 +238,12 @@ function WithdrawDrawerContents({
         />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Способ вывода">
+          <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Способ вывода">
             <button
               type="button"
               role="tab"
               aria-selected={method === "yield"}
-              disabled={Boolean(processingId || pendingRedemption)}
+              disabled={Boolean(processingId || pendingRedemption || pendingKzte)}
               onClick={() => {
                 setMethod("yield");
               }}
@@ -192,7 +255,7 @@ function WithdrawDrawerContents({
               type="button"
               role="tab"
               aria-selected={method === "card"}
-              disabled={Boolean(processingId || pendingRedemption)}
+              disabled={Boolean(processingId || pendingRedemption || pendingKzte)}
               onClick={() => {
                 resetCardAmount();
                 setError(null);
@@ -201,6 +264,16 @@ function WithdrawDrawerContents({
               className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${method === "card" ? "border-foreground bg-muted" : "hover:bg-muted/40"}`}
             >
               На банковскую карту
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={method === "tenge"}
+              disabled={Boolean(processingId || pendingRedemption || pendingKzte)}
+              onClick={() => { setError(null); setMethod("tenge"); }}
+              className={method === "tenge" ? "rounded-lg border border-foreground bg-muted px-3 py-2 text-sm font-medium" : "rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted/40"}
+            >
+              В тенге · Intebix
             </button>
           </div>
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
@@ -284,6 +357,27 @@ function WithdrawDrawerContents({
               onWithdrawal={completeCardWithdrawal}
               onSelectAnotherMethod={() => setMethod("yield")}
             />
+          ) : null}
+          {method === "tenge" ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="intebix-withdraw-amount" className="text-sm font-medium">Сумма вывода</label>
+                <span className="text-xs text-muted-foreground">Доступно {formatQuantity(kzteBalance)} KZTE</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input id="intebix-withdraw-amount" type="number" min="0.000001" step="any" max={kzteBalance} inputMode="decimal" value={tengeAmount} onChange={(event) => setTengeAmount(event.target.value)} disabled={Boolean(processingId || pendingKzte)} className="h-11 text-lg tabular-nums" />
+                <span className="text-sm font-medium">KZTE</span>
+              </div>
+              <label htmlFor="intebix-withdraw-card" className="block text-sm font-medium">Последние 4 цифры карты</label>
+              <Input id="intebix-withdraw-card" type="text" inputMode="numeric" autoComplete="off" maxLength={4} value={cardEnding} onChange={(event) => setCardEnding(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="0000" disabled={Boolean(processingId)} className="h-11" />
+              <p className="text-xs text-muted-foreground">Выплата в сети Solana devnet.</p>
+              {kzteBalance <= 0 ? <p className="text-xs text-muted-foreground">На кошельке пока нет KZTE.</p> : null}
+              {!validTengeAmount && kzteBalance > 0 ? <p className="text-xs text-destructive">Укажите сумму не больше доступного баланса.</p> : null}
+              {cardEnding.length > 0 && cardEnding.length !== 4 ? <p className="text-xs text-destructive">Введите последние 4 цифры карты.</p> : null}
+              <Button className="w-full" onClick={() => void redeemKzte()} disabled={Boolean(processingId) || (!validTengeAmount && !pendingKzteMatches) || cardEnding.length !== 4 || Boolean(pendingKzte && !pendingKzteMatches)}>
+                {processingId === "kzte" ? (progress ?? "Выводим…") : pendingKzte ? "Повторить подтверждение" : "Вывести"}
+              </Button>
+            </div>
           ) : null}
         </div>
       )}

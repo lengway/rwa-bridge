@@ -73,7 +73,7 @@ function ActivityRow({
   item: ActivityItem;
   currency: "USD" | "KZT";
 }) {
-  const isInflow = item.type === "topup" || (item.type === "withdraw" && item.title.startsWith("Вывод:"));
+  const isInflow = item.type === "topup" || (item.type === "withdraw" && (item.title.startsWith("Вывод:") || item.title.startsWith("Вывод в тенге")));
   const Icon = item.type === "topup"
     ? CreditCard
     : item.type === "invest"

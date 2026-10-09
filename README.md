@@ -18,6 +18,7 @@ Sign in with email (the only way in), get an embedded Solana wallet, add money, 
 | Add money: test ATM | Server mints test dollars (USDC stand-in) to the wallet |
 | Add money: card (Transak, MoonPay test modes) | Provider order verified server-side, then test dollars minted |
 | Add money: inside a bank | Bank-style confirmation in tenge, then test dollars minted |
+| Add money: tenge · Intebix | Fixed-supply KZTE transfers from the issuer reserve; the mint authority is revoked |
 | Deposit into a yield vault | User-signed transfer to the treasury, verified, then vault share tokens (vUSDY / vKZGB) minted; share price follows the live APY |
 | Withdraw | Shares sent back and burned, dollars paid at the current share price |
 | Buy a fractional asset | Payment verified, OFFICE tokens minted 1:1 |
@@ -76,6 +77,10 @@ RWA Bridge работает в сети Solana devnet. Вход через Cross
 
 Токены `vUSDY` отслеживают доходность USDY, публикуемую Ondo через DefiLlama. `vKZGB` ссылается на индекс государственных облигаций KASE. Данные курса USD/KZT, APY и котировок показывают источник и дату.
 
+## KZTE · тенге
+
+Intebix и Евразийский банк выпустили Evo (KZTE), тенговый стейблкоин 1:1 в пилоте песочницы Нацбанка РК. Официальный адрес KZTE в основной сети пока не опубликован; для этого приложения setup-devnet.mjs создаёт отдельный SPL-токен KZTE в Solana devnet. В приложении доступны перевод KZTE из резерва Intebix, обмен KZTE ↔ USD и выплата в тенге. Выпущен фиксированный объём 1 000 000 000 KZTE с 6 знаками после запятой; authority выпуска отозвана. Входящие KZTE остаются в резерве.
+
 ## Запуск и настройка
 
 ```bash
@@ -87,13 +92,18 @@ npm run dev
 
 Для работы задайте staging-ключи Crossmint и ключи нужных платёжных провайдеров. Серверные переменные для devnet mint сохраняют текущие имена:
 
+Mint KZTE хранится в переменной DEMO_KZTE_MINT. setup-devnet.mjs выпускает 1 000 000 000 KZTE в token account казначейства и отзывает mint authority. При повторном запуске существующий выпуск не дублируется; прежний mint с нулевым supply и authority казначейства будет однократно заполнен и отозван.
+
+`scripts/devnet-smoke.mjs` читает `AUTH_SESSION_SECRET` из окружения или `.env.local`, создаёт одноразовый кошелёк и подписывает часовой session cookie с `smoke: true` и его `walletAddress`. Сервер использует этот адрес только из cookie с действительной HMAC-подписью; обычные сессии продолжают брать адрес из серверной связи email → wallet. Ни один HTTP endpoint не выпускает smoke-cookie, а `/api/auth/session` не обменивает его на JWT.
+
 - `DEMO_TOKEN_MINT`
 - `DEMO_USD_MINT`
 - `DEMO_VAULT_USDY_MINT`
 - `DEMO_VAULT_KZGB_MINT`
+- `DEMO_KZTE_MINT`
 - `DEMO_TOKEN_AUTHORITY_SECRET`
 
-`node scripts/setup-devnet.mjs` создаёт mint `OFFICE`, тестовый доллар, два mint долей и адрес казначейства. Если автоматическая выдача SOL не сработает, пополните адрес полномочий через Solana devnet faucet и повторите запуск. При необходимости можно указать `SOLANA_RPC_URL`.
+`node scripts/setup-devnet.mjs` создаёт mint `OFFICE`, тестовый доллар, два mint долей, KZTE и token accounts казначейства. Если автоматическая выдача SOL не сработает, пополните адрес полномочий через Solana devnet faucet и повторите запуск. При необходимости можно указать `SOLANA_RPC_URL`.
 
 Для карточного пополнения Transak задайте `NEXT_PUBLIC_TRANSAK_API_KEY` и `TRANSAK_API_SECRET`. Для Crossmint — `CROSSMINT_SERVER_API_KEY`. MoonPay использует `NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY` и `MOONPAY_SECRET_KEY`; он остаётся доступен для вывода на карту. Настройки писем необязательны: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` и `MAIL_FROM`.
 
@@ -114,4 +124,3 @@ npm run dev
 - **3-месячные казначейские векселя США** — Daily Treasury Rates.
 - **Индекс KZGB** — индекс государственных облигаций KASE.
 - **Котировки Transak и MoonPay** — API провайдеров.
-

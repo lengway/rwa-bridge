@@ -48,11 +48,22 @@ export type LedgerPurchase = {
   at: number;
 };
 
+export type LedgerKzteOperation = {
+  kind: "topup" | "exchange-kzte-usd" | "exchange-usd-kzte" | "redeem";
+  sourceSignature?: string;
+  targetSignature?: string;
+  burnSignature?: string;
+  amountKzt: number;
+  amountUsd: number;
+  at: number;
+};
+
 export type WalletLedger = {
   deposits: LedgerDeposit[];
   withdrawals: LedgerWithdrawal[];
   purchases: LedgerPurchase[];
   migrations: LedgerMigration[];
+  kzteOperations: LedgerKzteOperation[];
 };
 
 type Ledger = {
@@ -78,6 +89,7 @@ export type AuthCodeRequestResult =
 export type AuthCodeVerificationResult = "verified" | "invalid" | "expired" | "locked" | "missing";
 
 type EmailLedgerRecord = {
+  walletAddress?: string;
   receiptsEnabled?: boolean;
   welcomeSent?: boolean;
   receiptDay?: string;
@@ -117,7 +129,7 @@ async function exclusive<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 function emptyWallet(): WalletLedger {
-  return { deposits: [], withdrawals: [], purchases: [], migrations: [] };
+  return { deposits: [], withdrawals: [], purchases: [], migrations: [], kzteOperations: [] };
 }
 
 async function readLedgerFile(): Promise<Ledger> {
@@ -144,6 +156,7 @@ async function readLedgerFile(): Promise<Ledger> {
           withdrawals: Array.isArray(record.withdrawals) ? record.withdrawals : [],
           purchases: Array.isArray(record.purchases) ? record.purchases : [],
           migrations: Array.isArray(record.migrations) ? record.migrations : [],
+          kzteOperations: Array.isArray(record.kzteOperations) ? record.kzteOperations : [],
         } satisfies WalletLedger];
       })),
     };
@@ -239,6 +252,22 @@ export function getEmailPreferences(email: string) {
   });
 }
 
+export function linkEmailWallet(email: string, walletAddress: string) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const key = emailKey(email);
+    const record = ledger.emails[key] ?? {};
+    if (record.walletAddress && record.walletAddress !== walletAddress) return false;
+    ledger.emails[key] = { ...record, walletAddress };
+    await writeLedgerFile(ledger);
+    return true;
+  });
+}
+
+export function getEmailWalletAddress(email: string) {
+  return exclusive(async () => (await readLedgerFile()).emails[emailKey(email)]?.walletAddress ?? null);
+}
+
 export function setEmailPreferences(email: string, receiptsEnabled: boolean) {
   return exclusive(async () => {
     const ledger = await readLedgerFile();
@@ -313,7 +342,10 @@ function signatureIsUsed(ledger: Ledger, signature: string) {
     wallet.deposits.some((item) => item.signature === signature || item.mintSignature === signature)
       || wallet.withdrawals.some((item) => item.signature === signature || item.payoutSignature === signature || item.burnSignature === signature)
       || wallet.migrations.some((item) => item.mintSignature === signature)
-      || wallet.purchases.some((item) => item.paymentSignature === signature || item.mintSignature === signature),
+      || wallet.purchases.some((item) => item.paymentSignature === signature || item.mintSignature === signature)
+      || wallet.kzteOperations.some((item) => item.sourceSignature === signature
+        || item.targetSignature === signature
+        || item.burnSignature === signature),
   );
 }
 
@@ -338,6 +370,62 @@ export function findLedgerWithdrawal(walletAddress: string, signature: string) {
 export function findLedgerPurchase(walletAddress: string, paymentSignature: string) {
   return exclusive(async () => walletOf(await readLedgerFile(), walletAddress).purchases
     .find((purchase) => purchase.paymentSignature === paymentSignature) ?? null);
+}
+
+export function findKzteOperation(walletAddress: string, signature: string) {
+  return exclusive(async () => walletOf(await readLedgerFile(), walletAddress).kzteOperations
+    .find((item) => item.sourceSignature === signature || item.targetSignature === signature || item.burnSignature === signature) ?? null);
+}
+
+export function getKzteTopupsSince(walletAddress: string, since: number) {
+  return exclusive(async () => walletOf(await readLedgerFile(), walletAddress).kzteOperations
+    .filter((item) => item.kind === "topup" && item.at >= since)
+    .reduce((total, item) => total + item.amountKzt, 0));
+}
+
+export async function appendKzteOperation(walletAddress: string, operation: LedgerKzteOperation) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    if (operation.sourceSignature && signatureIsUsed(ledger, operation.sourceSignature)) {
+      throw new Error("Эта транзакция уже была использована.");
+    }
+    if (operation.targetSignature && signatureIsUsed(ledger, operation.targetSignature)) {
+      throw new Error("Эта транзакция уже была использована.");
+    }
+    if (operation.burnSignature && signatureIsUsed(ledger, operation.burnSignature)) {
+      throw new Error("Эта транзакция уже была использована.");
+    }
+    const wallet = walletOf(ledger, walletAddress);
+    wallet.kzteOperations.push(operation);
+    ledger.wallets[walletAddress] = wallet;
+    await writeLedgerFile(ledger);
+    return operation;
+  });
+}
+
+export async function updateKzteOperation(
+  walletAddress: string,
+  sourceSignature: string,
+  update: Partial<LedgerKzteOperation>,
+) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const wallet = walletOf(ledger, walletAddress);
+    const operation = wallet.kzteOperations.find((item) => item.sourceSignature === sourceSignature);
+    if (!operation) throw new Error("Операция KZTE не найдена.");
+    if (update.targetSignature && update.targetSignature !== operation.targetSignature
+      && signatureIsUsed(ledger, update.targetSignature)) {
+      throw new Error("Эта транзакция уже была использована.");
+    }
+    if (update.burnSignature && update.burnSignature !== operation.burnSignature
+      && signatureIsUsed(ledger, update.burnSignature)) {
+      throw new Error("Эта транзакция уже была использована.");
+    }
+    Object.assign(operation, update);
+    ledger.wallets[walletAddress] = wallet;
+    await writeLedgerFile(ledger);
+    return operation;
+  });
 }
 
 export function getVaultCheckpoint(productId: string) {

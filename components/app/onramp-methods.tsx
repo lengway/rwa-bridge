@@ -33,7 +33,7 @@ export function MethodOption({
   };
   const label = labels[id] ?? ONRAMP_OPTIONS.find((option) => option.id === id)?.name ?? id;
   const hint = ONRAMP_OPTIONS.find((option) => option.id === id)?.hint;
-  const MethodIcon = id === "bank-embed" ? Landmark : id === "devnet-faucet" ? Coins : CreditCard;
+  const MethodIcon = id === "bank-embed" ? Landmark : id === "devnet-faucet" || id === "kzte-intebix" ? Coins : CreditCard;
 
   return (
     <button

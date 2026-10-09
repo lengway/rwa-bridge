@@ -8,6 +8,9 @@ export type DevnetStatus = {
   assetMint: string | null;
   vaultUsdyMint: string | null;
   vaultKzgbMint: string | null;
+  kzteMint: string | null;
+  kzteReserve: number | null;
+  kzteSupply: number | null;
   treasury: string | null;
   treasuryOwner: string | null;
 };
@@ -25,7 +28,7 @@ export type DevnetPortfolio = {
     apy?: number;
   }>;
   holdings: Array<{
-    kind: "cash" | "vault" | "asset";
+    kind: "cash" | "kzte" | "vault" | "asset";
     productId?: string;
     assetId?: string;
     name: string;
@@ -75,6 +78,9 @@ export type DevnetState = {
   assetMint: string | null;
   vaultUsdyMint: string | null;
   vaultKzgbMint: string | null;
+  kzteMint: string | null;
+  kzteReserve: number | null;
+  kzteSupply: number | null;
   treasury: string | null;
   treasuryOwner: string | null;
   onchain: DevnetBalance | null;
@@ -89,6 +95,9 @@ const defaultState: DevnetState = {
   assetMint: null,
   vaultUsdyMint: null,
   vaultKzgbMint: null,
+  kzteMint: null,
+  kzteReserve: null,
+  kzteSupply: null,
   treasury: null,
   treasuryOwner: null,
   onchain: null,

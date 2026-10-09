@@ -14,6 +14,11 @@ export const ONRAMP_OPTIONS: OnrampOption[] = [
     hint: "Мгновенно · тестовые доллары для сети devnet",
   },
   {
+    id: "kzte-intebix",
+    name: "В тенге · Intebix",
+    hint: "Перевод из резерва Intebix · комиссия 0 ₸",
+  },
+  {
     id: "transak",
     name: "Карта · Transak",
     hint: "",

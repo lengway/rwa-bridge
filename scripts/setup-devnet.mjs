@@ -1,8 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, clusterApiUrl } from "@solana/web3.js";
 import {
+  AuthorityType,
   createMint,
+  getMint,
   getOrCreateAssociatedTokenAccount,
+  mintTo,
+  setAuthority,
 } from "@solana/spl-token";
 
 const KEY_FILE = ".demo-authority.json";
@@ -52,6 +56,10 @@ const vaultUsdyMint = getEnvValue(envContents, "DEMO_VAULT_USDY_MINT")
   || (await createMint(connection, authority, authority.publicKey, null, 6)).toBase58();
 const vaultKzgbMint = getEnvValue(envContents, "DEMO_VAULT_KZGB_MINT")
   || (await createMint(connection, authority, authority.publicKey, null, 6)).toBase58();
+const configuredKzteMint = process.env.DEMO_KZTE_MINT || getEnvValue(envContents, "DEMO_KZTE_MINT");
+const kzteMint = configuredKzteMint
+  || (await createMint(connection, authority, authority.publicKey, null, 6)).toBase58();
+const isNewKzteMint = !configuredKzteMint;
 const treasury = await getOrCreateAssociatedTokenAccount(
   connection,
   authority,
@@ -73,6 +81,35 @@ const vaultKzgbTreasury = await getOrCreateAssociatedTokenAccount(
   authority.publicKey,
   true,
 );
+const kzteTreasury = await getOrCreateAssociatedTokenAccount(
+  connection,
+  authority,
+  new PublicKey(kzteMint),
+  authority.publicKey,
+  true,
+);
+
+let kzteMintInfo = await getMint(connection, new PublicKey(kzteMint));
+if (isNewKzteMint || (kzteMintInfo.supply === BigInt(0)
+  && kzteMintInfo.mintAuthority?.equals(authority.publicKey))) {
+  await mintTo(
+    connection,
+    authority,
+    new PublicKey(kzteMint),
+    kzteTreasury.address,
+    authority,
+    BigInt(1_000_000_000) * BigInt(1_000_000),
+  );
+  await setAuthority(
+    connection,
+    authority,
+    new PublicKey(kzteMint),
+    authority,
+    AuthorityType.MintTokens,
+    null,
+  );
+  kzteMintInfo = await getMint(connection, new PublicKey(kzteMint));
+}
 
 function setEnvValue(contents, name, value) {
   const pattern = new RegExp(`^\\s*${name}\\s*=.*$`, "m");
@@ -86,6 +123,7 @@ envContents = setEnvValue(envContents, "DEMO_TOKEN_MINT", assetMint);
 envContents = setEnvValue(envContents, "DEMO_USD_MINT", usdMint);
 envContents = setEnvValue(envContents, "DEMO_VAULT_USDY_MINT", vaultUsdyMint);
 envContents = setEnvValue(envContents, "DEMO_VAULT_KZGB_MINT", vaultKzgbMint);
+envContents = setEnvValue(envContents, "DEMO_KZTE_MINT", kzteMint);
 envContents = setEnvValue(envContents, "DEMO_TOKEN_AUTHORITY_SECRET", JSON.stringify(Array.from(authority.secretKey)));
 writeFileSync(ENV_FILE, envContents);
 
@@ -93,6 +131,11 @@ console.log(`OFFICE-DEMO mint: ${assetMint}`);
 console.log(`Тестовый доллар mint: ${usdMint}`);
 console.log(`vUSDY-DEMO mint: ${vaultUsdyMint}`);
 console.log(`vKZGB-DEMO mint: ${vaultKzgbMint}`);
+console.log(`KZTE mint: ${kzteMint}`);
+console.log(`KZTE supply: ${Number(kzteMintInfo.supply) / 1_000_000} KZTE`);
+console.log(`KZTE mint authority: ${kzteMintInfo.mintAuthority?.toBase58() ?? "revoked"}`);
+console.log(`KZTE freeze authority: ${kzteMintInfo.freezeAuthority?.toBase58() ?? "none"}`);
 console.log(`Treasury ATA: ${treasury.address.toBase58()}`);
 console.log(`vUSDY-DEMO treasury ATA: ${vaultUsdyTreasury.address.toBase58()}`);
 console.log(`vKZGB-DEMO treasury ATA: ${vaultKzgbTreasury.address.toBase58()}`);
+console.log(`KZTE treasury ATA: ${kzteTreasury.address.toBase58()}`);

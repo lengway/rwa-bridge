@@ -19,6 +19,12 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type JwtRecord = Record<string, unknown>;
 
+export type VerifiedSession = {
+  email: string;
+  walletAddress: string | null;
+  smoke: boolean;
+};
+
 let keyCache: { privateKey: KeyObject; publicKey: KeyObject; jwk: JsonWebKey; kid: string } | null = null;
 
 function requiredEnv(name: string) {
@@ -181,7 +187,7 @@ export function createSessionCookie(email: string, now = Math.floor(Date.now() /
   return `${payload}.${sessionSignature(payload)}`;
 }
 
-export function verifySessionCookie(value: string | null | undefined, now = Math.floor(Date.now() / 1_000)) {
+export function verifySessionCookieClaims(value: string | null | undefined, now = Math.floor(Date.now() / 1_000)): VerifiedSession | null {
   if (!value || value.length > 4_096) return null;
   const [payload, signature, extra] = value.split(".");
   if (!payload || !signature || extra !== undefined) return null;
@@ -196,7 +202,16 @@ export function verifySessionCookie(value: string | null | undefined, now = Math
     || claims.iat > now + 60
     || claims.exp <= now
     || claims.exp - claims.iat > SESSION_TTL_SECONDS) return null;
-  return email;
+  return {
+    email,
+    walletAddress: typeof claims.walletAddress === "string" ? claims.walletAddress : null,
+    smoke: claims.smoke === true,
+  };
+}
+
+export function verifySessionCookie(value: string | null | undefined, now = Math.floor(Date.now() / 1_000)) {
+  const session = verifySessionCookieClaims(value, now);
+  return session && !session.smoke ? session.email : null;
 }
 
 function cookieValue(request: Request, cookieName: string) {
@@ -210,22 +225,27 @@ function cookieValue(request: Request, cookieName: string) {
   return null;
 }
 
-export async function getVerifiedEmailFromRequest(request: Request) {
+export async function getVerifiedSessionFromRequest(request: Request): Promise<VerifiedSession | null> {
   const authorization = request.headers.get("authorization");
   const match = authorization?.match(/^Bearer\s+(.+)$/i);
   if (match) {
     try {
       const email = verifyAuthJwt(match[1]);
-      if (email) return email;
+      if (email) return { email, walletAddress: null, smoke: false };
     } catch {
       // A valid session cookie may still authorize this request.
     }
   }
   try {
-    return verifySessionCookie(cookieValue(request, AUTH_SESSION_COOKIE));
+    return verifySessionCookieClaims(cookieValue(request, AUTH_SESSION_COOKIE));
   } catch {
     return null;
   }
+}
+
+export async function getVerifiedEmailFromRequest(request: Request) {
+  const session = await getVerifiedSessionFromRequest(request);
+  return session && !session.smoke ? session.email : null;
 }
 
 export const sessionCookieMaxAge = SESSION_TTL_SECONDS;

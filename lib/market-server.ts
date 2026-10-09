@@ -165,6 +165,21 @@ export async function readKztRate(): Promise<KztRateData | null> {
   return value;
 }
 
+/** Returns the latest cached NBK rate or refreshes it before an exchange calculation. */
+export async function getKztRateForOperation(): Promise<KztRateData> {
+  const cached = cachedValue<KztRateData>("kzt");
+  if (cached && !cached.stale) return cached;
+  try {
+    const value = await loadKztRate();
+    caches.set("kzt", { value, expiresAt: Date.now() + RATE_TTL_MS });
+    retryAfter.delete("kzt");
+    return value;
+  } catch {
+    if (cached) return cached;
+    throw new Error("Курс НБ РК временно недоступен.");
+  }
+}
+
 /** Returns live cached yields immediately; missing Treasury data never delays this response. */
 export async function readYieldData(): Promise<YieldData | null> {
   const usdy = cachedYieldMetric("usdy");

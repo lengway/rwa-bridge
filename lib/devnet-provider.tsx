@@ -21,26 +21,40 @@ export function DevnetProvider({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/devnet/status", { cache: "no-store" })
-      .then(async (response) => {
+    const loadStatus = async () => {
+      try {
+        const response = await fetch("/api/devnet/status", { cache: "no-store" });
         if (!response.ok) throw new Error("status unavailable");
-        return response.json() as Promise<DevnetStatus>;
-      })
-      .then((value) => {
+        const value = await response.json() as DevnetStatus;
         if (!cancelled) setStatus(value);
-      })
-      .catch(() => {
-        if (!cancelled) setStatus({
+      } catch {
+        if (!cancelled) setStatus((current) => current ?? {
           configured: false,
           usdMint: null,
           assetMint: null,
           vaultUsdyMint: null,
           vaultKzgbMint: null,
+          kzteMint: null,
+          kzteReserve: null,
+          kzteSupply: null,
           treasury: null,
           treasuryOwner: null,
         });
-      });
-    return () => { cancelled = true; };
+      }
+    };
+    void loadStatus();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadStatus();
+    }, 15_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void loadStatus();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   if (crossmintEnabled) {
@@ -62,11 +76,13 @@ function CrossmintDevnetRuntime({
 }) {
   const { status: authStatus, walletAddress } = useAuth();
   useEffect(() => {
-    if (authStatus !== "signed-in") return;
+    if (authStatus !== "signed-in" || !walletAddress) return;
     void fetch("/api/me/session", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress }),
     }).catch(() => undefined);
-  }, [authStatus]);
+  }, [authStatus, walletAddress]);
   return (
     <DevnetRuntime
       status={status}
@@ -146,13 +162,16 @@ function DevnetRuntime({
     assetMint: status?.assetMint ?? null,
     vaultUsdyMint: status?.vaultUsdyMint ?? null,
     vaultKzgbMint: status?.vaultKzgbMint ?? null,
+    kzteMint: status?.kzteMint ?? null,
+    kzteReserve: status?.kzteReserve ?? null,
+    kzteSupply: status?.kzteSupply ?? null,
     treasury: status?.treasury ?? null,
     treasuryOwner: status?.treasuryOwner ?? null,
     onchain,
     portfolio,
     refresh,
     refreshPortfolio,
-  }), [loggedInAddress, onchain, portfolio, refresh, refreshPortfolio, status?.assetMint, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
+  }), [loggedInAddress, onchain, portfolio, refresh, refreshPortfolio, status?.assetMint, status?.kzteMint, status?.kzteReserve, status?.kzteSupply, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
 
   return <DevnetContext.Provider value={value}>{children}</DevnetContext.Provider>;
 }

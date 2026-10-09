@@ -6,6 +6,7 @@ import { DrawerFrame } from "@/components/app/drawer-frame";
 import { DrawerSuccess } from "@/components/app/drawer-success";
 import { CrossmintPath, MethodOption, TransakPath } from "@/components/app/onramp-methods";
 import { MoonPayBuyPath } from "@/components/app/moonpay-paths";
+import { IntebixKztePath } from "@/components/app/intebix-kzte-path";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/lib/format";
@@ -14,7 +15,7 @@ import { useDevnet } from "@/lib/useDevnet";
 import { KztEstimate } from "@/components/app/kzt-estimate";
 import { useBankEmbed } from "@/lib/useBankEmbed";
 
-type SuccessState = { amount: number; sentence: string; note?: string; explorerUrl?: string };
+type SuccessState = { amount: number; sentence: string; note?: string; explorerUrl?: string; currency?: "USD" | "KZT"; amountLabel?: string };
 type AddMoneyDrawerProps = { open: boolean; onOpenChange: (open: boolean) => void };
 
 export function AddMoneyDrawer(props: AddMoneyDrawerProps) {
@@ -26,30 +27,35 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
   const { marketData } = useAppStore();
   const bankEmbed = useBankEmbed();
   const [amount, setAmount] = useState("50");
+  const [kztAmount, setKztAmount] = useState("25000");
   const [method, setMethod] = useState<string | null>(null);
+  const [intebixSheetOpen, setIntebixSheetOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<SuccessState | null>(null);
   const [bankPaymentPending, setBankPaymentPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bankRequestRef = useRef<{ id: string; amountUsd: number } | null>(null);
   const amountValue = Number(amount);
+  const kztAmountValue = Number(kztAmount);
   const valid = Number.isFinite(amountValue) && amountValue >= 1 && amountValue <= 1000;
+  const validKztAmount = Number.isInteger(kztAmountValue) && kztAmountValue >= 5_000 && kztAmountValue <= 1_000_000;
   const methods = useMemo(
     () => bankEmbed
-      ? ["bank-embed", "devnet-faucet", "transak", "moonpay", "crossmint"]
-      : ["devnet-faucet", "transak", "moonpay", "crossmint"],
+      ? ["bank-embed", "kzte-intebix", "devnet-faucet", "transak", "moonpay", "crossmint"]
+      : ["devnet-faucet", "kzte-intebix", "transak", "moonpay", "crossmint"],
     [bankEmbed],
   );
   const selectedMethod = method ?? methods[0];
 
   const changeOpen = (nextOpen: boolean) => {
+    if (!nextOpen) setIntebixSheetOpen(false);
     setSuccess(null);
     setError(null);
     onOpenChange(nextOpen);
   };
 
-  const complete = useCallback((value: number, sentence: string, note?: string, explorerUrl?: string) => {
-    setSuccess({ amount: value, sentence, note, explorerUrl });
+  const complete = useCallback((value: number, sentence: string, note?: string, explorerUrl?: string, currency: "USD" | "KZT" = "USD", amountLabel?: string) => {
+    setSuccess({ amount: value, sentence, note, explorerUrl, currency, amountLabel });
     void devnet.refreshPortfolio();
     toast.success("Баланс обновлён");
   }, [devnet]);
@@ -117,6 +123,10 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
   };
 
   const selectAnotherMethod = useCallback(() => setMethod(methods[0]), [methods]);
+  const closeIntebixSheet = useCallback(() => {
+    setIntebixSheetOpen(false);
+    setMethod(methods[0]);
+  }, [methods]);
   const completeTransak = useCallback((credit: { amountUsd: number; signature: string; explorerUrl: string }) => {
     complete(credit.amountUsd, "Покупка подтверждена Transak. Тестовые доллары зачислены.", "Зачисление подтверждено в сети Solana devnet.", credit.explorerUrl);
   }, [complete]);
@@ -129,23 +139,47 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
     complete(value, "Покупка подтверждена Crossmint.", "Данные кошелька обновлены.");
   }, [complete]);
 
+  const completeIntebix = useCallback((result: { amountKzt: number; explorerUrl: string }) => {
+    complete(
+      result.amountKzt,
+      "Переведено " + result.amountKzt.toLocaleString("ru-RU") + " KZTE из резерва Intebix.",
+      "Оплата в сети Solana devnet. Квитанция будет отправлена на email аккаунта.",
+      result.explorerUrl,
+      "KZT",
+      result.amountKzt.toLocaleString("ru-RU") + " ₸",
+    );
+  }, [complete]);
+
   return (
     <DrawerFrame open={open} onOpenChange={changeOpen} title="Пополнить баланс" description="Выберите сумму и способ пополнения.">
       {success ? (
-        <DrawerSuccess amount={success.amount} sentence={success.sentence} note={success.note} explorerUrl={success.explorerUrl} onDone={() => changeOpen(false)} secondaryHref="/earn" secondaryLabel="Открыть вклад" />
+        <DrawerSuccess amount={success.amount} currency={success.currency} amountLabel={success.amountLabel} sentence={success.sentence} note={success.note} explorerUrl={success.explorerUrl} onDone={() => changeOpen(false)} secondaryHref="/earn" secondaryLabel="Открыть вклад" />
       ) : (
         <div className="space-y-5">
-          <div className="space-y-3">
-            <label htmlFor="add-amount" className="text-sm font-medium">Сумма</label>
-            <div className="flex items-center gap-2">
-              <Input id="add-amount" type="number" min="1" max="1000" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} className="h-11 text-lg tabular-nums" disabled={processing || bankPaymentPending} />
-              <span className="text-sm font-medium">USD</span>
+          {selectedMethod === "kzte-intebix" ? (
+            <div className="space-y-3">
+              <label htmlFor="add-kzte-amount" className="text-sm font-medium">Сумма</label>
+              <div className="flex items-center gap-2">
+                <Input id="add-kzte-amount" type="number" min="5000" max="1000000" step="1" inputMode="numeric" value={kztAmount} onChange={(event) => setKztAmount(event.target.value)} className="h-11 text-lg tabular-nums" disabled={processing || bankPaymentPending} />
+                <span className="text-sm font-medium">₸</span>
+              </div>
+              <p className="text-xs text-muted-foreground">≈ {formatMoney(kztAmountValue / marketData.rate.usdKzt, "USD")} по курсу НБ РК на {new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(marketData.rate.asOf + "T12:00:00Z"))}</p>
+              <p className="text-sm font-medium">Вы получите {Number.isFinite(kztAmountValue) ? kztAmountValue.toLocaleString("ru-RU") : "0"} KZTE</p>
+              {!validKztAmount ? <p className="text-xs text-destructive">Укажите целую сумму от 5 000 до 1 000 000 ₸.</p> : null}
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[30, 50, 100].map((value) => <Button key={value} type="button" variant={amount === String(value) ? "secondary" : "outline"} onClick={() => setAmount(String(value))} disabled={processing || bankPaymentPending}>{formatMoney(value)}</Button>)}
+          ) : (
+            <div className="space-y-3">
+              <label htmlFor="add-amount" className="text-sm font-medium">Сумма</label>
+              <div className="flex items-center gap-2">
+                <Input id="add-amount" type="number" min="1" max="1000" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} className="h-11 text-lg tabular-nums" disabled={processing || bankPaymentPending} />
+                <span className="text-sm font-medium">USD</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[30, 50, 100].map((value) => <Button key={value} type="button" variant={amount === String(value) ? "secondary" : "outline"} onClick={() => setAmount(String(value))} disabled={processing || bankPaymentPending}>{formatMoney(value)}</Button>)}
+              </div>
+              <KztEstimate usd={Number(amount) || 0} />
             </div>
-            <KztEstimate usd={Number(amount) || 0} />
-          </div>
+          )}
 
           <div className="space-y-2">
             <p className="text-sm font-medium">Способ пополнения</p>
@@ -162,6 +196,23 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
               {processing ? "Зачисляем…" : `Получить ${formatMoney(amountValue || 0)}`}
             </Button>
           ) : null}
+          {selectedMethod === "kzte-intebix" ? (
+            <>
+              <Button className="w-full" onClick={() => setIntebixSheetOpen(true)} disabled={!validKztAmount}>
+                Пополнить через Intebix
+              </Button>
+              {intebixSheetOpen ? (
+                <IntebixKztePath
+                  amountKzt={kztAmountValue}
+                  usdKzt={marketData.rate.usdKzt}
+                  asOf={marketData.rate.asOf}
+                  validAmount={validKztAmount}
+                  onComplete={completeIntebix}
+                  onSelectAnotherMethod={closeIntebixSheet}
+                />
+              ) : null}
+            </>
+          ) : null}
           {selectedMethod === "transak" ? (
             <TransakPath amount={amountValue} onCompleteOnchain={completeTransak} onSelectAnotherMethod={selectAnotherMethod} />
           ) : null}
@@ -172,7 +223,7 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
             <CrossmintPath amount={amountValue} onComplete={completeCrossmint} onSelectAnotherMethod={selectAnotherMethod} />
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
-          {!valid ? <p className="text-xs text-destructive">Укажите сумму от $1 до $1 000.</p> : null}
+          {selectedMethod !== "kzte-intebix" && !valid ? <p className="text-xs text-destructive">Укажите сумму от $1 до $1 000.</p> : null}
         </div>
       )}
     </DrawerFrame>

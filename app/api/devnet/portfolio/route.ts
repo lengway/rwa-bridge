@@ -15,9 +15,10 @@ import { explorerAddressUrl, getUnassignedIncomingPayments, getWalletSolBalance,
 import { devnetConfig } from "@/lib/solana-server";
 import { VAULT_PRODUCTS, getVaultQuote } from "@/lib/vaults";
 import { YIELD_STRATEGIES } from "@/lib/yields";
+import { getKztRateForOperation, readKztRate } from "@/lib/market-server";
 
 type Holding = {
-  kind: "cash" | "vault" | "asset";
+  kind: "cash" | "kzte" | "vault" | "asset";
   productId?: string;
   assetId?: string;
   name: string;
@@ -88,11 +89,12 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     });
   }
 
-  const [ledger, tokenAccounts, solBalance, quotes] = await Promise.all([
+  const [ledger, tokenAccounts, solBalance, quotes, kztRate] = await Promise.all([
     getLedgerWallet(walletAddress),
     getWalletTokenAccounts(walletAddress),
     getWalletSolBalance(walletAddress),
     Promise.all(Object.keys(VAULT_PRODUCTS).map((productId) => getVaultQuote(productId))),
+    getKztRateForOperation().catch(() => readKztRate()),
   ]);
   const quoteByProduct = new Map(quotes.map((quote) => [quote.productId, quote]));
   const knownMints = new Map<string, Omit<Holding, "tokenAccount" | "balance" | "valueUsd" | "costUsd" | "pnlUsd" | "mintExplorerUrl" | "tokenAccountExplorerUrl">>();
@@ -103,6 +105,15 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     mint: devnetConfig.usdMint,
     priceUsd: 1,
   });
+  if (devnetConfig.kzteMint) {
+    knownMints.set(devnetConfig.kzteMint, {
+      kind: "kzte",
+      name: "KZTE · тенге",
+      ticker: "KZTE",
+      mint: devnetConfig.kzteMint,
+      priceUsd: 1 / (kztRate?.usdKzt ?? 480),
+    });
+  }
   for (const quote of quotes) {
     const strategy = YIELD_STRATEGIES.find((item) => item.id === quote.productId)!;
     knownMints.set(quote.mint, {
@@ -128,7 +139,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     name: item.name,
     kind: item.kind,
     priceUsd: item.priceUsd,
-  }])) as Record<string, { ticker: string; name: string; kind: "cash" | "vault" | "asset"; priceUsd: number }>;
+  }])) as Record<string, { ticker: string; name: string; kind: "cash" | "kzte" | "vault" | "asset"; priceUsd: number }>;
   const accountGroups = new Map<string, typeof tokenAccounts>();
   for (const account of tokenAccounts) {
     if (!knownMints.has(account.mint)) continue;
@@ -264,7 +275,33 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
       explorerUrl: mintRow.explorerUrl,
     });
   }
-  const mergedHistory = [...history.filter((item) => !mergedSignatures.has(item.signature)), ...mergedRows]
+  const kzteRows: HistoryRow[] = [];
+  for (const operation of ledger.kzteOperations) {
+    const sourceSignature = operation.sourceSignature;
+    const targetSignature = operation.targetSignature;
+    if (sourceSignature) mergedSignatures.add(sourceSignature);
+    if (targetSignature) mergedSignatures.add(targetSignature);
+    const signature = sourceSignature ?? targetSignature;
+    if (!signature) continue;
+    const title = operation.kind === "topup"
+      ? "Перевод из резерва Intebix"
+      : operation.kind === "exchange-kzte-usd"
+        ? "KZTE возвращены в резерв Intebix · обмен KZTE → $"
+        : operation.kind === "exchange-usd-kzte"
+          ? "Перевод из резерва Intebix · обмен $ → KZTE"
+          : "KZTE возвращены в резерв Intebix · выплата в тенге";
+    kzteRows.push({
+      id: signature,
+      title,
+      type: operation.kind === "topup" || operation.kind === "exchange-kzte-usd" ? "topup"
+        : operation.kind === "redeem" ? "withdraw" : "buy",
+      amountUsd: operation.amountUsd,
+      at: operation.at,
+      signature,
+      explorerUrl: explorerAddressUrl(signature),
+    });
+  }
+  const mergedHistory = [...history.filter((item) => !mergedSignatures.has(item.signature)), ...mergedRows, ...kzteRows]
     .sort((left, right) => right.at - left.at)
     .slice(0, 20);
   const usdHolding = holdings.find((holding) => holding.kind === "cash");

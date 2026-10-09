@@ -6,6 +6,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Building2, Copy, ExternalLink, Settin
 import { toast } from "sonner";
 import { BuyAssetDrawer } from "@/components/app/buy-asset-drawer";
 import { DrawerFrame } from "@/components/app/drawer-frame";
+import { ExchangeDrawer } from "@/components/app/exchange-drawer";
 import { InvestDrawer } from "@/components/app/invest-drawer";
 import { PortfolioSettings } from "@/components/app/profile-screen";
 import { WithdrawDrawer } from "@/components/app/withdraw-drawer";
@@ -22,6 +23,7 @@ type DisplayHolding = DevnetPortfolio["holdings"][number];
 
 const allocationNames = [
   { id: "cash", name: "Свободные доллары", color: "bg-sky-500" },
+  { id: "kzte", name: "Тенге (KZTE)", color: "bg-rose-500" },
   { id: "ondo-usdy", name: "Долларовый вклад", color: "bg-emerald-500" },
   { id: "kz-bond-demo", name: "Тенговые облигации", color: "bg-amber-500" },
   { id: "demo-office", name: "Офисное здание класса A", color: "bg-violet-500" },
@@ -36,6 +38,8 @@ export function PortfolioScreen() {
   const [investOpen, setInvestOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [exchangeDirection, setExchangeDirection] = useState<"kzte-to-usd" | "usd-to-kzte">("kzte-to-usd");
 
   const displayHoldings = devnet.portfolio?.holdings ?? [];
   const totalValue = devnet.portfolio?.totalValueUsd ?? 0;
@@ -131,9 +135,17 @@ export function PortfolioScreen() {
         ) : null}
         <div className="space-y-2">
           {displayHoldings.map((holding) => (
-            <button key={`${holding.kind}:${holding.mint || holding.productId || holding.assetId}`} type="button" className="block w-full text-left" onClick={() => setSelected(holding)}>
-              <HoldingRow holding={holding} currency={displayCurrency} />
-            </button>
+            <div key={holding.mint} className="space-y-2">
+              <button type="button" className="block w-full text-left" onClick={() => setSelected(holding)}>
+                <HoldingRow holding={holding} currency={displayCurrency} />
+              </button>
+              {holding.kind === "cash" ? (
+                <Button variant="outline" size="sm" className="ml-4" onClick={() => {
+                  setExchangeDirection("usd-to-kzte");
+                  setExchangeOpen(true);
+                }}>Обменять</Button>
+              ) : null}
+            </div>
           ))}
         </div>
       </section>
@@ -156,16 +168,24 @@ export function PortfolioScreen() {
         <HoldingDetails
           holding={selected}
           currency={displayCurrency}
+          kzteReserve={devnet.kzteReserve}
+          kzteSupply={devnet.kzteSupply}
           onOpenChange={(open) => { if (!open) setSelected(null); }}
           onInvest={() => openInvest(selected)}
           onWithdraw={() => { setSelected(null); setWithdrawOpen(true); }}
           onBuy={() => { setSelected(null); setBuyOpen(true); }}
+          onExchange={(direction) => {
+            setSelected(null);
+            setExchangeDirection(direction);
+            setExchangeOpen(true);
+          }}
           onCopy={copyValue}
         />
       ) : null}
       <InvestDrawer open={investOpen} onOpenChange={setInvestOpen} strategy={investStrategy} />
       <WithdrawDrawer open={withdrawOpen} onOpenChange={setWithdrawOpen} />
       <BuyAssetDrawer open={buyOpen} onOpenChange={setBuyOpen} asset={OFFICE_ASSET} />
+      <ExchangeDrawer open={exchangeOpen} onOpenChange={setExchangeOpen} initialDirection={exchangeDirection} />
     </div>
   );
 }
@@ -225,23 +245,31 @@ function WalletCard({ portfolio, onCopy }: { portfolio: DevnetPortfolio | null; 
 function HoldingDetails({
   holding,
   currency,
+  kzteReserve,
+  kzteSupply,
   onOpenChange,
   onInvest,
   onWithdraw,
   onBuy,
+  onExchange,
   onCopy,
 }: {
   holding: DisplayHolding;
   currency: "USD" | "KZT";
+  kzteReserve: number | null;
+  kzteSupply: number | null;
   onOpenChange: (open: boolean) => void;
   onInvest: () => void;
   onWithdraw: () => void;
   onBuy: () => void;
+  onExchange: (direction: "kzte-to-usd" | "usd-to-kzte") => void;
   onCopy: (value: string, label: string) => void;
 }) {
   const canInvest = holding.kind === "vault" || holding.kind === "cash";
   const canWithdraw = holding.kind === "vault";
   const canBuy = holding.kind === "asset" || holding.kind === "cash";
+  const canExchange = holding.kind === "cash" || holding.kind === "kzte";
+  const exchangeDirection = holding.kind === "kzte" ? "kzte-to-usd" : "usd-to-kzte";
   return (
     <DrawerFrame open onOpenChange={onOpenChange} title={holding.name} description={`${formatQuantity(holding.balance)} ${holding.ticker} · ${formatMoney(holding.valueUsd, currency)}`}>
       <div className="space-y-4">
@@ -253,6 +281,12 @@ function HoldingDetails({
             <span className="text-muted-foreground">Прибыль / убыток</span><span className="font-medium">{formatMoney(holding.pnlUsd ?? 0, currency)}</span>
           </div>
         ) : null}
+        {holding.kind === "kzte" ? (
+          <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+            <p>Резерв Intebix: {kzteReserve === null ? "—" : formatQuantity(kzteReserve)} KZTE · общий объём {formatQuantity(kzteSupply ?? 1_000_000_000, 0)}</p>
+            <p>Тенговый стейблкоин Evo (KZTE) — в devnet используется токен приложения.</p>
+          </div>
+        ) : null}
         <div className="space-y-3 rounded-xl border p-3">
           <AddressLine label="Mint" address={holding.mint} explorerUrl={holding.mintExplorerUrl} onCopy={() => onCopy(holding.mint, "Mint")} />
           <AddressLine label="Token account" address={holding.tokenAccount} explorerUrl={holding.tokenAccountExplorerUrl} onCopy={() => onCopy(holding.tokenAccount, "Token account")} />
@@ -260,6 +294,7 @@ function HoldingDetails({
         <div className="grid grid-cols-2 gap-2">
           {canInvest ? <Button variant="outline" onClick={onInvest}><ArrowDownToLine />Вложить ещё</Button> : null}
           {canWithdraw ? <Button variant="outline" onClick={onWithdraw}><ArrowUpFromLine />Вывести</Button> : null}
+          {canExchange ? <Button variant="outline" onClick={() => onExchange(exchangeDirection)}>Обменять</Button> : null}
           {canBuy ? <Button variant="outline" className="col-span-2" onClick={onBuy}>Купить ещё</Button> : null}
         </div>
       </div>

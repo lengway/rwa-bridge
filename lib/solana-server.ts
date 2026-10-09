@@ -13,6 +13,7 @@ import {
 import {
   getAccount,
   getAssociatedTokenAddress,
+  getMint,
   getOrCreateAssociatedTokenAccount,
   burn,
   mintTo,
@@ -61,6 +62,7 @@ const usdMintAddress = process.env.DEMO_USD_MINT ?? "";
 const assetMintAddress = process.env.DEMO_TOKEN_MINT ?? "";
 const vaultUsdyMintAddress = process.env.DEMO_VAULT_USDY_MINT ?? "";
 const vaultKzgbMintAddress = process.env.DEMO_VAULT_KZGB_MINT ?? "";
+const kzteMintAddress = process.env.DEMO_KZTE_MINT ?? "";
 
 export const connection = new Connection(
   process.env.SOLANA_RPC_URL ?? clusterApiUrl("devnet"),
@@ -69,12 +71,13 @@ export const connection = new Connection(
 
 export const devnetConfig = {
   get configured() {
-    if (!authority || !usdMintAddress || !assetMintAddress || !vaultUsdyMintAddress || !vaultKzgbMintAddress) return false;
+    if (!authority || !usdMintAddress || !assetMintAddress || !vaultUsdyMintAddress || !vaultKzgbMintAddress || !kzteMintAddress) return false;
     try {
       new PublicKey(usdMintAddress);
       new PublicKey(assetMintAddress);
       new PublicKey(vaultUsdyMintAddress);
       new PublicKey(vaultKzgbMintAddress);
+      new PublicKey(kzteMintAddress);
       return true;
     } catch {
       return false;
@@ -84,6 +87,7 @@ export const devnetConfig = {
   assetMint: assetMintAddress,
   vaultUsdyMint: vaultUsdyMintAddress,
   vaultKzgbMint: vaultKzgbMintAddress,
+  kzteMint: kzteMintAddress,
   authority,
   async treasury(): Promise<string | null> {
     if (!this.configured || !authority) return null;
@@ -132,6 +136,59 @@ export async function mintTestDollars(ownerAddress: string, amountUi: number) {
     mintAuthority,
     toTokenAmount(amountUi),
   );
+}
+
+export async function treasuryKzteTokenAccount() {
+  const { authority: mintAuthority } = requiredConfig();
+  if (!kzteMintAddress) throw new Error("Mint KZTE не настроен.");
+  return getOrCreateAssociatedTokenAccount(
+    connection,
+    mintAuthority,
+    new PublicKey(kzteMintAddress),
+    mintAuthority.publicKey,
+    true,
+  );
+}
+
+export async function sendKzteFromTreasury(ownerAddress: string, amountUi: number) {
+  const { authority: mintAuthority } = requiredConfig();
+  if (!kzteMintAddress) throw new Error("Mint KZTE не настроен.");
+  const mint = new PublicKey(kzteMintAddress);
+  const treasury = await treasuryKzteTokenAccount();
+  const amount = toTokenAmount(amountUi);
+  const balance = await getAccount(connection, treasury.address);
+  if (balance.amount < amount) throw new Error("В резерве Intebix недостаточно KZTE");
+  const destination = await getOrCreateAssociatedTokenAccount(
+    connection,
+    mintAuthority,
+    mint,
+    new PublicKey(ownerAddress),
+    true,
+  );
+  try {
+    return await transfer(connection, mintAuthority, treasury.address, destination.address, mintAuthority, amount);
+  } catch (error) {
+    const currentBalance = await getAccount(connection, treasury.address).catch(() => null);
+    if (currentBalance && currentBalance.amount < amount) {
+      throw new Error("В резерве Intebix недостаточно KZTE");
+    }
+    throw error;
+  }
+}
+
+export async function getKzteReserveStatus() {
+  const { authority: mintAuthority } = requiredConfig();
+  if (!kzteMintAddress) throw new Error("Mint KZTE не настроен.");
+  const mint = new PublicKey(kzteMintAddress);
+  const reserveAddress = await getAssociatedTokenAddress(mint, mintAuthority.publicKey, true);
+  const [mintInfo, reserveAccount] = await Promise.all([
+    getMint(connection, mint),
+    getAccount(connection, reserveAddress),
+  ]);
+  return {
+    kzteReserve: Number(reserveAccount.amount) / TOKEN_SCALE,
+    kzteSupply: Number(mintInfo.supply) / TOKEN_SCALE,
+  };
 }
 
 export async function mintAsset(ownerAddress: string, units: number) {
@@ -201,20 +258,21 @@ export async function burnTreasuryVaultShares(productId: string, shares: number)
   );
 }
 
-export async function sendFromTreasury(ownerAddress: string, amountUi: number) {
-  const { authority: mintAuthority, usdMint } = requiredConfig();
+export async function sendFromTreasury(ownerAddress: string, amountUi: number, mintAddress = usdMintAddress) {
+  const { authority: mintAuthority } = requiredConfig();
+  const mint = new PublicKey(mintAddress);
   const destinationOwner = new PublicKey(ownerAddress);
   const treasury = await getOrCreateAssociatedTokenAccount(
     connection,
     mintAuthority,
-    usdMint,
+    mint,
     mintAuthority.publicKey,
     true,
   );
   const destination = await getOrCreateAssociatedTokenAccount(
     connection,
     mintAuthority,
-    usdMint,
+    mint,
     destinationOwner,
     true,
   );
@@ -224,7 +282,7 @@ export async function sendFromTreasury(ownerAddress: string, amountUi: number) {
     await mintTo(
       connection,
       mintAuthority,
-      usdMint,
+      mint,
       treasury.address,
       mintAuthority,
       amount - balance.amount,
@@ -450,7 +508,7 @@ function formatTokenDelta(delta: number) {
 export async function getWalletTransactionHistory(
   ownerAddress: string,
   tokenAccounts: WalletTokenAccount[],
-  assetLabels: Record<string, { ticker: string; name: string; kind: "cash" | "vault" | "asset"; priceUsd: number }>,
+  assetLabels: Record<string, { ticker: string; name: string; kind: "cash" | "kzte" | "vault" | "asset"; priceUsd: number }>,
 ) {
   const walletAccounts = new Set(tokenAccounts.map((item) => item.tokenAccount));
   const signatureGroups = await Promise.all(tokenAccounts.map(async ({ tokenAccount }) => {

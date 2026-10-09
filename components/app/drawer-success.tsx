@@ -14,6 +14,8 @@ export function DrawerSuccess({
   secondaryLabel,
   note,
   explorerUrl,
+  secondaryExplorerUrl,
+  amountLabel,
 }: {
   amount: number;
   currency?: "USD" | "KZT";
@@ -23,6 +25,8 @@ export function DrawerSuccess({
   secondaryLabel: string;
   note?: string;
   explorerUrl?: string;
+  secondaryExplorerUrl?: string;
+  amountLabel?: string;
 }) {
   return (
     <div className="flex min-h-72 flex-col items-center justify-center gap-4 py-6 text-center">
@@ -31,7 +35,7 @@ export function DrawerSuccess({
       </span>
       <div className="space-y-1">
         <p className="text-3xl font-semibold tracking-tight tabular-nums">
-          {formatMoney(amount, currency)}
+          {amountLabel ?? formatMoney(amount, currency)}
         </p>
         <p className="text-sm leading-5 text-muted-foreground">{sentence}</p>
       </div>
@@ -39,14 +43,26 @@ export function DrawerSuccess({
       <div className="mt-2 grid w-full gap-2">
         <Button className="w-full" onClick={onDone}>Готово</Button>
         {explorerUrl ? (
-          <Button
-            variant="outline"
-            className="w-full"
-            nativeButton={false}
-            render={<a href={explorerUrl} target="_blank" rel="noopener noreferrer" />}
-          >
-            Открыть в обозревателе
-          </Button>
+          <div className="grid gap-2">
+            <Button
+              variant="outline"
+              className="w-full"
+              nativeButton={false}
+              render={<a href={explorerUrl} target="_blank" rel="noopener noreferrer" />}
+            >
+              Открыть подтверждение в обозревателе
+            </Button>
+            {secondaryExplorerUrl ? (
+              <Button
+                variant="outline"
+                className="w-full"
+                nativeButton={false}
+                render={<a href={secondaryExplorerUrl} target="_blank" rel="noopener noreferrer" />}
+              >
+                Открыть зачисление в обозревателе
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <Button
             variant="outline"

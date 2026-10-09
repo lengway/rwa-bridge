@@ -20,6 +20,7 @@ type DevnetStatus = {
   assetMint?: string | null;
   vaultUsdyMint?: string | null;
   vaultKzgbMint?: string | null;
+  kzteMint?: string | null;
   treasury?: string | null;
 };
 
@@ -168,6 +169,7 @@ function NetworkAssets() {
     { label: "Доля долларового вклада", ticker: "vUSDY", address: vaultMint("ondo-usdy", status?.vaultUsdyMint) },
     { label: "Доля тенговых облигаций", ticker: "vKZGB", address: vaultMint("kz-bond-demo", status?.vaultKzgbMint) },
     { label: "Офисное здание класса A", ticker: "OFFICE", address: status?.assetMint },
+    { label: "Тенговый стейблкоин", ticker: "KZTE", address: status?.kzteMint },
     { label: "Казначейство · token account USD", ticker: "Treasury", address: status?.treasury },
   ];
 
