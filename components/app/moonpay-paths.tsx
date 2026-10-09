@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
+import { useWallet } from "@crossmint/client-sdk-react-ui";
 import { Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { ProviderSheet } from "@/components/app/provider-sheet";
 import { ProviderQuote } from "@/components/app/provider-quote";
 import { russianActionError } from "@/lib/action-errors";
 import { useDevnet } from "@/lib/useDevnet";
+import { useAuth } from "@/lib/useAuth";
 
 type MoonPaySetup = {
   configured: boolean;
@@ -132,8 +133,8 @@ function MoonPaySellReady({
   onWithdrawal: (amount: number, details: WithdrawalDetails) => boolean;
   onSelectAnotherMethod: () => void;
 }) {
-  const { jwt } = useCrossmintAuth();
-  const { wallet, status: walletStatus } = useWallet();
+  const { wallet } = useAuth();
+  const { status: walletStatus } = useWallet();
   const devnet = useDevnet();
   const [widgetUrl, setWidgetUrl] = useState<string | null>(null);
   const [externalTransactionId, setExternalTransactionId] = useState<string | null>(null);
@@ -174,7 +175,7 @@ function MoonPaySellReady({
       }
       const response = await fetch("/api/moonpay/url", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ flow: "sell", walletAddress: wallet.address, amountUsd: amount, userIp: customer.ipAddress }),
       });
       const result = await response.json().catch(() => null) as WidgetResponse | null;

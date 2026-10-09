@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { getVerifiedEmailFromRequest } from "@/lib/crossmint-jwt";
+import { getVerifiedEmailFromRequest } from "@/lib/auth-server";
 import { getEmailPreferences, setEmailPreferences } from "@/lib/devnet-ledger";
 
 export async function GET(request: Request) {

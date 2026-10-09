@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { ArrowUpFromLine, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
@@ -15,6 +14,7 @@ import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
+import { useAuth } from "@/lib/useAuth";
 
 type CompletedWithdrawal = {
   amount: number;
@@ -32,9 +32,8 @@ type WithdrawDrawerProps = {
 };
 
 export function WithdrawDrawer(props: WithdrawDrawerProps) {
-  const { jwt } = useCrossmintAuth();
-  const { wallet } = useWallet();
-  return <WithdrawDrawerContents {...props} wallet={wallet ?? null} jwt={jwt ?? null} />;
+  const { wallet } = useAuth();
+  return <WithdrawDrawerContents {...props} wallet={wallet} />;
 }
 
 function WithdrawDrawerContents({
@@ -42,8 +41,7 @@ function WithdrawDrawerContents({
   onOpenChange,
   onAddMoney,
   wallet,
-  jwt,
-}: WithdrawDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null; jwt: string | null }) {
+}: WithdrawDrawerProps & { wallet: ReturnType<typeof useAuth>["wallet"] }) {
   const {
     positions,
     displayCurrency,
@@ -123,7 +121,7 @@ function WithdrawDrawerContents({
       setProgress("Подтверждаем в сети…");
       const response = await fetch("/api/devnet/withdraw", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress: devnet.walletAddress, productId: strategy.id, signature, shares }),
       });
       const result = await response.json() as {

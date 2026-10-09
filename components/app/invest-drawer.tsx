@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { ArrowDownToLine } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
@@ -18,6 +17,7 @@ import type { YieldStrategy } from "@/lib/yields";
 import { getStrategyApy } from "@/lib/market-data";
 import { KztEstimate } from "@/components/app/kzt-estimate";
 import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
+import { useAuth } from "@/lib/useAuth";
 
 type InvestDrawerProps = {
   open: boolean;
@@ -26,9 +26,8 @@ type InvestDrawerProps = {
 };
 
 export function InvestDrawer(props: InvestDrawerProps) {
-  const { jwt } = useCrossmintAuth();
-  const { wallet } = useWallet();
-  return <InvestDrawerContents {...props} wallet={wallet ?? null} jwt={jwt ?? null} />;
+  const { wallet } = useAuth();
+  return <InvestDrawerContents {...props} wallet={wallet} />;
 }
 
 function InvestDrawerContents({
@@ -36,8 +35,7 @@ function InvestDrawerContents({
   onOpenChange,
   strategy,
   wallet,
-  jwt,
-}: InvestDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null; jwt: string | null }) {
+}: InvestDrawerProps & { wallet: ReturnType<typeof useAuth>["wallet"] }) {
   const { cashUsd, displayCurrency, marketData } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
   const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
@@ -91,7 +89,7 @@ function InvestDrawerContents({
       setProgress("Подтверждаем в сети…");
       const response = await fetch("/api/devnet/invest", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress: devnet.walletAddress, productId: strategy.id, amountUsd: amountValue, signature }),
       });
       const result = await response.json() as {

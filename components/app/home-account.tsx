@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useCrossmintAuth } from "@crossmint/client-sdk-react-ui";
 import { ChartNoAxesCombined, CircleUserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,10 +8,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatEarningsMoney, formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { MarketDataNote } from "@/components/app/market-data-note";
+import { useAuth } from "@/lib/useAuth";
 
 export function AccountGreeting() {
-  const { user } = useCrossmintAuth();
-  return <GreetingContents email={user?.email} />;
+  const { email } = useAuth();
+  return <GreetingContents email={email ?? undefined} />;
 }
 
 function GreetingContents({ email }: { email?: string }) {

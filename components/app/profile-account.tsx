@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { Copy, LogOut, Send, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -12,20 +11,21 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { useDevnet } from "@/lib/useDevnet";
+import { useAuth } from "@/lib/useAuth";
 
 export function AccountSection() {
   return <AccountSectionReady />;
 }
 
 function AccountSectionReady() {
-  const { logout, user, status } = useCrossmintAuth();
+  const { signOut, email, status } = useAuth();
   const [busy, setBusy] = useState(false);
-  const loggedIn = status === "logged-in";
+  const loggedIn = status === "signed-in";
 
   const handleLogout = async () => {
     setBusy(true);
     try {
-      await logout();
+      await signOut();
       toast.success("Вы вышли из аккаунта");
     } catch {
       toast.error("Не удалось выйти. Попробуйте ещё раз.");
@@ -39,7 +39,7 @@ function AccountSectionReady() {
       <h2 className="font-semibold">Аккаунт</h2>
       {loggedIn ? (
         <>
-          <p className="text-sm text-muted-foreground">{user?.email ?? "Вы вошли"}</p>
+          <p className="text-sm text-muted-foreground">{email ?? "Вы вошли"}</p>
           <Button variant="outline" onClick={handleLogout} disabled={busy}>
             <LogOut />{busy ? "Выходим…" : "Выйти"}
           </Button>
@@ -58,8 +58,7 @@ export function WalletSection() {
 }
 
 function WalletSectionReady() {
-  const { jwt } = useCrossmintAuth();
-  const { wallet } = useWallet();
+  const { wallet } = useAuth();
   const devnet = useDevnet();
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("10");
@@ -99,7 +98,7 @@ function WalletSectionReady() {
       setSendProgress("Подтверждаем в сети…");
       const response = await fetch("/api/devnet/wallet-send", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           walletAddress: address,
           recipientAddress: transfer.recipient,

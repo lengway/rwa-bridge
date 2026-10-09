@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
@@ -14,6 +13,7 @@ import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
 import type { BridgeAsset } from "@/lib/assets";
 import { KztEstimate } from "@/components/app/kzt-estimate";
+import { useAuth } from "@/lib/useAuth";
 
 type BuyAssetDrawerProps = {
   open: boolean;
@@ -29,9 +29,8 @@ type BuyResult = {
 };
 
 export function BuyAssetDrawer(props: BuyAssetDrawerProps) {
-  const { jwt } = useCrossmintAuth();
-  const { wallet } = useWallet();
-  return <BuyAssetDrawerContents {...props} wallet={wallet ?? null} jwt={jwt ?? null} />;
+  const { wallet } = useAuth();
+  return <BuyAssetDrawerContents {...props} wallet={wallet} />;
 }
 
 function BuyAssetDrawerContents({
@@ -39,8 +38,7 @@ function BuyAssetDrawerContents({
   onOpenChange,
   asset,
   wallet,
-  jwt,
-}: BuyAssetDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null; jwt: string | null }) {
+}: BuyAssetDrawerProps & { wallet: ReturnType<typeof useAuth>["wallet"] }) {
   const { cashUsd, displayCurrency } = useAppStore();
   const devnet = useDevnet();
   const [amount, setAmount] = useState("10");
@@ -93,7 +91,7 @@ function BuyAssetDrawerContents({
         const requestPurchase = async () => {
           const response = await fetch("/api/devnet/buy-asset", {
             method: "POST",
-            headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               walletAddress: devnet.walletAddress,
               assetId: asset.id,

@@ -2,14 +2,14 @@
 
 import {
   CrossmintProvider,
-  CrossmintAuthProvider,
   CrossmintWalletProvider,
 } from "@crossmint/client-sdk-react-ui";
 import { ThemeProvider } from "next-themes";
-import { crossmintApiKey, isCrossmintConfigured, walletChain } from "@/lib/config";
+import { crossmintApiKey, isCrossmintConfigured } from "@/lib/config";
 import { AppStoreProvider } from "@/lib/store";
 import { MarketDataProvider } from "@/lib/useMarketData";
 import { DevnetProvider } from "@/lib/devnet-provider";
+import { AuthProvider } from "@/lib/useAuth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { BankEmbedProvider } from "@/lib/useBankEmbed";
@@ -25,34 +25,27 @@ export function Providers({
   const app = (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
-        <DevnetProvider crossmintEnabled={isCrossmintConfigured}>
-          <MarketDataProvider initialData={initialMarketData}>
-            <AppStoreProvider>
-              <BankEmbedProvider>{children}</BankEmbedProvider>
-              <Toaster position="top-center" />
-            </AppStoreProvider>
-          </MarketDataProvider>
-        </DevnetProvider>
+        <MarketDataProvider initialData={initialMarketData}>
+          <AppStoreProvider>
+            <BankEmbedProvider>{children}</BankEmbedProvider>
+            <Toaster position="top-center" />
+          </AppStoreProvider>
+        </MarketDataProvider>
       </TooltipProvider>
     </ThemeProvider>
   );
   if (!isCrossmintConfigured) {
-    // The gated shell still renders its email sign-in screen when auth is not configured.
-    return app;
+    return <AuthProvider crossmintEnabled={false}><DevnetProvider crossmintEnabled={false}>{app}</DevnetProvider></AuthProvider>;
   }
 
   return (
     <CrossmintProvider apiKey={crossmintApiKey}>
-      <CrossmintAuthProvider loginMethods={["email"]}>
-        <CrossmintWalletProvider
-          createOnLogin={{
-            chain: walletChain,
-            recoveryMethods: [{ type: "email" }],
-          }}
-        >
-          {app}
-        </CrossmintWalletProvider>
-      </CrossmintAuthProvider>
+      {/* The default device signer avoids OTP prompts on normal transactions; losing device storage may still require Crossmint email recovery. */}
+      <CrossmintWalletProvider>
+        <AuthProvider crossmintEnabled>
+          <DevnetProvider crossmintEnabled>{app}</DevnetProvider>
+        </AuthProvider>
+      </CrossmintWalletProvider>
     </CrossmintProvider>
   );
 }

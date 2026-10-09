@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { Activity, ArrowLeft, BriefcaseBusiness, House, Landmark, PieChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBankEmbed } from "@/lib/useBankEmbed";
 import { isCrossmintConfigured } from "@/lib/config";
+import { useAuth } from "@/lib/useAuth";
+import { Input } from "@/components/ui/input";
 
 const tabs = [
   { href: "/home", label: "Главная", icon: House },
@@ -26,18 +27,19 @@ const titles: Record<string, string> = {
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  if (!isCrossmintConfigured) return <SignInScreen />;
-  return <AuthenticatedAppShell>{children}</AuthenticatedAppShell>;
-}
-
-function AuthenticatedAppShell({ children }: { children: React.ReactNode }) {
-  const { login, status } = useCrossmintAuth();
-  const { wallet } = useWallet();
-
-  if (status === "initializing" || (status === "logged-in" && !wallet?.address)) {
-    return <AuthLoader />;
+  const { status, walletAddress } = useAuth();
+  if (status === "loading" || (status === "signed-in" && isCrossmintConfigured && !walletAddress)) return <AuthLoader />;
+  if (status === "signed-out") return <SignInScreen />;
+  if (!isCrossmintConfigured) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
+        <section className="w-full max-w-md space-y-3 rounded-3xl border bg-background p-7 text-center shadow-sm">
+          <h1 className="text-2xl font-semibold tracking-tight">RWA Bridge</h1>
+          <p className="text-sm leading-6 text-muted-foreground">Кошелёк сейчас недоступен. Попробуйте позже.</p>
+        </section>
+      </main>
+    );
   }
-  if (status !== "logged-in") return <SignInScreen onLogin={login} busy={status === "in-progress"} />;
   return <SignedInShell>{children}</SignedInShell>;
 }
 
@@ -49,20 +51,131 @@ function AuthLoader() {
   );
 }
 
-function SignInScreen({ onLogin, busy = false }: { onLogin?: () => void; busy?: boolean }) {
+function SignInScreen() {
+  const { refreshSession } = useAuth();
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = window.setTimeout(() => setResendIn((current) => Math.max(0, current - 1)), 1_000);
+    return () => window.clearTimeout(timer);
+  }, [resendIn]);
+
+  const requestCode = async (resend = false) => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/request-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const result = await response.json().catch(() => null) as { error?: unknown; resendAfterSeconds?: unknown } | null;
+      if (!response.ok) throw new Error(typeof result?.error === "string" ? result.error : "Не удалось отправить код. Попробуйте ещё раз.");
+      setStep("code");
+      setCode("");
+      setResendIn(typeof result?.resendAfterSeconds === "number" ? result.resendAfterSeconds : 60);
+      if (resend) setError(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Не удалось отправить код. Попробуйте ещё раз.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }),
+      });
+      const result = await response.json().catch(() => null) as { error?: unknown } | null;
+      if (!response.ok) throw new Error(typeof result?.error === "string" ? result.error : "Не удалось проверить код.");
+      if (!await refreshSession()) throw new Error("Вход подтверждён, но не удалось загрузить сессию. Попробуйте ещё раз.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Не удалось проверить код. Попробуйте ещё раз.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeEmail = () => {
+    setStep("email");
+    setCode("");
+    setResendIn(0);
+    setError(null);
+  };
+
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
-      <section className="w-full max-w-md space-y-5 rounded-3xl border bg-background p-7 text-center shadow-sm sm:p-9">
+      <section className="w-full max-w-md space-y-5 rounded-3xl border bg-background p-7 shadow-sm sm:p-9">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">RWA Bridge</h1>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Доход на реальных активах. Вход по email — кошелёк Solana создаётся автоматически.
-          </p>
+          <h1 className="text-center text-2xl font-semibold tracking-tight">RWA Bridge</h1>
+          <p className="text-center text-sm leading-6 text-muted-foreground">Войдите по email, чтобы продолжить.</p>
         </div>
-        <Button className="w-full" size="lg" onClick={onLogin} disabled={!onLogin || busy}>
-          Войти по email
-        </Button>
-        <p className="text-xs text-muted-foreground">Работает в сети Solana devnet</p>
+        {step === "email" ? (
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void requestCode(); }}>
+            <label className="block space-y-2 text-left text-sm font-medium">
+              <span>Email</span>
+              <Input
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                maxLength={254}
+                disabled={busy}
+              />
+            </label>
+            {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+            <Button className="w-full" size="lg" type="submit" disabled={busy || !email.trim()}>
+              {busy ? "Отправляем…" : "Получить код"}
+            </Button>
+          </form>
+        ) : (
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void verifyCode(); }}>
+            <p className="text-center text-sm leading-6 text-muted-foreground">Мы отправили код на <span className="font-medium text-foreground">{email}</span></p>
+            <label className="block space-y-2 text-left text-sm font-medium">
+              <span>Код из письма</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9 ]{6,7}"
+                maxLength={7}
+                placeholder="123 456"
+                value={code}
+                onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                required
+                disabled={busy}
+                aria-label="Шестизначный код из письма"
+                className="text-center font-mono text-xl tracking-[0.35em]"
+              />
+            </label>
+            {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+            <Button className="w-full" size="lg" type="submit" disabled={busy || code.length !== 6}>
+              {busy ? "Проверяем…" : "Войти"}
+            </Button>
+            <div className="flex items-center justify-between text-sm">
+              <Button type="button" variant="link" className="h-auto p-0" onClick={changeEmail} disabled={busy}>Изменить email</Button>
+              <Button type="button" variant="link" className="h-auto p-0" onClick={() => void requestCode(true)} disabled={busy || resendIn > 0}>
+                {resendIn > 0 ? `Повторить через ${resendIn} сек.` : "Отправить код повторно"}
+              </Button>
+            </div>
+          </form>
+        )}
       </section>
     </main>
   );

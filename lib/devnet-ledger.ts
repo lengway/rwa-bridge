@@ -2,7 +2,7 @@ import "server-only";
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 export type LedgerDeposit = {
   productId: string;
@@ -59,7 +59,23 @@ type Ledger = {
   wallets: Record<string, WalletLedger>;
   vaultCheckpoints: Record<string, VaultCheckpoint>;
   emails: Record<string, EmailLedgerRecord>;
+  authChallenges: Record<string, AuthChallengeRecord>;
+  authEmailRequests: Record<string, number[]>;
+  authIpRequests: Record<string, number[]>;
 };
+
+type AuthChallengeRecord = {
+  codeHash: string;
+  createdAt: number;
+  expiresAt: number;
+  attempts: number;
+};
+
+export type AuthCodeRequestResult =
+  | { ok: true }
+  | { ok: false; reason: "cooldown" | "email-limit" | "ip-limit"; retryAfterSeconds: number };
+
+export type AuthCodeVerificationResult = "verified" | "invalid" | "expired" | "locked" | "missing";
 
 type EmailLedgerRecord = {
   receiptsEnabled?: boolean;
@@ -112,9 +128,15 @@ async function readLedgerFile(): Promise<Ledger> {
       ? parsed.vaultCheckpoints
       : {};
     const emails = parsed.emails && typeof parsed.emails === "object" ? parsed.emails : {};
+    const authChallenges = parsed.authChallenges && typeof parsed.authChallenges === "object" ? parsed.authChallenges : {};
+    const authEmailRequests = parsed.authEmailRequests && typeof parsed.authEmailRequests === "object" ? parsed.authEmailRequests : {};
+    const authIpRequests = parsed.authIpRequests && typeof parsed.authIpRequests === "object" ? parsed.authIpRequests : {};
     return {
       vaultCheckpoints,
       emails,
+      authChallenges,
+      authEmailRequests,
+      authIpRequests,
       wallets: Object.fromEntries(Object.entries(wallets).map(([wallet, value]) => {
         const record = value as Partial<WalletLedger>;
         return [wallet, {
@@ -126,9 +148,84 @@ async function readLedgerFile(): Promise<Ledger> {
       })),
     };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { wallets: {}, vaultCheckpoints: {}, emails: {} };
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { wallets: {}, vaultCheckpoints: {}, emails: {}, authChallenges: {}, authEmailRequests: {}, authIpRequests: {} };
+    }
     throw error;
   }
+}
+
+export function reserveAuthCodeRequest(
+  emailKey: string,
+  ipKey: string,
+  challenge: AuthChallengeRecord,
+  now = Date.now(),
+): Promise<AuthCodeRequestResult> {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    for (const [key, storedChallenge] of Object.entries(ledger.authChallenges)) {
+      if (storedChallenge.expiresAt <= now) delete ledger.authChallenges[key];
+    }
+    ledger.authEmailRequests = Object.fromEntries(Object.entries(ledger.authEmailRequests)
+      .filter(([, history]) => history.some((at) => at > now - 24 * 60 * 60 * 1_000)));
+    ledger.authIpRequests = Object.fromEntries(Object.entries(ledger.authIpRequests)
+      .filter(([, history]) => history.some((at) => at > now - 60 * 60 * 1_000)));
+    const emailHistory = (ledger.authEmailRequests[emailKey] ?? []).filter((at) => at > now - 24 * 60 * 60 * 1_000);
+    const ipHistory = (ledger.authIpRequests[ipKey] ?? []).filter((at) => at > now - 60 * 60 * 1_000);
+    const lastEmailRequest = emailHistory.at(-1);
+
+    if (lastEmailRequest !== undefined && lastEmailRequest > now - 60 * 1_000) {
+      return { ok: false, reason: "cooldown", retryAfterSeconds: Math.ceil((lastEmailRequest + 60 * 1_000 - now) / 1_000) };
+    }
+    if (emailHistory.length >= 10) {
+      return { ok: false, reason: "email-limit", retryAfterSeconds: Math.max(1, Math.ceil((emailHistory[0] + 24 * 60 * 60 * 1_000 - now) / 1_000)) };
+    }
+    if (ipHistory.length >= 30) {
+      return { ok: false, reason: "ip-limit", retryAfterSeconds: Math.max(1, Math.ceil((ipHistory[0] + 60 * 60 * 1_000 - now) / 1_000)) };
+    }
+
+    ledger.authChallenges[emailKey] = challenge;
+    ledger.authEmailRequests[emailKey] = [...emailHistory, now];
+    ledger.authIpRequests[ipKey] = [...ipHistory, now];
+    await writeLedgerFile(ledger);
+    return { ok: true };
+  });
+}
+
+export function verifyAuthCode(emailKey: string, candidateHash: string, now = Date.now()): Promise<AuthCodeVerificationResult> {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const challenge = ledger.authChallenges[emailKey];
+    if (!challenge) return "missing";
+    if (challenge.expiresAt <= now) {
+      delete ledger.authChallenges[emailKey];
+      await writeLedgerFile(ledger);
+      return "expired";
+    }
+    if (challenge.attempts >= 5) return "locked";
+
+    challenge.attempts += 1;
+    const expected = Buffer.from(challenge.codeHash, "hex");
+    const candidate = Buffer.from(candidateHash, "hex");
+    const matches = expected.length === candidate.length && timingSafeEqual(expected, candidate);
+    if (matches) {
+      delete ledger.authChallenges[emailKey];
+      await writeLedgerFile(ledger);
+      return "verified";
+    }
+
+    await writeLedgerFile(ledger);
+    return challenge.attempts >= 5 ? "locked" : "invalid";
+  });
+}
+
+export function clearAuthCodeChallenge(emailKey: string, createdAt: number) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    if (ledger.authChallenges[emailKey]?.createdAt !== createdAt) return;
+    delete ledger.authChallenges[emailKey];
+    await writeLedgerFile(ledger);
+  });
 }
 
 function emailKey(email: string) {

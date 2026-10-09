@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
+import { useWallet } from "@crossmint/client-sdk-react-ui";
 import { Coins, CreditCard, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { ProviderSheet } from "@/components/app/provider-sheet";
 import { ProviderQuote } from "@/components/app/provider-quote";
 import { formatMoney } from "@/lib/format";
 import { russianActionError } from "@/lib/action-errors";
+import { useAuth } from "@/lib/useAuth";
 import {
   ONRAMP_OPTIONS,
   TRANSAK_MIN_USD,
@@ -153,8 +154,8 @@ function TransakSessionPath({
   onCompleteOnchain: (credit: TransakOnchainCompletion) => void;
   onSelectAnotherMethod: () => void;
 }) {
-  const { status, user, jwt } = useCrossmintAuth();
-  const { wallet, status: walletStatus } = useWallet();
+  const { status: authStatus, email, wallet } = useAuth();
+  const { status: walletStatus } = useWallet();
   const [widgetUrl, setWidgetUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -215,8 +216,8 @@ function TransakSessionPath({
     try {
       const response = await fetch("/api/transak-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
-        body: JSON.stringify({ walletAddress: wallet.address, amountUsd: amount, email: user?.email }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: wallet.address, amountUsd: amount, email }),
       });
       const result = await response.json().catch(() => null) as {
         widgetUrl?: unknown;
@@ -266,7 +267,7 @@ function TransakSessionPath({
       try {
         const response = await fetch("/api/transak/complete", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId, walletAddress: wallet.address }),
         });
         const result = await response.json().catch(() => null) as {
@@ -336,7 +337,7 @@ function TransakSessionPath({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [closeWidget, jwt, onCompleteOnchain, orderId, wallet?.address]);
+  }, [closeWidget, onCompleteOnchain, orderId, wallet?.address]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -371,7 +372,7 @@ function TransakSessionPath({
     return () => window.removeEventListener("message", handleMessage);
   }, [captureOrderId, closeWidget]);
 
-  if (status !== "logged-in") return <p className="text-xs text-muted-foreground">Завершите вход по email, чтобы открыть Transak.</p>;
+  if (authStatus !== "signed-in") return <p className="text-xs text-muted-foreground">Завершите вход по email, чтобы открыть Transak.</p>;
 
   if (!wallet?.address || walletStatus === "in-progress") {
     return <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>;
@@ -449,14 +450,14 @@ export function CrossmintPath({
   onComplete: (amount: number) => void;
   onSelectAnotherMethod: () => void;
 }) {
-  const { user, status } = useCrossmintAuth();
-  const { wallet, status: walletStatus } = useWallet();
-  if (status === "logged-in" && user?.email && wallet?.address) {
+  const { email, status, wallet } = useAuth();
+  const { status: walletStatus } = useWallet();
+  if (status === "signed-in" && email && wallet?.address) {
     return (
       <div className="space-y-3">
         <CrossmintOnramp
           walletAddress={wallet.address}
-          email={user.email}
+          email={email}
           amountUsd={amount}
           onCompleted={onComplete}
         />
@@ -470,5 +471,5 @@ export function CrossmintPath({
     );
   }
 
-  return <p className="text-xs text-muted-foreground">{status === "logged-in" && walletStatus === "in-progress" ? "Подготавливаем кошелёк…" : "Завершите вход по email, чтобы открыть оплату картой."}</p>;
+  return <p className="text-xs text-muted-foreground">{status === "signed-in" && walletStatus === "in-progress" ? "Подготавливаем кошелёк…" : "Завершите вход по email, чтобы открыть оплату картой."}</p>;
 }

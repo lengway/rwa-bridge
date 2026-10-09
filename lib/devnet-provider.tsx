@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
+import { useAuth } from "@/lib/useAuth";
 import {
   DevnetContext,
   type DevnetBalance,
@@ -60,17 +60,19 @@ function CrossmintDevnetRuntime({
   status: DevnetStatus | null;
   children: React.ReactNode;
 }) {
-  const { status: authStatus, jwt } = useCrossmintAuth();
-  const { wallet } = useWallet();
+  const { status: authStatus, walletAddress } = useAuth();
   useEffect(() => {
-    if (authStatus !== "logged-in" || !jwt) return;
+    if (authStatus !== "signed-in") return;
     void fetch("/api/me/session", {
       method: "POST",
-      headers: { Authorization: `Bearer ${jwt}` },
     }).catch(() => undefined);
-  }, [authStatus, jwt]);
+  }, [authStatus]);
   return (
-    <DevnetRuntime status={status} authStatus={authStatus} walletAddress={wallet?.address ?? null}>
+    <DevnetRuntime
+      status={status}
+      authStatus={authStatus === "signed-in" ? "logged-in" : authStatus === "signed-out" ? "logged-out" : "initializing"}
+      walletAddress={walletAddress}
+    >
       {children}
     </DevnetRuntime>
   );

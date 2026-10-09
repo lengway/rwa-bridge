@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useCrossmintAuth } from "@crossmint/client-sdk-react-ui";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { DrawerSuccess } from "@/components/app/drawer-success";
@@ -18,11 +17,10 @@ type SuccessState = { amount: number; sentence: string; note?: string; explorerU
 type AddMoneyDrawerProps = { open: boolean; onOpenChange: (open: boolean) => void };
 
 export function AddMoneyDrawer(props: AddMoneyDrawerProps) {
-  const { jwt } = useCrossmintAuth();
-  return <AddMoneyDrawerContent {...props} jwt={jwt ?? null} />;
+  return <AddMoneyDrawerContent {...props} />;
 }
 
-function AddMoneyDrawerContent({ open, onOpenChange, jwt }: AddMoneyDrawerProps & { jwt: string | null }) {
+function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
   const devnet = useDevnet();
   const { marketData } = useAppStore();
   const bankEmbed = useBankEmbed();
@@ -60,7 +58,7 @@ function AddMoneyDrawerContent({ open, onOpenChange, jwt }: AddMoneyDrawerProps 
     try {
       const response = await fetch("/api/devnet/faucet", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress: devnet.walletAddress, amountUsd: value, source }),
       });
       const result = await response.json() as { signature?: unknown; explorerUrl?: unknown; error?: unknown };
@@ -73,7 +71,7 @@ function AddMoneyDrawerContent({ open, onOpenChange, jwt }: AddMoneyDrawerProps 
     } finally {
       setProcessing(false);
     }
-  }, [complete, devnet.walletAddress, jwt, processing]);
+  }, [complete, devnet.walletAddress, processing]);
 
   const handleBankPaymentResult = useCallback((request: { id: string; amountUsd: number }) => {
     void issueFaucetDollars(request.amountUsd, "bank-embed");

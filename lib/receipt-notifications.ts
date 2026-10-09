@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { getVerifiedEmailFromRequest } from "@/lib/crossmint-jwt";
+import { getVerifiedEmailFromRequest } from "@/lib/auth-server";
 import { claimWelcomeEmail, reserveEmailReceipt } from "@/lib/devnet-ledger";
 import { isMailerConfigured, sendReceipt, type Receipt } from "@/lib/mailer";
 

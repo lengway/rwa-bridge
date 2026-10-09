@@ -103,3 +103,16 @@ export async function sendReceipt({ to, kind, amountUsd, details, explorerUrl }:
     html,
   });
 }
+
+export async function sendLoginCode(to: string, code: string) {
+  const formattedCode = `${code.slice(0, 3)} ${code.slice(3)}`;
+  const text = `RWA Bridge\n\nКод входа: ${formattedCode}\n\nКод действует 10 минут. Если вы не запрашивали вход, проигнорируйте это письмо.`;
+  const html = `<!doctype html><html lang="ru"><body style="margin:0;background:#f4f6fa;color:#172033;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#ffffff;border:1px solid #e4e8f0;border-radius:14px"><tr><td style="padding:28px"><p style="margin:0 0 24px;color:#64748b;font-size:14px;font-weight:700;letter-spacing:.04em">RWA Bridge</p><h1 style="margin:0 0 18px;font-size:22px;line-height:1.3">Код для входа</h1><p style="margin:0 0 8px;color:#475569;line-height:1.6">Введите этот код на странице входа:</p><p style="margin:0 0 18px;font-size:32px;font-weight:700;letter-spacing:.16em">${formattedCode}</p><p style="margin:0;color:#64748b;font-size:13px;line-height:1.6">Код действует 10 минут. Если вы не запрашивали вход, проигнорируйте это письмо.</p></td></tr></table></td></tr></table></body></html>`;
+  await getTransport().sendMail({
+    from: process.env.MAIL_FROM,
+    to,
+    subject: "Код входа в RWA Bridge",
+    text,
+    html,
+  });
+}

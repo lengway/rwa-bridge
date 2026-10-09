@@ -3,7 +3,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { Check } from "lucide-react";
-import { useCrossmintAuth } from "@crossmint/client-sdk-react-ui";
 import { AccountSection, WalletSection } from "@/components/app/profile-account";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAppStore } from "@/lib/store";
 import { isCrossmintConfigured } from "@/lib/config";
 import { MarketDataNote } from "@/components/app/market-data-note";
+import { useAuth } from "@/lib/useAuth";
 
 const subscribeToMountedState = () => () => {};
 const getMountedState = () => true;
@@ -47,7 +47,7 @@ function EmailPreferenceSection() {
 }
 
 function EmailPreferenceSectionReady() {
-  const { jwt, status } = useCrossmintAuth();
+  const { status } = useAuth();
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -55,14 +55,14 @@ function EmailPreferenceSectionReady() {
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    if (status !== "logged-in" || !jwt) return;
+    if (status !== "signed-in") return;
     let active = true;
     Promise.resolve()
       .then(() => {
         if (!active) return null;
         setLoading(true);
         setError(null);
-        return fetch("/api/me/preferences", { headers: { Authorization: `Bearer ${jwt}` }, cache: "no-store" });
+        return fetch("/api/me/preferences", { cache: "no-store" });
       })
       .then((response) => response ? response : null)
       .then(async (response) => {
@@ -77,10 +77,10 @@ function EmailPreferenceSectionReady() {
       .catch(() => { if (active) setError("Не удалось загрузить настройку писем. Проверьте соединение и повторите попытку."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [jwt, retry, status]);
+  }, [retry, status]);
 
   const savePreference = async (nextEnabled: boolean) => {
-    if (!jwt || saving) return;
+    if (status !== "signed-in" || saving) return;
     const previous = enabled;
     setEnabled(nextEnabled);
     setSaving(true);
@@ -88,7 +88,7 @@ function EmailPreferenceSectionReady() {
     try {
       const response = await fetch("/api/me/preferences", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ receiptsEnabled: nextEnabled }),
       });
       const result = await response.json() as { receiptsEnabled?: unknown; error?: unknown };
@@ -103,7 +103,7 @@ function EmailPreferenceSectionReady() {
     }
   };
 
-  const loggedIn = status === "logged-in" && Boolean(jwt);
+  const loggedIn = status === "signed-in";
   return (
     <Card className="flex-row items-center justify-between gap-4 rounded-2xl p-4">
       <div className="min-w-0">
