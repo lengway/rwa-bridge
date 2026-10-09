@@ -8,16 +8,11 @@ import path from "node:path";
 const BASE = process.argv[2] ?? "https://plain.lengway.me";
 const OUT = process.argv[3] ?? "docs/screenshots";
 const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+// App screens sit behind email sign-in, so only public pages are captured here.
 const PAGES = [
   ["landing", "/"],
-  ["home", "/home"],
-  ["earn", "/earn"],
-  ["earn-usdy", "/earn/ondo-usdy"],
-  ["assets", "/assets"],
-  ["office", "/assets/demo-office"],
-  ["portfolio", "/portfolio"],
-  ["activity", "/activity"],
-  ["demo-bank", "/demo-bank"],
+  ["sign-in", "/home"],
+  ["bank", "/bank"],
 ];
 const PORT = 9333;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
