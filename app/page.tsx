@@ -42,7 +42,7 @@ export default function LandingPage() {
     <main className="min-h-dvh bg-muted/40">
       <div className="mx-auto max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
         <header className="flex items-center justify-between">
-          <Link href="/" className="text-base font-semibold tracking-tight">RWA Bridge</Link>
+          <Link href="/" className="text-base font-semibold tracking-tight">Plain</Link>
         </header>
 
         <section className="grid gap-8 py-12 sm:grid-cols-[1.2fr_0.8fr] sm:items-center sm:py-20">
@@ -103,7 +103,7 @@ export default function LandingPage() {
           <div className="space-y-2">
             <Badge variant="secondary">Банковская интеграция</Badge>
             <h2 className="text-2xl font-semibold tracking-tight">Для банков и финтехов</h2>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Встраивание RWA Bridge добавляет вход по email, кошелёк Solana, продукты доходности и проверяемые операции в существующее приложение.</p>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Встраивание Plain добавляет вход по email, кошелёк Solana, продукты доходности и проверяемые операции в существующее приложение.</p>
           </div>
           <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/bank" />}>Открыть банковское приложение <ArrowRight /></Button>
         </section>

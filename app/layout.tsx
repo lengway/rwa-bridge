@@ -17,11 +17,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RWA Bridge",
+  title: "Plain",
   description: "Доход на реальных активах в сети Solana devnet для банков и финтех-приложений.",
   appleWebApp: {
     capable: true,
-    title: "RWA Bridge",
+    title: "Plain",
     statusBarStyle: "default",
   },
 };

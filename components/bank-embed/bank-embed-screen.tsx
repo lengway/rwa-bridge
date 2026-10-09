@@ -128,7 +128,7 @@ export function BankEmbedScreen() {
         amountKzt: typeof amountKzt === "number" && Number.isFinite(amountKzt) && amountKzt > 0
           ? amountKzt
           : calculatedKzt,
-        description: typeof description === "string" ? description : "Пополнение баланса RWA Bridge",
+        description: typeof description === "string" ? description : "Пополнение баланса Plain",
         status: "confirm",
       });
     };
@@ -257,9 +257,9 @@ export function BankEmbedScreen() {
           <section className="px-4 pt-5" aria-label="Партнёры">
             <h2 className="mb-3 text-[17px] font-semibold tracking-tight">Партнёры</h2>
             <button type="button" onClick={openInvestments} className="flex w-full items-center gap-3 rounded-2xl border border-[#eeeeef] bg-white p-3.5 text-left shadow-[0_2px_8px_rgba(20,20,28,0.03)] transition hover:bg-[#fffafa]">
-              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#fff0ee] text-[#e5352b]"><span className="text-xs font-extrabold tracking-tight">RWA</span></span>
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#fff0ee] text-[#e5352b]"><span className="text-lg font-extrabold tracking-tight">P</span></span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">RWA Bridge</span>
+                <span className="block text-sm font-semibold">Plain</span>
                 <span className="mt-1 block text-xs leading-4 text-[#83878e]">Доход на долларах и доли в недвижимости</span>
               </span>
               <ChevronRight className="size-4 shrink-0 text-[#92969d]" />
@@ -327,14 +327,14 @@ export function BankEmbedScreen() {
         <SheetContent side="bottom" showCloseButton={false} className="data-[side=bottom]:h-dvh max-h-dvh gap-0 rounded-none bg-white p-0 text-[#202124]">
           <SheetHeader className="flex-row items-center border-b border-[#eeeeef] bg-white px-4 py-3 text-left text-[#202124]">
             <div className="min-w-0 flex-1">
-              <SheetTitle className="text-sm font-semibold">Инвестиции · RWA Bridge</SheetTitle>
+              <SheetTitle className="text-sm font-semibold">Инвестиции · Plain</SheetTitle>
               <SheetDescription className="text-xs text-[#898d94]">Доход на долларах и доли в недвижимости</SheetDescription>
             </div>
             <Button variant="ghost" size="icon" aria-label="Закрыть" onClick={() => setInvestmentOpen(false)} className="text-[#44474d] hover:bg-[#f4f5f6]">
               <X />
             </Button>
           </SheetHeader>
-          <iframe ref={iframeRef} src="/home?embed=bank" title="RWA Bridge в приложении Ваш банк" className="min-h-0 w-full flex-1 border-0 bg-white" />
+          <iframe ref={iframeRef} src="/home?embed=bank" title="Plain в приложении Ваш банк" className="min-h-0 w-full flex-1 border-0 bg-white" />
         </SheetContent>
       </Sheet>
 
@@ -357,7 +357,7 @@ export function BankEmbedScreen() {
                 <div className="flex flex-col items-center gap-3 py-8 text-center">
                   <span className="grid size-[62px] place-items-center rounded-full bg-[#e9f8ef] text-[#18864b]"><Check className="size-8" /></span>
                   <p className="text-[34px] font-semibold tracking-tight tabular-nums">{formatTenge(payment.amountKzt)}</p>
-                  <p className="text-sm text-[#777b82]">Пополнение RWA Bridge подтверждено</p>
+                  <p className="text-sm text-[#777b82]">Пополнение Plain подтверждено</p>
                   <p className="text-xs text-[#858990]">Новый баланс карты: {formatTenge(bankBalanceKzt)}</p>
                   <Button className="mt-3 h-11 w-full rounded-xl bg-[#e5352b] text-white hover:bg-[#cf3027]" onClick={closePayment}>Готово</Button>
                 </div>
@@ -370,10 +370,10 @@ export function BankEmbedScreen() {
               ) : (
                 <>
                   <div className="mt-6 flex items-center gap-3 rounded-2xl bg-[#f7f7f8] p-3.5">
-                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#fff0ee] text-[#e5352b]"><span className="text-[11px] font-extrabold">RWA</span></span>
+                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#fff0ee] text-[#e5352b]"><span className="text-base font-extrabold">P</span></span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs text-[#858990]">Получатель</span>
-                      <span className="mt-0.5 block text-sm font-semibold">RWA Bridge</span>
+                      <span className="mt-0.5 block text-sm font-semibold">Plain</span>
                     </span>
                   </div>
 

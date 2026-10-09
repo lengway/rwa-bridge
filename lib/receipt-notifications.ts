@@ -10,7 +10,7 @@ let skippedForMissingSmtp = false;
 function logMissingSmtpOnce() {
   if (skippedForMissingSmtp) return;
   skippedForMissingSmtp = true;
-  console.info("RWA Bridge: transactional email skipped (SMTP is not configured).");
+  console.info("Plain: transactional email skipped (SMTP is not configured).");
 }
 
 export function notifyReceipt(request: Request, receipt: Omit<Receipt, "to"> & { receiptId?: string }) {
@@ -22,7 +22,7 @@ export function notifyReceipt(request: Request, receipt: Omit<Receipt, "to"> & {
     const email = await getVerifiedEmailFromRequest(request);
     if (!email || !(await reserveEmailReceipt(email, receipt.receiptId ?? randomUUID()))) return;
     await sendReceipt({ ...receipt, to: email });
-  })().catch(() => console.error("RWA Bridge: transactional email could not be sent."));
+  })().catch(() => console.error("Plain: transactional email could not be sent."));
 }
 
 export async function notifyWelcome(request: Request) {
@@ -37,11 +37,11 @@ export async function notifyWelcome(request: Request) {
       to: email,
       kind: "welcome",
       amountUsd: 0,
-      details: "Добро пожаловать в RWA Bridge.",
-    }).catch(() => console.error("RWA Bridge: welcome email could not be sent."));
+      details: "Добро пожаловать в Plain.",
+    }).catch(() => console.error("Plain: welcome email could not be sent."));
     return true;
   } catch {
-    console.error("RWA Bridge: welcome email could not be scheduled.");
+    console.error("Plain: welcome email could not be scheduled.");
     return false;
   }
 }

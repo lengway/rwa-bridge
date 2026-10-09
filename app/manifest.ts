@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "RWA Bridge",
-    short_name: "RWA Bridge",
+    name: "Plain",
+    short_name: "Plain",
     description: "Доход на реальных активах в сети Solana devnet",
     start_url: "/home",
     display: "standalone",

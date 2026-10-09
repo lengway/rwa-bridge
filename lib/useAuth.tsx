@@ -159,7 +159,7 @@ function CrossmintWalletBridge({
         if (!cancelled) onWallet(existing);
       } catch (error) {
         if (!(error instanceof WalletNotAvailableError)) {
-          console.error("RWA Bridge: wallet could not be loaded.");
+          console.error("Plain: wallet could not be loaded.");
           return;
         }
         try {
@@ -170,7 +170,7 @@ function CrossmintWalletBridge({
           if (!created) throw new Error("Не удалось создать кошелёк.");
           if (!cancelled) onWallet(created);
         } catch {
-          console.error("RWA Bridge: wallet could not be created.");
+          console.error("Plain: wallet could not be created.");
         }
       }
     }

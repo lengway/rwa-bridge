@@ -118,7 +118,7 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
       id: request.id,
       amountUsd: request.amountUsd,
       amountKzt: request.amountUsd * marketData.rate.usdKzt,
-      description: "Пополнение баланса RWA Bridge",
+      description: "Пополнение баланса Plain",
     }, window.location.origin);
   };
 

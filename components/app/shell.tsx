@@ -19,7 +19,7 @@ const tabs = [
 ];
 
 const titles: Record<string, string> = {
-  "/home": "RWA Bridge",
+  "/home": "Plain",
   "/earn": "Доход",
   "/assets": "Активы",
   "/activity": "История",
@@ -34,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
         <section className="w-full max-w-md space-y-3 rounded-3xl border bg-background p-7 text-center shadow-sm">
-          <h1 className="text-2xl font-semibold tracking-tight">RWA Bridge</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Plain</h1>
           <p className="text-sm leading-6 text-muted-foreground">Кошелёк сейчас недоступен. Попробуйте позже.</p>
         </section>
       </main>
@@ -120,7 +120,7 @@ function SignInScreen() {
     <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
       <section className="w-full max-w-md space-y-5 rounded-3xl border bg-background p-7 shadow-sm sm:p-9">
         <div className="space-y-2">
-          <h1 className="text-center text-2xl font-semibold tracking-tight">RWA Bridge</h1>
+          <h1 className="text-center text-2xl font-semibold tracking-tight">Plain</h1>
           <p className="text-center text-sm leading-6 text-muted-foreground">Войдите по email, чтобы продолжить.</p>
         </div>
         {step === "email" ? (
@@ -191,7 +191,7 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
     ? "Детали вклада"
     : isAssetDetail
       ? "Детали актива"
-      : (titles[pathname] ?? "RWA Bridge");
+      : (titles[pathname] ?? "Plain");
 
   useEffect(() => {
     if (!bankEmbed) return;

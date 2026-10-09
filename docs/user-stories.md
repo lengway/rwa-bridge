@@ -66,8 +66,8 @@ The **Portfolio** tab reads the wallet from Solana: cash, vault shares, asset to
 ### 8. A bank embeds the product
 *As a bank product team, I want to add investments to our super-app in weeks, not quarters.*
 1. The bank example (`/bank`) shows a typical super-app home with **Инвестиции** in the services grid.
-2. Tapping it opens RWA Bridge in a full-height sheet.
-3. Payments are confirmed in the bank's own UI; the bank keeps KYC and tenge rails, RWA Bridge provides the yield layer.
+2. Tapping it opens Plain in a full-height sheet.
+3. Payments are confirmed in the bank's own UI; the bank keeps KYC and tenge rails, Plain provides the yield layer.
 
 ## Planned stories (described, not built yet)
 

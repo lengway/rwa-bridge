@@ -4,7 +4,7 @@ Record on a phone-sized browser window (or an iPhone with the PWA installed) at 
 
 ## 0:00–0:20 · Problem
 **Screen:** landing page, scroll slowly.
-**Voice:** "Tokenized Treasuries are a multi-billion-dollar market on Solana, but only crypto-native people can reach them. Most savers in emerging markets still keep money in local-currency deposits or cash dollars. RWA Bridge is a seamless yield layer: email in, dollars in, yield out — and every step is on-chain."
+**Voice:** "Tokenized Treasuries are a multi-billion-dollar market on Solana, but only crypto-native people can reach them. Most savers in emerging markets still keep money in local-currency deposits or cash dollars. Plain is a seamless yield layer: email in, dollars in, yield out — and every step is on-chain."
 
 ## 0:20–0:45 · Sign in and add money
 **Screen:** **Открыть приложение → Войти по email** (sign-in screen, email only), then **Пополнить → Кран Solana devnet → Получить $100**. Show the success screen and tap **Открыть в обозревателе**.
@@ -28,7 +28,7 @@ Record on a phone-sized browser window (or an iPhone with the PWA installed) at 
 
 ## 2:40–3:00 · Withdraw and close
 **Screen:** **Вывести → Из вклада на баланс**, success; then show the receipt email on the phone.
-**Voice:** "Withdraw any time: shares go back, dollars come out, and you get a receipt with the transaction link. RWA Bridge — real-world yield, as simple as a bank deposit."
+**Voice:** "Withdraw any time: shares go back, dollars come out, and you get a receipt with the transaction link. Plain — real-world yield, as simple as a bank deposit."
 
 ## Shot checklist
 - Landing hero and the "Всё в сети" block with mint addresses

@@ -1,6 +1,6 @@
 # Architecture and money flows
 
-RWA Bridge is a seamless yield layer between everyday money and tokenized real-world assets. A user signs in with email, gets an embedded Solana wallet, adds money, and puts it into yield products or fractional asset shares. Every balance in the app is read from the user's wallet on Solana.
+Plain is a seamless yield layer between everyday money and tokenized real-world assets. A user signs in with email, gets an embedded Solana wallet, adds money, and puts it into yield products or fractional asset shares. Every balance in the app is read from the user's wallet on Solana.
 
 This build runs on **Solana devnet** with test money. Live app: https://plain.lengway.me
 
