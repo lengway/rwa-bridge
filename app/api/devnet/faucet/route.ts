@@ -24,13 +24,13 @@ export async function POST(request: Request) {
   if (!isValidAmount(body?.amountUsd)) {
     return NextResponse.json({ error: "Сумма должна быть от $1 до $1 000." }, { status: 400 });
   }
-  const source = body.source === "bank-demo" ? "bank-demo" : "faucet";
+  const source = body.source === "bank-embed" ? "bank-embed" : "faucet";
 
   const now = Date.now();
   const usage = faucetUsage.get(body.walletAddress);
   const activeUsage = usage && now - usage.startedAt < DAY_MS ? usage : { amount: 0, startedAt: now };
   if (activeUsage.amount + body.amountUsd > 5000) {
-    return NextResponse.json({ error: "Лимит тестового банкомата на сегодня исчерпан." }, { status: 429 });
+    return NextResponse.json({ error: "Лимит крана Solana devnet на сегодня исчерпан." }, { status: 429 });
   }
   faucetUsage.set(body.walletAddress, {
     amount: activeUsage.amount + body.amountUsd,
@@ -45,8 +45,8 @@ export async function POST(request: Request) {
     notifyReceipt(request, {
       kind: source,
       amountUsd: body.amountUsd,
-      details: source === "bank-demo"
-        ? "Тестовые доллары зачислены после подтверждения оплаты в Демо-банке."
+      details: source === "bank-embed"
+        ? "Тестовые доллары зачислены после подтверждения оплаты в банковском приложении."
         : "Тестовые доллары выпущены на кошелёк в Solana devnet.",
       explorerUrl: url,
       receiptId: signature,

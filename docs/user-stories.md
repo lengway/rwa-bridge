@@ -13,13 +13,12 @@ Each story lists who it is for, what they do in the app, and what happens on-cha
 
 ## Core stories
 
-### 1. First visit without signing in
-*As a curious user, I want to try the product before giving any data.*
-1. Opens the landing page, taps **Начать**.
-2. Sees the home screen in demo mode, adds demo money, opens a deposit, watches earnings grow (accelerated clock available in settings).
-3. A banner explains that demo data lives in the browser and offers **Войти по email**.
+### 1. First visit
+*As a curious user, I want to understand the product before signing in.*
+1. Opens the landing page: what it does, live rates, the on-chain addresses.
+2. Taps **Открыть приложение** and lands on the sign-in screen: email is the only way in.
 
-On-chain: nothing. Everything is labelled as demo.
+On-chain: nothing until sign-in.
 
 ### 2. Sign in and get a wallet
 *As Aigerim, I want an account in one step, without installing a wallet.*
@@ -31,10 +30,9 @@ On-chain: a Crossmint smart wallet. Optional welcome email.
 
 ### 3. Add money
 *As Aigerim, I want to add $50 the way I pay for things every day.*
-- **Test ATM:** instant test dollars, no card, no KYC.
+- **Devnet faucet:** instant test dollars, no card, no KYC.
 - **Card via Transak:** the provider opens in a full-height sheet above the app, identity fields are prefilled in test mode, she pays with a test card, the server verifies the order and credits her.
-- **Card via MoonPay:** same sheet, with **В новой вкладке** when the browser blocks third-party cookies.
-- **Inside a bank:** in the demo bank she taps **Со счёта в Демо-банке**, the bank shows its own confirmation in tenge at the National Bank rate, she taps **Оплатить**.
+- **Inside a bank:** in the bank example she taps **Со счёта в банке**, the bank shows its own confirmation in tenge at the National Bank rate, she taps **Оплатить**.
 
 On-chain: test dollars minted to her wallet; receipt email with the explorer link.
 
@@ -42,7 +40,7 @@ On-chain: test dollars minted to her wallet; receipt email with the explorer lin
 *As Daniyar, I want my idle dollars to earn something I can verify.*
 1. Opens **Доход → Долларовый вклад**, sees the live APY (USDY via DefiLlama, with date) and the 3-month T-bill rate for comparison.
 2. Deposits $100. The app asks his wallet to sign a transfer to the treasury.
-3. He receives vUSDY-DEMO shares; the Portfolio shows token amount, price per share, value and P&L, growing in real time.
+3. He receives vUSDY shares; the Portfolio shows token amount, price per share, value and P&L, growing in real time.
 
 On-chain: user-signed transfer to the treasury, verified by the server; shares minted to his wallet.
 
@@ -56,8 +54,8 @@ On-chain: share transfer, payout in test dollars, burn; or a plain transfer to a
 
 ### 6. Buy a fractional real-estate share
 *As Aigerim, I want to own a small piece of a real asset from $10.*
-1. Opens **Активы → Офисное здание (демо-объект)**, buys $10.
-2. Pays from her balance; the server verifies the payment and mints 10 OFFICE-DEMO tokens.
+1. Opens **Активы → Офисное здание класса A**, buys $10.
+2. Pays from her balance; the server verifies the payment and mints 10 OFFICE tokens.
 
 On-chain: payment transfer and asset mint, both visible in **Операции в сети**.
 
@@ -67,9 +65,16 @@ The **Portfolio** tab reads the wallet from Solana: cash, vault shares, asset to
 
 ### 8. A bank embeds the product
 *As a bank product team, I want to add investments to our super-app in weeks, not quarters.*
-1. The demo bank (`/demo-bank`) shows a typical super-app home with **Инвестиции** in the services grid.
+1. The bank example (`/bank`) shows a typical super-app home with **Инвестиции** in the services grid.
 2. Tapping it opens RWA Bridge in a full-height sheet.
 3. Payments are confirmed in the bank's own UI; the bank keeps KYC and tenge rails, RWA Bridge provides the yield layer.
+
+## Planned stories (described, not built yet)
+
+- **Pay in tenge from a local bank card or account** through a licensed partner (AIFC exchange, licensed exchange operator or the bank itself).
+- **KYC once:** a reusable identity profile shared with ramp providers, or the bank's own KYC when embedded.
+- **Real issuer tokens on mainnet:** vaults holding USDY and tokenized local government bonds from licensed issuers.
+- **Spend card as an off-ramp** via a card-issuing partner.
 
 ## Edge cases covered
 

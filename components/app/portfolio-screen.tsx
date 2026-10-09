@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useCrossmintAuth } from "@crossmint/client-sdk-react-ui";
 import { ArrowDownToLine, ArrowUpFromLine, Building2, Copy, ExternalLink, Settings, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { BuyAssetDrawer } from "@/components/app/buy-asset-drawer";
@@ -13,30 +12,24 @@ import { WithdrawDrawer } from "@/components/app/withdraw-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { DEMO_OFFICE_ASSET } from "@/lib/assets";
+import { OFFICE_ASSET } from "@/lib/assets";
 import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet, type DevnetPortfolio } from "@/lib/useDevnet";
-import { accruedPosition, YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
-import { getStrategyApy } from "@/lib/market-data";
-import { useNow } from "@/lib/useNow";
-import { isCrossmintConfigured } from "@/lib/config";
+import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 
-type Holding = DevnetPortfolio["holdings"][number];
-
-type DisplayHolding = Holding & { demo?: boolean };
+type DisplayHolding = DevnetPortfolio["holdings"][number];
 
 const allocationNames = [
   { id: "cash", name: "Свободные доллары", color: "bg-sky-500" },
   { id: "ondo-usdy", name: "Долларовый вклад", color: "bg-emerald-500" },
   { id: "kz-bond-demo", name: "Тенговые облигации", color: "bg-amber-500" },
-  { id: "demo-office", name: "Офисное здание", color: "bg-violet-500" },
+  { id: "demo-office", name: "Офисное здание класса A", color: "bg-violet-500" },
 ] as const;
 
 export function PortfolioScreen() {
-  const { cashUsd, positions, holdings: localHoldings, displayCurrency, marketData, acceleratedAccrual, hydrated } = useAppStore();
+  const { displayCurrency, hydrated } = useAppStore();
   const devnet = useDevnet();
-  const now = useNow();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selected, setSelected] = useState<DisplayHolding | null>(null);
   const [investStrategy, setInvestStrategy] = useState<YieldStrategy>(YIELD_STRATEGIES[0]);
@@ -44,55 +37,10 @@ export function PortfolioScreen() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
 
-  const demoHoldings = useMemo<DisplayHolding[]>(() => {
-    const result: DisplayHolding[] = [];
-    if (cashUsd > 0) {
-      result.push({
-        kind: "cash", name: "Свободные доллары", ticker: "USD", mint: "", tokenAccount: "", balance: cashUsd,
-        priceUsd: 1, valueUsd: cashUsd, mintExplorerUrl: "", tokenAccountExplorerUrl: "", demo: true,
-      });
-    }
-    for (const strategy of YIELD_STRATEGIES) {
-      const position = positions[strategy.id];
-      if (!position) continue;
-      const earned = devnet.mode === "devnet"
-        ? position.earnedCarryUsd ?? 0
-        : now === null ? (position.earnedCarryUsd ?? 0) : accruedPosition(
-          position,
-          getStrategyApy(strategy.id, marketData.yields),
-          now,
-          acceleratedAccrual,
-        );
-      const balance = position.principal + earned;
-      result.push({
-        kind: "vault", productId: strategy.id, name: strategy.name, ticker: strategy.ticker, mint: "", tokenAccount: "",
-        balance, priceUsd: 1, valueUsd: balance, costUsd: position.principal, pnlUsd: earned,
-        mintExplorerUrl: "", tokenAccountExplorerUrl: "", demo: true,
-      });
-    }
-    const office = localHoldings[DEMO_OFFICE_ASSET.id];
-    if (office && office.units > 0) {
-      result.push({
-        kind: "asset", assetId: DEMO_OFFICE_ASSET.id, name: DEMO_OFFICE_ASSET.name, ticker: "OFFICE-DEMO",
-        mint: "", tokenAccount: "", balance: office.units, priceUsd: office.units > 0 ? office.costUsd / office.units : 1,
-        valueUsd: office.costUsd, costUsd: office.costUsd, pnlUsd: 0, mintExplorerUrl: "", tokenAccountExplorerUrl: "", demo: true,
-      });
-    }
-    return result;
-  }, [acceleratedAccrual, cashUsd, devnet.mode, localHoldings, marketData.yields, now, positions]);
-
-  const devnetHoldings = (devnet.portfolio?.holdings ?? []) as DisplayHolding[];
-  const displayHoldings = devnet.mode === "devnet" ? devnetHoldings : demoHoldings;
-  const totalValue = devnet.mode === "devnet"
-    ? devnet.portfolio?.totalValueUsd ?? 0
-    : demoHoldings.reduce((total, item) => total + item.valueUsd, 0);
-  const todayChange = devnet.mode === "devnet"
-    ? devnet.portfolio?.changeTodayUsd ?? 0
-    : demoHoldings.filter((item) => item.kind === "vault").reduce((total, item) => {
-      const apy = item.productId ? getStrategyApy(item.productId, marketData.yields) : 0;
-      return total + item.valueUsd * apy / 365;
-    }, 0);
-  const isReady = devnet.mode !== "devnet" || devnet.portfolio !== null;
+  const displayHoldings = devnet.portfolio?.holdings ?? [];
+  const totalValue = devnet.portfolio?.totalValueUsd ?? 0;
+  const todayChange = devnet.portfolio?.changeTodayUsd ?? 0;
+  const isReady = hydrated && devnet.portfolio !== null;
   const allocationValues = allocationNames.map((category) => ({
     ...category,
     value: displayHoldings
@@ -125,15 +73,13 @@ export function PortfolioScreen() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Портфель</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {devnet.mode === "devnet" ? "Активы и доли из Solana devnet" : "Ваши средства и активы"}
+            Ваши активы и доли
           </p>
         </div>
         <Button variant="outline" size="icon" aria-label="Настройки" onClick={() => setSettingsOpen(true)}>
           <Settings />
         </Button>
       </div>
-
-      {devnet.mode === "demo" ? <DemoBanner /> : null}
 
       <Card className="gap-4 rounded-2xl p-5">
         <div>
@@ -186,24 +132,20 @@ export function PortfolioScreen() {
         <div className="space-y-2">
           {displayHoldings.map((holding) => (
             <button key={`${holding.kind}:${holding.mint || holding.productId || holding.assetId}`} type="button" className="block w-full text-left" onClick={() => setSelected(holding)}>
-              <HoldingRow holding={holding} currency={displayCurrency} onchain={devnet.mode === "devnet"} />
+              <HoldingRow holding={holding} currency={displayCurrency} />
             </button>
           ))}
         </div>
       </section>
 
-      {devnet.mode === "devnet" ? <WalletCard portfolio={devnet.portfolio} onCopy={copyValue} /> : <DemoWalletCard />}
+      <WalletCard portfolio={devnet.portfolio} onCopy={copyValue} />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Операции в сети</h3>
           <Button variant="link" size="sm" className="h-auto p-0" nativeButton={false} render={<Link href="/activity" />}>Все операции</Button>
         </div>
-        {devnet.mode === "devnet" ? (
-          <OnchainHistory rows={devnet.portfolio?.history ?? []} />
-        ) : (
-          <DemoHistory />
-        )}
+        <OnchainHistory rows={devnet.portfolio?.history ?? []} />
       </section>
 
       <DrawerFrame open={settingsOpen} onOpenChange={setSettingsOpen} title="Настройки">
@@ -219,18 +161,16 @@ export function PortfolioScreen() {
           onWithdraw={() => { setSelected(null); setWithdrawOpen(true); }}
           onBuy={() => { setSelected(null); setBuyOpen(true); }}
           onCopy={copyValue}
-          onchain={devnet.mode === "devnet"}
         />
       ) : null}
       <InvestDrawer open={investOpen} onOpenChange={setInvestOpen} strategy={investStrategy} />
       <WithdrawDrawer open={withdrawOpen} onOpenChange={setWithdrawOpen} />
-      <BuyAssetDrawer open={buyOpen} onOpenChange={setBuyOpen} asset={DEMO_OFFICE_ASSET} />
-      {!hydrated && devnet.mode === "demo" ? <p className="text-center text-xs text-muted-foreground">Загружаем демо-данные…</p> : null}
+      <BuyAssetDrawer open={buyOpen} onOpenChange={setBuyOpen} asset={OFFICE_ASSET} />
     </div>
   );
 }
 
-function HoldingRow({ holding, currency, onchain }: { holding: DisplayHolding; currency: "USD" | "KZT"; onchain: boolean }) {
+function HoldingRow({ holding, currency }: { holding: DisplayHolding; currency: "USD" | "KZT" }) {
   return (
     <Card className="gap-3 rounded-2xl p-4 transition-colors hover:bg-muted/40">
       <div className="flex items-start gap-3">
@@ -252,10 +192,7 @@ function HoldingRow({ holding, currency, onchain }: { holding: DisplayHolding; c
           ) : null}
         </span>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">
-        <span>1 токен · {formatMoney(holding.priceUsd, currency)}</span>
-        <Badge variant={onchain ? "secondary" : "outline"}>{onchain ? "В сети Solana" : "Демо"}</Badge>
-      </div>
+      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>1 токен · {formatMoney(holding.priceUsd, currency)}</span></div>
     </Card>
   );
 }
@@ -293,7 +230,6 @@ function HoldingDetails({
   onWithdraw,
   onBuy,
   onCopy,
-  onchain,
 }: {
   holding: DisplayHolding;
   currency: "USD" | "KZT";
@@ -302,7 +238,6 @@ function HoldingDetails({
   onWithdraw: () => void;
   onBuy: () => void;
   onCopy: (value: string, label: string) => void;
-  onchain: boolean;
 }) {
   const canInvest = holding.kind === "vault" || holding.kind === "cash";
   const canWithdraw = holding.kind === "vault";
@@ -318,12 +253,10 @@ function HoldingDetails({
             <span className="text-muted-foreground">Прибыль / убыток</span><span className="font-medium">{formatMoney(holding.pnlUsd ?? 0, currency)}</span>
           </div>
         ) : null}
-        {onchain ? (
-          <div className="space-y-3 rounded-xl border p-3">
-            <AddressLine label="Mint" address={holding.mint} explorerUrl={holding.mintExplorerUrl} onCopy={() => onCopy(holding.mint, "Mint")} />
-            <AddressLine label="Token account" address={holding.tokenAccount} explorerUrl={holding.tokenAccountExplorerUrl} onCopy={() => onCopy(holding.tokenAccount, "Token account")} />
-          </div>
-        ) : <p className="text-xs text-muted-foreground">Демо-данные хранятся в этом браузере.</p>}
+        <div className="space-y-3 rounded-xl border p-3">
+          <AddressLine label="Mint" address={holding.mint} explorerUrl={holding.mintExplorerUrl} onCopy={() => onCopy(holding.mint, "Mint")} />
+          <AddressLine label="Token account" address={holding.tokenAccount} explorerUrl={holding.tokenAccountExplorerUrl} onCopy={() => onCopy(holding.tokenAccount, "Token account")} />
+        </div>
         <div className="grid grid-cols-2 gap-2">
           {canInvest ? <Button variant="outline" onClick={onInvest}><ArrowDownToLine />Вложить ещё</Button> : null}
           {canWithdraw ? <Button variant="outline" onClick={onWithdraw}><ArrowUpFromLine />Вывести</Button> : null}
@@ -365,43 +298,6 @@ function OnchainHistory({ rows }: { rows: DevnetPortfolio["history"] }) {
       ))}
     </div>
   );
-}
-
-function DemoHistory() {
-  const { activity } = useAppStore();
-  if (!activity.length) return <Card className="rounded-2xl p-4 text-sm text-muted-foreground">Пока нет операций. Они появятся здесь после пополнения или покупки.</Card>;
-  return (
-    <div className="space-y-2">
-      {activity.slice(0, 5).map((item) => (
-        <Card key={item.id} className="flex-row items-center gap-3 rounded-2xl p-3">
-          <span className="flex size-8 items-center justify-center rounded-full bg-muted"><ArrowDownToLine className="size-4 text-muted-foreground" /></span>
-          <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.title}</p><p className="text-xs text-muted-foreground">{new Date(item.at).toLocaleDateString("ru-RU")}</p></div>
-          <span className="text-xs text-muted-foreground">Демо</span>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function DemoBanner() {
-  return (
-    <Card className="gap-3 rounded-2xl border-amber-500/30 bg-amber-500/5 p-4">
-      <div>
-        <p className="font-medium">Демо-режим</p>
-        <p className="mt-1 text-sm leading-5 text-muted-foreground">Демо: данные хранятся в этом браузере. Войдите, чтобы активы хранились в сети Solana.</p>
-      </div>
-      {isCrossmintConfigured ? <LoginButton /> : <Button className="w-full" disabled>Вход будет доступен после настройки</Button>}
-    </Card>
-  );
-}
-
-function LoginButton() {
-  const { login, status } = useCrossmintAuth();
-  return <Button className="w-full" onClick={login} disabled={status === "initializing" || status === "in-progress"}>{status === "in-progress" ? "Загружаем…" : "Войти по email"}</Button>;
-}
-
-function DemoWalletCard() {
-  return <Card className="gap-2 rounded-2xl p-4"><div className="flex items-center gap-2"><Wallet className="size-4 text-muted-foreground" /><h3 className="font-semibold">Кошелёк Solana</h3><Badge variant="outline" className="ml-auto">Демо</Badge></div><p className="text-sm text-muted-foreground">Войдите, чтобы получить адрес кошелька и хранить активы в сети.</p></Card>;
 }
 
 function shortAddress(address: string) {

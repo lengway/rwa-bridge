@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "добавь CROSSMINT_SERVER_API_KEY в .env.local" }, { status: 501 });
   }
   if (!serverApiKey.startsWith("sk_staging_")) {
-    return NextResponse.json({ error: "в демо разрешён только staging-ключ" }, { status: 400 });
+    return NextResponse.json({ error: "Для Crossmint разрешён staging-ключ." }, { status: 400 });
   }
 
   const body = await request.json().catch(() => null);

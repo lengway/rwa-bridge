@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       notifyReceipt(request, {
         kind: "redemption",
         amountUsd: withdrawal.amountUsd ?? 0,
-        details: `Погашено ${withdrawal.shares ?? 0} долей продукта ${productId}. Тестовые доллары отправлены в кошелёк.`,
+        details: `Погашено ${withdrawal.shares ?? 0} долей продукта ${productId}. Доллары отправлены в кошелёк.`,
         explorerUrl: response.explorerUrl,
         receiptId: transferSignature,
       });

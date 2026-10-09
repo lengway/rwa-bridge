@@ -4,7 +4,6 @@ import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { InvestDrawer, WithdrawDrawer } from "@/components/app/drawers";
 import {
-  DemoDisclosure,
   EligibilitySection,
   ExplainerSections,
   RiskSection,
@@ -14,27 +13,17 @@ import { ProductSummary, ProjectionCalculator } from "@/components/app/earn-deta
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
-import { getStrategyApy } from "@/lib/market-data";
-import { accruedPosition, type YieldStrategy } from "@/lib/yields";
-import { useNow } from "@/lib/useNow";
-import { useDevnet } from "@/lib/useDevnet";
+import type { YieldStrategy } from "@/lib/yields";
 
 export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
-  const { positions, cashUsd, displayCurrency, hydrated, acceleratedAccrual, marketData } = useAppStore();
-  const devnet = useDevnet();
-  const now = useNow();
+  const { positions, cashUsd, displayCurrency, hydrated } = useAppStore();
   const [amount, setAmount] = useState(1000);
   const [investOpen, setInvestOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const position = positions[strategy.id];
-  const apy = getStrategyApy(strategy.id, marketData.yields);
-  const currentEarned = position
-    ? devnet.mode === "devnet"
-      ? position.earnedCarryUsd ?? 0
-      : now !== null ? accruedPosition(position, apy, now, acceleratedAccrual) : 0
-    : 0;
+  const currentEarned = position?.earnedCarryUsd ?? 0;
   const currentPosition = position
-    ? { value: devnet.mode === "devnet" ? position.valueUsd ?? (position.principal + currentEarned) : position.principal + currentEarned, earned: currentEarned }
+    ? { value: position.valueUsd ?? position.principal + currentEarned, earned: currentEarned }
     : undefined;
 
   return (
@@ -51,7 +40,6 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
       <RiskSection strategy={strategy} />
       <EligibilitySection strategy={strategy} />
       <TechnicalDetails strategy={strategy} />
-      {strategy.kind === "demo" ? <DemoDisclosure /> : null}
 
       <div className="fixed inset-x-0 bottom-[4.5rem] z-30 mx-auto w-full max-w-md border-t bg-background/95 p-3 backdrop-blur">
         <div className="flex items-center gap-3">
@@ -61,7 +49,6 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
               {hydrated ? formatMoney(cashUsd, displayCurrency) : "…"}
             </p>
           </div>
-          {position && devnet.mode === "demo" && acceleratedAccrual ? <span className="text-xs text-muted-foreground">Ускоренный режим</span> : null}
           {position ? (
             <Button
               variant="outline"

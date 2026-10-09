@@ -2,18 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
-import { Coins, CreditCard, Landmark, Plus } from "lucide-react";
+import { Coins, CreditCard, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CrossmintOnramp } from "@/components/CrossmintOnramp";
 import { ProviderSheet } from "@/components/app/provider-sheet";
 import { ProviderQuote } from "@/components/app/provider-quote";
-import { isCrossmintConfigured } from "@/lib/config";
 import { formatMoney } from "@/lib/format";
 import { russianActionError } from "@/lib/action-errors";
 import {
-  buildMercuryoUrl,
-  isMercuryoConfigured,
   ONRAMP_OPTIONS,
   TRANSAK_MIN_USD,
   TRANSAK_STAGING_WIDGET_ORIGIN,
@@ -24,26 +21,18 @@ export function MethodOption({
   selected,
   onSelect,
   disabled = false,
-  hideRecommended = false,
 }: {
   id: string;
   selected: boolean;
   onSelect: (id: string) => void;
   disabled?: boolean;
-  hideRecommended?: boolean;
 }) {
   const labels: Record<string, string> = {
-    "bank-demo": "Со счёта в Демо-банке",
-    "devnet-faucet": "Тестовый банкомат",
-    moonpay: "Карта · MoonPay",
-    transak: "Карта · Transak",
-    crossmint: "Карта · Crossmint",
-    mercuryo: "Карта · Mercuryo",
-    kaspi: "Kaspi Pay",
-    freedom: "Freedom",
+    "bank-embed": "Со счёта в банке",
   };
+  const label = labels[id] ?? ONRAMP_OPTIONS.find((option) => option.id === id)?.name ?? id;
   const hint = ONRAMP_OPTIONS.find((option) => option.id === id)?.hint;
-  const MethodIcon = id === "bank-demo" ? Landmark : id === "devnet-faucet" ? Coins : CreditCard;
+  const MethodIcon = id === "bank-embed" ? Landmark : id === "devnet-faucet" ? Coins : CreditCard;
 
   return (
     <button
@@ -58,13 +47,10 @@ export function MethodOption({
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
-          {labels[id]}
-          {id === "bank-demo" ? <Badge variant="secondary">Мгновенно</Badge> : null}
-          {id === "devnet-faucet" ? <Badge variant="outline">Без карты</Badge> : null}
-          {id === "transak" && !hideRecommended ? <Badge variant="secondary">Рекомендуем</Badge> : null}
-          {id === "kaspi" || id === "freedom" ? <Badge variant="outline">Концепт</Badge> : null}
+          {label}
+          {id === "transak" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
         </span>
-        {id === "bank-demo" ? (
+        {id === "bank-embed" ? (
           <span className="mt-1 block text-xs text-muted-foreground">Оплата подтверждается в приложении банка</span>
         ) : hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}
       </span>
@@ -108,16 +94,10 @@ type TransakOnchainCompletion = { amountUsd: number; signature: string; explorer
 
 export function TransakPath({
   amount,
-  onDemo,
-  processing,
-  onComplete,
   onCompleteOnchain,
   onSelectAnotherMethod,
 }: {
   amount: number;
-  onDemo: () => void;
-  processing: boolean;
-  onComplete: (amount: number) => void;
   onCompleteOnchain: (credit: TransakOnchainCompletion) => void;
   onSelectAnotherMethod: () => void;
 }) {
@@ -137,7 +117,7 @@ export function TransakPath({
       .catch(() => {
         if (!cancelled) setSetup({
           configured: false,
-          message: "Не удалось проверить настройки Transak. Можно продолжить в демо-режиме.",
+          message: "Не удалось проверить настройки Transak.",
         });
       });
     return () => { cancelled = true; };
@@ -148,31 +128,16 @@ export function TransakPath({
   }
   if (!setup.configured) {
     return (
-      <TransakDemoFallback
-        message={setup.message ?? "Тестовый виджет Transak пока не настроен."}
-        amount={amount}
-        onDemo={onDemo}
-        processing={processing}
-      />
-    );
-  }
-  if (!isCrossmintConfigured) {
-    return (
-      <TransakDemoFallback
-        message="Для входа в Transak добавьте NEXT_PUBLIC_CROSSMINT_API_KEY и настройте кошелёк."
-        amount={amount}
-        onDemo={onDemo}
-        processing={processing}
-      />
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">{setup.message ?? "Transak пока не настроен."}</p>
+        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Выбрать другой способ</Button>
+      </div>
     );
   }
 
   return (
     <TransakSessionPath
       amount={amount}
-      onDemo={onDemo}
-      processing={processing}
-      onComplete={onComplete}
       onCompleteOnchain={onCompleteOnchain}
       onSelectAnotherMethod={onSelectAnotherMethod}
     />
@@ -181,20 +146,14 @@ export function TransakPath({
 
 function TransakSessionPath({
   amount,
-  onDemo,
-  processing,
-  onComplete,
   onCompleteOnchain,
   onSelectAnotherMethod,
 }: {
   amount: number;
-  onDemo: () => void;
-  processing: boolean;
-  onComplete: (amount: number) => void;
   onCompleteOnchain: (credit: TransakOnchainCompletion) => void;
   onSelectAnotherMethod: () => void;
 }) {
-  const { login, status, user, jwt } = useCrossmintAuth();
+  const { status, user, jwt } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
   const [widgetUrl, setWidgetUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -335,6 +294,9 @@ function TransakSessionPath({
           if (amountUsd === null) {
             throw new Error("Transak не вернул корректную сумму покупки.");
           }
+          if (typeof result.signature !== "string" || typeof result.explorerUrl !== "string") {
+            throw new Error("Не удалось подтвердить зачисление в сети Solana devnet.");
+          }
           reportedCredit.current = true;
           orderIdRef.current = null;
           setOrderId(null);
@@ -342,11 +304,7 @@ function TransakSessionPath({
           setPollTimedOut(false);
           setError(null);
           closeWidget();
-          if (typeof result.signature === "string" && typeof result.explorerUrl === "string") {
-            onCompleteOnchain({ amountUsd, signature: result.signature, explorerUrl: result.explorerUrl });
-          } else {
-            onComplete(amountUsd);
-          }
+          onCompleteOnchain({ amountUsd, signature: result.signature, explorerUrl: result.explorerUrl });
           return;
         } else if (response.status >= 400 && response.status < 500) {
           orderIdRef.current = null;
@@ -378,7 +336,7 @@ function TransakSessionPath({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [closeWidget, jwt, onComplete, onCompleteOnchain, orderId, wallet?.address]);
+  }, [closeWidget, jwt, onCompleteOnchain, orderId, wallet?.address]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -413,30 +371,10 @@ function TransakSessionPath({
     return () => window.removeEventListener("message", handleMessage);
   }, [captureOrderId, closeWidget]);
 
-  if (status !== "logged-in") {
-    const authLoading = status === "initializing" || status === "in-progress";
-    return (
-      <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">Войдите, чтобы открыть Transak и привязать покупку к своему кошельку.</p>
-        <Button variant="outline" className="w-full" onClick={login} disabled={authLoading}>
-          {authLoading ? "Загружаем…" : "Войти"}
-        </Button>
-        <Button className="w-full" onClick={onDemo} disabled={processing || loading}>
-          <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
-        </Button>
-      </div>
-    );
-  }
+  if (status !== "logged-in") return <p className="text-xs text-muted-foreground">Завершите вход по email, чтобы открыть Transak.</p>;
 
   if (!wallet?.address || walletStatus === "in-progress") {
-    return (
-      <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>
-        <Button className="w-full" onClick={onDemo} disabled={processing}>
-          <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
-        </Button>
-      </div>
-    );
+    return <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>;
   }
 
   return (
@@ -445,13 +383,13 @@ function TransakSessionPath({
         {!widgetUrl && !orderId ? (
           <p className="text-xs text-muted-foreground">
             {amount < TRANSAK_MIN_USD
-              ? "Минимальная сумма для Transak — $30. Увеличьте сумму или продолжите в демо-режиме."
-              : "Откроется тестовый виджет Transak."}
+              ? "Минимальная сумма для Transak — $30. Увеличьте сумму или выберите другой способ."
+              : "Откроется виджет Transak."}
           </p>
         ) : widgetUrl && !sheetOpen ? (
           <p className="text-xs text-muted-foreground">Закройте виджет, чтобы вернуться к способам пополнения.</p>
         ) : null}
-        {loading ? <p className="text-xs text-muted-foreground">Открываем тестовый виджет Transak…</p> : null}
+        {loading ? <p className="text-xs text-muted-foreground">Открываем виджет Transak…</p> : null}
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
         {orderId && verificationPending ? <p className="text-xs text-muted-foreground">Проверяем оплату Transak…</p> : null}
         {pollTimedOut && orderId ? <p className="text-xs text-muted-foreground">Подтверждение задерживается. Попробуйте проверить оплату позже.</p> : null}
@@ -469,11 +407,6 @@ function TransakSessionPath({
             valid={amount >= TRANSAK_MIN_USD && amount <= 1_000}
           />
         ) : null}
-        {!widgetUrl ? (
-          <Button variant="outline" className="w-full" onClick={onDemo} disabled={processing || loading || verificationPending}>
-            <Plus />{processing ? "Зачисляем…" : verificationPending ? "Проверяем оплату…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
-          </Button>
-        ) : null}
         {!sheetOpen ? (
           <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>
             Выбрать другой способ
@@ -484,7 +417,7 @@ function TransakSessionPath({
         open={sheetOpen}
         onOpenChange={handleSheetOpenChange}
         title="Transak"
-        badge="Тестовый режим"
+        badge="devnet"
         testData={<p>Тестовые данные для проверки личности заполнятся сами — останется код из письма и тестовая карта.</p>}
       >
         {widgetUrl ? (
@@ -507,68 +440,16 @@ function TransakSessionPath({
   );
 }
 
-function TransakDemoFallback({
-  message,
-  amount,
-  onDemo,
-  processing,
-}: {
-  message: string;
-  amount: number;
-  onDemo: () => void;
-  processing: boolean;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">{message}</p>
-      <Button className="w-full" onClick={onDemo} disabled={processing}>
-        <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
-      </Button>
-    </div>
-  );
-}
-
 export function CrossmintPath({
   amount,
-  onDemo,
   onComplete,
   onSelectAnotherMethod,
-  processing,
 }: {
   amount: number;
-  onDemo: () => void;
   onComplete: (amount: number) => void;
   onSelectAnotherMethod: () => void;
-  processing: boolean;
 }) {
-  if (!isCrossmintConfigured) {
-    return <DemoPath method="Crossmint" amount={amount} onDemo={onDemo} processing={processing} />;
-  }
-  return (
-    <CrossmintPathReady
-      amount={amount}
-      onDemo={onDemo}
-      onComplete={onComplete}
-      onSelectAnotherMethod={onSelectAnotherMethod}
-      processing={processing}
-    />
-  );
-}
-
-function CrossmintPathReady({
-  amount,
-  onDemo,
-  onComplete,
-  onSelectAnotherMethod,
-  processing,
-}: {
-  amount: number;
-  onDemo: () => void;
-  onComplete: (amount: number) => void;
-  onSelectAnotherMethod: () => void;
-  processing: boolean;
-}) {
-  const { login, user, status } = useCrossmintAuth();
+  const { user, status } = useCrossmintAuth();
   const { wallet, status: walletStatus } = useWallet();
   if (status === "logged-in" && user?.email && wallet?.address) {
     return (
@@ -589,108 +470,5 @@ function CrossmintPathReady({
     );
   }
 
-  const loading = status === "initializing" || status === "in-progress"
-    || (status === "logged-in" && walletStatus === "in-progress");
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Для оплаты картой нужны вход по email и созданный аккаунт.
-      </p>
-      {status === "logged-in" ? (
-        <p className="text-xs text-muted-foreground">Подготавливаем аккаунт…</p>
-      ) : (
-        <Button variant="outline" className="w-full" onClick={login} disabled={loading}>
-          {loading ? "Загружаем…" : "Войти по email"}
-        </Button>
-      )}
-      <Button className="w-full" onClick={onDemo} disabled={processing || loading}>
-        <Plus />{processing ? "Зачисляем…" : loading ? "Открываем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
-      </Button>
-    </div>
-  );
-}
-
-export function MercuryoPath({
-  amount,
-  onDemo,
-  processing,
-}: {
-  amount: number;
-  onDemo: () => void;
-  processing: boolean;
-}) {
-  if (!isCrossmintConfigured) {
-    return <DemoPath method="Mercuryo" amount={amount} onDemo={onDemo} processing={processing} />;
-  }
-  return <MercuryoPathReady amount={amount} onDemo={onDemo} processing={processing} />;
-}
-
-function MercuryoPathReady({
-  amount,
-  onDemo,
-  processing,
-}: {
-  amount: number;
-  onDemo: () => void;
-  processing: boolean;
-}) {
-  const { login, user, status } = useCrossmintAuth();
-  const { wallet } = useWallet();
-  const ready = Boolean(isMercuryoConfigured && wallet?.address && user?.email && status === "logged-in");
-
-  if (ready && wallet?.address) {
-    return (
-      <div className="space-y-3">
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => window.open(buildMercuryoUrl(wallet.address), "_blank", "noopener,noreferrer")}
-        >
-          Открыть Mercuryo
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          После оплаты демо-баланс приложения не меняется автоматически.
-        </p>
-      </div>
-    );
-  }
-  if (!isMercuryoConfigured) {
-    return <DemoPath method="Mercuryo" amount={amount} onDemo={onDemo} processing={processing} />;
-  }
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Для виджета Mercuryo нужен аккаунт. Реальное зачисление в приложение не подключено.
-      </p>
-      {status !== "logged-in" ? (
-        <Button variant="outline" className="w-full" onClick={login}>Войти по email</Button>
-      ) : null}
-      <Button className="w-full" onClick={onDemo} disabled={processing}>
-        <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
-      </Button>
-    </div>
-  );
-}
-
-function DemoPath({
-  method,
-  amount,
-  onDemo,
-  processing = false,
-}: {
-  method: string;
-  amount: number;
-  onDemo: () => void;
-  processing?: boolean;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Пополнение через {method} пока не подключено. Можно продолжить с демо-зачислением.
-      </p>
-      <Button className="w-full" onClick={onDemo} disabled={processing}>
-        <Plus />{processing ? "Зачисляем…" : `Продолжить в демо-режиме · ${formatMoney(amount)}`}
-      </Button>
-    </div>
-  );
+  return <p className="text-xs text-muted-foreground">{status === "logged-in" && walletStatus === "in-progress" ? "Подготавливаем кошелёк…" : "Завершите вход по email, чтобы открыть оплату картой."}</p>;
 }

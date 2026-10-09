@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "RWA Bridge",
     short_name: "RWA Bridge",
-    description: "Тестовое приложение RWA Bridge на Solana devnet",
+    description: "Доход на реальных активах в сети Solana devnet",
     start_url: "/home",
     display: "standalone",
     background_color: "#ffffff",

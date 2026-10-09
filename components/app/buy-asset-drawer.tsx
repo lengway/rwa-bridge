@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
-import { ArrowUpRight, ShoppingBag } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { DrawerSuccess } from "@/components/app/drawer-success";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { isCrossmintConfigured } from "@/lib/config";
 import { formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
@@ -30,11 +29,6 @@ type BuyResult = {
 };
 
 export function BuyAssetDrawer(props: BuyAssetDrawerProps) {
-  if (!isCrossmintConfigured) return <BuyAssetDrawerContents {...props} wallet={null} jwt={null} />;
-  return <BuyAssetDrawerWithWallet {...props} />;
-}
-
-function BuyAssetDrawerWithWallet(props: BuyAssetDrawerProps) {
   const { jwt } = useCrossmintAuth();
   const { wallet } = useWallet();
   return <BuyAssetDrawerContents {...props} wallet={wallet ?? null} jwt={jwt ?? null} />;
@@ -47,7 +41,7 @@ function BuyAssetDrawerContents({
   wallet,
   jwt,
 }: BuyAssetDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null; jwt: string | null }) {
-  const { cashUsd, displayCurrency, buy } = useAppStore();
+  const { cashUsd, displayCurrency } = useAppStore();
   const devnet = useDevnet();
   const [amount, setAmount] = useState("10");
   const [processing, setProcessing] = useState(false);
@@ -56,7 +50,7 @@ function BuyAssetDrawerContents({
   const [result, setResult] = useState<BuyResult | null>(null);
   const [pendingPayment, setPendingPayment] = useState<{ signature: string; amount: number } | null>(null);
   const amountValue = Number(amount);
-  const maximumAmount = devnet.mode === "devnet" ? Math.min(cashUsd, 1000) : cashUsd;
+  const maximumAmount = Math.min(cashUsd, 1000);
   const valid = Number.isFinite(amountValue) && amountValue >= 10 && amountValue <= maximumAmount;
   const purchaseAmount = pendingPayment?.amount ?? amountValue;
   const units = purchaseAmount;
@@ -72,8 +66,7 @@ function BuyAssetDrawerContents({
     setProcessing(true);
     setError(null);
 
-    if (devnet.mode === "devnet") {
-      if (!devnet.treasuryOwner) {
+    if (!devnet.treasuryOwner) {
         const message = "Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.";
         setError(message);
         toast.error(message);
@@ -159,18 +152,6 @@ function BuyAssetDrawerContents({
         setProcessing(false);
         setProgress(null);
       }
-      return;
-    }
-
-    const purchased = buy(asset.id, amountValue, {
-      units,
-      title: asset.name,
-      note: "Демо: перевод не отправлен",
-    });
-    setProcessing(false);
-    if (!purchased) return;
-    setResult({ amount: amountValue, units, note: "Демо: перевод не отправлен" });
-    toast.success("Покупка завершена");
   };
 
   return (
@@ -178,9 +159,7 @@ function BuyAssetDrawerContents({
       open={open}
       onOpenChange={changeOpen}
       title={`Купить · ${asset.name}`}
-      description={devnet.mode === "devnet"
-        ? "Оплата тестовыми долларами в Solana devnet."
-        : "Укажите сумму в долларах. Покупка показана в демо-режиме."}
+      description="Оплатите токенами USD. Выпущенные токены OFFICE поступят в ваш кошелёк."
     >
       {result ? (
         <DrawerSuccess
@@ -225,11 +204,9 @@ function BuyAssetDrawerContents({
           </div>
 
           <Card className="gap-2 p-4">
-            <p className="text-sm font-medium">{devnet.mode === "devnet" ? "Покупка в Solana devnet" : "Покупка в демо-режиме"}</p>
+            <p className="text-sm font-medium">Покупка доли объекта</p>
             <p className="text-xs leading-5 text-muted-foreground">
-              {devnet.mode === "devnet"
-                ? "Тестовые доллары поступят в казначейство, а OFFICE-DEMO будет выпущен в ваш кошелёк."
-                : "Сумма спишется только с демо-баланса. Доля не даёт права собственности на реальный объект."}
+              Сумма поступит в казначейство, а {asset.ticker} будет выпущен в ваш кошелёк.
             </p>
           </Card>
           {amountValue < 10 ? (
@@ -237,12 +214,10 @@ function BuyAssetDrawerContents({
           ) : null}
           {amountValue > cashUsd ? (
             <p className="text-xs text-destructive">
-              Недостаточно средств. {devnet.mode === "devnet"
-                ? <a href="/home" className="underline">Пополнить через тестовый банкомат</a>
-                : "Пополните демо-баланс."}
+              Недостаточно средств. <a href="/home" className="underline">Пополните баланс</a>.
             </p>
           ) : null}
-          {devnet.mode === "devnet" && amountValue > 1000 ? (
+          {amountValue > 1000 ? (
             <p className="text-xs text-destructive">Максимальная сумма — $1 000.</p>
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
@@ -250,12 +225,6 @@ function BuyAssetDrawerContents({
           <Button className="w-full" onClick={completePurchase} disabled={(!valid && !pendingPayment) || processing}>
             <ShoppingBag />{processing ? (progress ?? "Оформляем покупку…") : pendingPayment ? "Повторить подтверждение" : `Купить на ${formatMoney(amountValue || 0)}`}
           </Button>
-          {devnet.mode !== "devnet" && asset.buyFlow === "spl-demo-mint" ? (
-            <p className="text-center text-xs text-muted-foreground">
-              <ArrowUpRight className="mr-1 inline size-3" />
-              Демо-режим не отправляет токены в кошелёк.
-            </p>
-          ) : null}
         </div>
       )}
     </DrawerFrame>

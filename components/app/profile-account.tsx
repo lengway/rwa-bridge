@@ -3,37 +3,22 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
-import { Copy, LogIn, LogOut, Send, WalletCards } from "lucide-react";
+import { Copy, LogOut, Send, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { isCrossmintConfigured } from "@/lib/config";
-import { useAppStore } from "@/lib/store";
 import { formatMoney } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { useDevnet } from "@/lib/useDevnet";
 
 export function AccountSection() {
-  if (!isCrossmintConfigured) {
-    return (
-      <Card className="gap-3 rounded-2xl p-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-semibold">Аккаунт</h2>
-          <Badge variant="secondary">Демо</Badge>
-        </div>
-        <p className="text-sm leading-5 text-muted-foreground">
-          Вход не нужен: приложение работает с демо-данными на этом устройстве.
-        </p>
-      </Card>
-    );
-  }
   return <AccountSectionReady />;
 }
 
 function AccountSectionReady() {
-  const { login, logout, user, status } = useCrossmintAuth();
+  const { logout, user, status } = useCrossmintAuth();
   const [busy, setBusy] = useState(false);
   const loggedIn = status === "logged-in";
 
@@ -59,19 +44,7 @@ function AccountSectionReady() {
             <LogOut />{busy ? "Выходим…" : "Выйти"}
           </Button>
         </>
-      ) : (
-        <>
-          <p className="text-sm leading-5 text-muted-foreground">
-            Войдите по email, чтобы подключить оплату картой и демо-покупки.
-          </p>
-          <Button
-            onClick={login}
-            disabled={status === "in-progress" || status === "initializing"}
-          >
-            <LogIn />{status === "in-progress" ? "Загружаем…" : "Войти по email"}
-          </Button>
-        </>
-      )}
+      ) : <p className="text-sm text-muted-foreground">Сессия аккаунта не активна.</p>}
     </Card>
   );
 }
@@ -81,22 +54,6 @@ function shortWalletAddress(address: string) {
 }
 
 export function WalletSection() {
-  if (!isCrossmintConfigured) {
-    return (
-      <Collapsible>
-        <Card className="rounded-2xl p-0">
-          <CollapsibleTrigger className="flex w-full items-center gap-2 p-4 text-left font-medium">
-            <WalletCards className="size-4" />
-            <span className="flex-1">Кошелёк</span>
-            <Badge variant="outline">Для продвинутых</Badge>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="border-t p-4 text-sm leading-5 text-muted-foreground">
-            Адрес появится после настройки входа. Для обычной работы он не нужен.
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-    );
-  }
   return <WalletSectionReady />;
 }
 
@@ -104,7 +61,6 @@ function WalletSectionReady() {
   const { jwt } = useCrossmintAuth();
   const { wallet } = useWallet();
   const devnet = useDevnet();
-  const { recordWalletSend } = useAppStore();
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("10");
   const [sending, setSending] = useState(false);
@@ -155,9 +111,7 @@ function WalletSectionReady() {
       if (!response.ok || result?.ok !== true) {
         throw new Error(typeof result?.error === "string" ? result.error : "Перевод пока не подтверждён в Solana devnet.");
       }
-      const explorer = `https://explorer.solana.com/tx/${encodeURIComponent(transfer.signature)}?cluster=devnet`;
-      recordWalletSend(transfer.amountUsd, transfer.signature, explorer);
-      void devnet.refresh();
+      void devnet.refreshPortfolio();
       setPendingTransfer(null);
       setRecipient("");
       setAmount("10");
@@ -205,12 +159,11 @@ function WalletSectionReady() {
               <p className="text-xs text-muted-foreground">
                 Сеть: Solana devnet. Адрес не нужен для обычной работы в приложении.
               </p>
-              {devnet.mode === "devnet" ? (
-                <Card className="gap-3 rounded-2xl p-4">
+              <Card className="gap-3 rounded-2xl p-4">
                   <div>
                     <h3 className="font-medium">Отправить на другой кошелёк</h3>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Переведите тестовые доллары на любой адрес Solana devnet.
+                      Переведите тестовые доллары на любой адрес Solana.
                     </p>
                   </div>
                   <label className="space-y-1.5 text-sm">
@@ -242,15 +195,14 @@ function WalletSectionReady() {
                   </label>
                   {amountValue > balance ? (
                     <p className="text-xs text-destructive">
-                      Недостаточно средств. <Link href="/home" className="underline">Пополнить через тестовый банкомат</Link>.
+                      Недостаточно средств. <Link href="/home" className="underline">Пополнить баланс</Link>.
                     </p>
                   ) : null}
                   {sendError ? <p className="text-xs text-destructive">{sendError}</p> : null}
                   <Button className="w-full" onClick={sendTokens} disabled={sending || (!pendingTransfer && (!recipientValid || !amountValid))}>
                     <Send />{sending ? (sendProgress ?? "Отправляем…") : pendingTransfer ? "Повторить подтверждение" : `Отправить ${formatMoney(amountValue || 0)}`}
                   </Button>
-                </Card>
-              ) : null}
+              </Card>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">

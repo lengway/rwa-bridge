@@ -2,23 +2,13 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
-import { Check, RotateCcw } from "lucide-react";
+import { Check } from "lucide-react";
 import { useCrossmintAuth } from "@crossmint/client-sdk-react-ui";
-import { toast } from "sonner";
 import { AccountSection, WalletSection } from "@/components/app/profile-account";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useAppStore } from "@/lib/store";
-import { useDevnet } from "@/lib/useDevnet";
 import { isCrossmintConfigured } from "@/lib/config";
 import { MarketDataNote } from "@/components/app/market-data-note";
 
@@ -30,18 +20,8 @@ export function PortfolioSettings() {
   const {
     displayCurrency,
     setDisplayCurrency,
-    acceleratedAccrual,
-    setAcceleratedAccrual,
     marketData,
-    resetDemo,
   } = useAppStore();
-  const devnet = useDevnet();
-  const [confirmReset, setConfirmReset] = useState(false);
-  const reset = () => {
-    resetDemo();
-    setConfirmReset(false);
-    toast.success("Демо-данные сброшены");
-  };
 
   return (
     <div className="space-y-6">
@@ -53,41 +33,8 @@ export function PortfolioSettings() {
         onCurrencyChange={setDisplayCurrency}
         rate={marketData.availability.rate ? marketData.rate : null}
       />
-      <AccrualPreference
-        acceleratedAccrual={acceleratedAccrual}
-        onChange={setAcceleratedAccrual}
-        mode={devnet.mode}
-      />
       <ThemeSection />
       <WalletSection />
-      <DemoInfoSection />
-      <Card className="gap-3 rounded-2xl p-4">
-        <div>
-          <h2 className="font-semibold">Демо-данные</h2>
-          <p className="mt-1 text-sm leading-5 text-muted-foreground">
-            Сброс удалит баланс, вклады, активы и историю на этом устройстве.
-          </p>
-        </div>
-        <Button variant="outline" className="w-full" onClick={() => setConfirmReset(true)}>
-          <RotateCcw />Сбросить демо-данные
-        </Button>
-      </Card>
-      <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Сбросить демо-данные?</DialogTitle>
-            <DialogDescription>
-              Баланс, вклады, купленные доли и история операций будут удалены без возможности восстановления.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmReset(false)}>
-              Отмена
-            </Button>
-            <Button variant="destructive" onClick={reset}>Сбросить</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -225,38 +172,6 @@ function PreferenceSection({
   );
 }
 
-function AccrualPreference({
-  acceleratedAccrual,
-  onChange,
-  mode,
-}: {
-  acceleratedAccrual: boolean;
-  onChange: (enabled: boolean) => void;
-  mode: "devnet" | "demo";
-}) {
-  if (mode === "devnet") {
-    return (
-      <Card className="gap-2 rounded-2xl p-4">
-        <h2 className="font-semibold">Ускоренное начисление</h2>
-        <p className="text-sm text-muted-foreground">Работает только в демо-режиме. В Solana devnet цена доли меняется в реальном времени.</p>
-      </Card>
-    );
-  }
-  return (
-    <Card className="flex-row items-center justify-between gap-4 rounded-2xl p-4">
-      <div>
-        <h2 className="font-semibold">Ускорить начисления для демо</h2>
-        <p className="mt-1 text-sm text-muted-foreground">При включении 1 секунда считается за 1 день.</p>
-      </div>
-      <Switch
-        checked={acceleratedAccrual}
-        onCheckedChange={onChange}
-        aria-label="Ускорить начисления для демо"
-      />
-    </Card>
-  );
-}
-
 function ThemeSection() {
   const { theme, setTheme } = useTheme();
   const mounted = useSyncExternalStore(
@@ -289,26 +204,6 @@ function ThemeSection() {
           </Button>
         ))}
       </div>
-    </Card>
-  );
-}
-
-function DemoInfoSection() {
-  const devnet = useDevnet();
-  const { acceleratedAccrual } = useAppStore();
-  return (
-    <Card className="gap-3 rounded-2xl p-4">
-      <h2 className="font-semibold">{devnet.mode === "devnet" ? "О тестовой сети" : "О демо-режиме"}</h2>
-      <p className="text-sm leading-5 text-muted-foreground">
-        {devnet.mode === "devnet"
-          ? "Тестовые доллары, доли вкладов и OFFICE-DEMO хранятся как токены в Solana devnet. Стоимость и доходность показаны для демонстрации."
-          : "Баланс, вклады, покупки и начисления здесь симулируются и хранятся в браузере. Реальные деньги не переводятся."}
-      </p>
-      <p className="text-sm leading-5 text-muted-foreground">
-        {devnet.mode === "demo" && acceleratedAccrual
-          ? "В демо включён ускоренный режим: 1 секунда = 1 день."
-          : "Начисления идут в реальном времени."} Доход не гарантирован. Не банковский вклад, не застраховано фондом гарантирования депозитов.
-      </p>
     </Card>
   );
 }

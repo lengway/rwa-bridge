@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { isCrossmintConfigured } from "@/lib/config";
 import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
@@ -27,11 +26,6 @@ type InvestDrawerProps = {
 };
 
 export function InvestDrawer(props: InvestDrawerProps) {
-  if (!isCrossmintConfigured) return <InvestDrawerContents {...props} wallet={null} jwt={null} />;
-  return <InvestDrawerWithWallet {...props} />;
-}
-
-function InvestDrawerWithWallet(props: InvestDrawerProps) {
   const { jwt } = useCrossmintAuth();
   const { wallet } = useWallet();
   return <InvestDrawerContents {...props} wallet={wallet ?? null} jwt={jwt ?? null} />;
@@ -44,7 +38,7 @@ function InvestDrawerContents({
   wallet,
   jwt,
 }: InvestDrawerProps & { wallet: ReturnType<typeof useWallet>["wallet"] | null; jwt: string | null }) {
-  const { cashUsd, displayCurrency, invest, marketData, acceleratedAccrual } = useAppStore();
+  const { cashUsd, displayCurrency, marketData } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
   const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
   const apyData = strategy.id === "ondo-usdy"
@@ -62,7 +56,8 @@ function InvestDrawerContents({
   const valid = Number.isFinite(amountValue)
     && amountValue > 0
     && amountValue <= cashUsd
-    && (devnet.mode !== "devnet" || (amountValue >= 1 && amountValue <= 1000));
+    && amountValue >= 1
+    && amountValue <= 1000;
   const earningsMonth = apyAvailable ? Math.max(0, amountValue) * apy / 12 : Number.NaN;
   const earningsYear = apyAvailable ? Math.max(0, amountValue) * apy : Number.NaN;
 
@@ -75,65 +70,52 @@ function InvestDrawerContents({
   const handleInvest = async () => {
     if (!accepted || (!valid && !pendingSignature) || processing) return;
     setError(null);
-    if (devnet.mode === "devnet") {
-      if (!devnet.treasuryOwner) {
-        setError("Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
-        return;
-      }
-      if (!devnet.walletAddress || !devnet.usdMint || (!wallet && !pendingSignature)) {
-        setError("Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.");
-        return;
-      }
-      setProcessing(true);
-      try {
-        let signature = pendingSignature;
-        if (!signature) {
-          setProgress("Подписываем перевод…");
-          const transaction = await wallet!.send(devnet.treasuryOwner, devnet.usdMint, String(amountValue));
-          if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
-          signature = transaction.hash;
-          setPendingSignature(signature);
-        }
-        setProgress("Подтверждаем в сети…");
-        const response = await fetch("/api/devnet/invest", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
-          body: JSON.stringify({
-            walletAddress: devnet.walletAddress,
-            productId: strategy.id,
-            amountUsd: amountValue,
-            signature,
-          }),
-        });
-        const result = await response.json() as {
-          ok?: unknown;
-          sharesMinted?: unknown;
-          mintSignature?: unknown;
-          explorerUrl?: unknown;
-          error?: unknown;
-        };
-        if (!response.ok || result.ok !== true || typeof result.explorerUrl !== "string"
-          || typeof result.sharesMinted !== "number" || typeof result.mintSignature !== "string") {
-          throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить перевод.");
-        }
-        const shareTicker = strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO";
-        setSuccess({ amount: amountValue, shares: result.sharesMinted, shareTicker, explorerUrl: result.explorerUrl });
-        setPendingSignature(null);
-        void devnet.refreshPortfolio();
-        toast.success("Доли выпущены в Solana");
-      } catch (requestError) {
-        const message = requestError instanceof Error ? requestError.message : "";
-        setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить перевод. Проверьте соединение и повторите подтверждение.");
-      } finally {
-        setProcessing(false);
-        setProgress(null);
-      }
+    if (!devnet.treasuryOwner) {
+      setError("Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
       return;
     }
-
-    if (!invest(strategy.id, amountValue)) return;
-    setSuccess({ amount: amountValue });
-    toast.success("Вклад открыт");
+    if (!devnet.walletAddress || !devnet.usdMint || (!wallet && !pendingSignature)) {
+      setError("Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.");
+      return;
+    }
+    setProcessing(true);
+    try {
+      let signature = pendingSignature;
+      if (!signature) {
+        setProgress("Подписываем перевод…");
+        const transaction = await wallet!.send(devnet.treasuryOwner, devnet.usdMint, String(amountValue));
+        if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
+        signature = transaction.hash;
+        setPendingSignature(signature);
+      }
+      setProgress("Подтверждаем в сети…");
+      const response = await fetch("/api/devnet/invest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+        body: JSON.stringify({ walletAddress: devnet.walletAddress, productId: strategy.id, amountUsd: amountValue, signature }),
+      });
+      const result = await response.json() as {
+        ok?: unknown;
+        sharesMinted?: unknown;
+        mintSignature?: unknown;
+        explorerUrl?: unknown;
+        error?: unknown;
+      };
+      if (!response.ok || result.ok !== true || typeof result.explorerUrl !== "string"
+        || typeof result.sharesMinted !== "number" || typeof result.mintSignature !== "string") {
+        throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить перевод.");
+      }
+      setSuccess({ amount: amountValue, shares: result.sharesMinted, shareTicker: strategy.ticker, explorerUrl: result.explorerUrl });
+      setPendingSignature(null);
+      void devnet.refreshPortfolio();
+      toast.success("Доли выпущены в Solana");
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : "";
+      setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить перевод. Проверьте соединение и повторите подтверждение.");
+    } finally {
+      setProcessing(false);
+      setProgress(null);
+    }
   };
 
   return (
@@ -146,9 +128,7 @@ function InvestDrawerContents({
       {success ? (
         <DrawerSuccess
           amount={success.amount}
-          sentence={devnet.mode === "devnet"
-            ? `Вы получили ${formatQuantity(success.shares ?? Number.NaN)} ${success.shareTicker ?? "доли"}. Доли выпущены в Solana devnet.`
-            : `Вклад «${strategy.name}» открыт. Начисления показаны в демо-режиме.`}
+          sentence={`Вы получили ${formatQuantity(success.shares ?? Number.NaN)} ${success.shareTicker ?? "доли"}. Доли выпущены в кошелёк.`}
           onDone={() => changeOpen(false)}
           secondaryHref="/home"
           secondaryLabel="Перейти к портфелю"
@@ -168,7 +148,7 @@ function InvestDrawerContents({
                 id="invest-amount"
                 type="number"
                 min="1"
-                max={devnet.mode === "devnet" ? Math.min(cashUsd, 1000) : cashUsd}
+                max={Math.min(cashUsd, 1000)}
                 inputMode="decimal"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
@@ -201,11 +181,7 @@ function InvestDrawerContents({
             <EarningsLine label="За месяц" amount={earningsMonth} currency={displayCurrency} />
             <EarningsLine label="За год" amount={earningsYear} currency={displayCurrency} />
             <p className="text-xs text-muted-foreground">
-              Расчёт по текущему ориентиру. Доход не гарантирован. {devnet.mode === "devnet"
-                ? "В devnet цена доли растёт в реальном времени, а доли хранятся как SPL-токены."
-                : acceleratedAccrual
-                  ? "Ускоренный режим: 1 секунда = 1 день."
-                  : "Начисление идёт в реальном времени."}
+              Расчёт по текущему ориентиру. Доход не гарантирован.
             </p>
           </Card>
 
@@ -222,9 +198,7 @@ function InvestDrawerContents({
           </p>
           {amountValue > cashUsd ? (
             <p className="text-xs text-destructive">
-              Недостаточно средств. {devnet.mode === "devnet"
-                ? <Link href="/home" className="underline">Пополнить через тестовый банкомат</Link>
-                : <Link href="/home" className="underline">Пополните баланс на Главной</Link>}.
+              Недостаточно средств. <Link href="/home" className="underline">Пополните баланс на Главной</Link>.
             </p>
           ) : null}
           {!accepted ? (

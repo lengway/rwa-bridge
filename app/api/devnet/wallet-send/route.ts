@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { isConfigured, isValidAmount, isValidWalletAddress, unavailableResponse } from "@/lib/devnet-route";
 import { explorerUrl, verifyOutgoingWalletTransfer } from "@/lib/solana-server";
 import { notifyReceipt } from "@/lib/receipt-notifications";
+import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 
 export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     if (amountUsd === null) {
       return NextResponse.json({ error: "Перевод ещё не подтверждён в Solana devnet." }, { status: 409 });
     }
+    invalidateDevnetPortfolio(body.walletAddress);
     notifyReceipt(request, {
       kind: "wallet-send",
       amountUsd,

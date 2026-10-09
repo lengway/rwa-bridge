@@ -37,14 +37,13 @@ export function Providers({
     </ThemeProvider>
   );
   if (!isCrossmintConfigured) {
-    // No key yet — render the app without wallet/auth so the rest of the UI
-    // (asset cards, onramp button, layout) stays inspectable before keys land.
+    // The gated shell still renders its email sign-in screen when auth is not configured.
     return app;
   }
 
   return (
     <CrossmintProvider apiKey={crossmintApiKey}>
-      <CrossmintAuthProvider>
+      <CrossmintAuthProvider loginMethods={["email"]}>
         <CrossmintWalletProvider
           createOnLogin={{
             chain: walletChain,

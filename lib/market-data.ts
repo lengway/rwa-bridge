@@ -1,5 +1,5 @@
 import { FALLBACK_KZT_RATE } from "@/lib/constants";
-import { KZ_BOND_DEMO, ONDO_USDY } from "@/lib/yields";
+import { KZ_BOND, ONDO_USDY } from "@/lib/yields";
 
 export type DataSource = { name: string; url: string };
 
@@ -56,7 +56,7 @@ export const FALLBACK_KZT_DATA: KztRateData = {
 
 export const FALLBACK_YIELD_DATA: YieldData = {
   usdy: {
-    apy: ONDO_USDY.demoApy,
+    apy: ONDO_USDY.fallbackApy,
     asOf: "2026-10-02",
     source: {
       name: "Ondo USDY — резервное значение",
@@ -76,7 +76,7 @@ export const FALLBACK_YIELD_DATA: YieldData = {
   // KASE's public index page is server-rendered HTML; no stable public JSON/XML feed was found.
   // Keep the last reviewed benchmark and point to the official daily index page for manual updates.
   kaseGov: {
-    apy: KZ_BOND_DEMO.demoApy,
+    apy: KZ_BOND.fallbackApy,
     asOf: "2026-10-06",
     source: {
       name: "KASE · индекс доходности KZGB_Ym1m",

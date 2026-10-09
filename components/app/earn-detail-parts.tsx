@@ -4,20 +4,15 @@ import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { formatEarningsMoney, formatMoney } from "@/lib/format";
 import type { YieldStrategy } from "@/lib/yields";
-import { useDevnet } from "@/lib/useDevnet";
 import { getStrategyApy } from "@/lib/market-data";
 import { useAppStore } from "@/lib/store";
 import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 
 export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
-  if (strategy.kind === "demo") {
-    return <Badge variant="outline">Демо · повышенный риск</Badge>;
-  }
-  return <Badge variant="secondary">Риск: средний</Badge>;
+  return <Badge variant="secondary">{strategy.id === "kz-bond-demo" ? "Риск: повышенный" : "Риск: средний"}</Badge>;
 }
 
 export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
-  const devnet = useDevnet();
   const { marketData } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
   const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
@@ -28,11 +23,7 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
     <section className="space-y-4 pt-1">
       <div className="flex flex-wrap items-center gap-2">
         <RiskBadge strategy={strategy} />
-        {strategy.kind === "demo" ? (
-          <Badge variant="outline">Демо-токен</Badge>
-        ) : (
-          <Badge variant="outline">{devnet.mode === "devnet" ? "Вклад в Solana devnet" : "Покупка в демо-режиме"}</Badge>
-        )}
+        <Badge variant="outline">{strategy.ticker}</Badge>
       </div>
       <div>
         <p className="text-sm text-muted-foreground">{strategy.name}</p>
@@ -73,7 +64,7 @@ export function ProjectionCalculator({
   currentPosition?: { value: number; earned: number };
   currency: "USD" | "KZT";
 }) {
-  const { marketData, acceleratedAccrual } = useAppStore();
+  const { marketData } = useAppStore();
   const apy = getStrategyApy(strategy.id, marketData.yields);
   const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
   const apyData = strategy.id === "ondo-usdy"
@@ -125,14 +116,11 @@ export function ProjectionCalculator({
       <ProjectionChart amount={amount} projection={projection} points={points} years={years} />
       {currentPosition ? (
         <p className="text-xs text-muted-foreground">
-          Сейчас в этом вкладе {formatMoney(currentPosition.value, currency)}, начислено +{formatEarningsMoney(currentPosition.earned, currency)}.
-          {acceleratedAccrual ? <span className="ml-2 inline-block rounded-full border px-2 py-0.5">Ускоренный режим</span> : null}
+          Сейчас в этом вкладе {formatMoney(currentPosition.value, currency)}, изменение стоимости +{formatEarningsMoney(currentPosition.earned, currency)}.
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          {acceleratedAccrual
-            ? "Расчёт ознакомительный. Ускоренный режим: 1 секунда = 1 день."
-            : "Расчёт ознакомительный. Начисление идёт в реальном времени."}
+          Расчёт ориентировочный и использует текущую ставку.
         </p>
       )}
     </Card>

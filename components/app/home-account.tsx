@@ -1,30 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
+import { useCrossmintAuth } from "@crossmint/client-sdk-react-ui";
 import { ChartNoAxesCombined, CircleUserRound } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isCrossmintConfigured } from "@/lib/config";
 import { formatEarningsMoney, formatMoney } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { MarketDataNote } from "@/components/app/market-data-note";
 
 export function AccountGreeting() {
-  if (!isCrossmintConfigured) return <GreetingContents />;
-  return <GreetingWithAccount />;
+  const { user } = useCrossmintAuth();
+  return <GreetingContents email={user?.email} />;
 }
 
-function GreetingWithAccount() {
-  const { user, status } = useCrossmintAuth();
-  const { wallet } = useWallet();
-  const loggedIn = status === "logged-in" && Boolean(user?.email && wallet?.address);
-  return <GreetingContents email={user?.email} loggedIn={loggedIn} />;
-}
-
-function GreetingContents({ email, loggedIn = false }: { email?: string; loggedIn?: boolean }) {
+function GreetingContents({ email }: { email?: string }) {
   const name = email?.split("@")[0];
 
   return (
@@ -34,7 +25,6 @@ function GreetingContents({ email, loggedIn = false }: { email?: string; loggedI
           <p className="text-xl font-semibold tracking-tight">
             Привет{name ? `, ${name}` : ""}
           </p>
-          {!loggedIn ? <Badge variant="secondary">Демо</Badge> : null}
         </div>
         <p className="mt-1 text-sm text-muted-foreground">Ваш капитал в одном месте</p>
       </div>
@@ -59,7 +49,6 @@ export function BalanceCard({
   currency,
   hydrated,
   onCurrencyChange,
-  mode,
 }: {
   total: number;
   cashUsd: number;
@@ -67,9 +56,8 @@ export function BalanceCard({
   currency: "USD" | "KZT";
   hydrated: boolean;
   onCurrencyChange: (currency: "USD" | "KZT") => void;
-  mode: "devnet" | "demo";
 }) {
-  const { marketData, acceleratedAccrual } = useAppStore();
+  const { marketData } = useAppStore();
   return (
     <Card className="gap-5 rounded-2xl border-emerald-600/20 bg-card p-5 ring-1 ring-emerald-600/10 dark:border-emerald-400/20 dark:ring-emerald-400/10">
       <div className="flex items-start justify-between gap-3">
@@ -80,9 +68,6 @@ export function BalanceCard({
               {formatMoney(total, currency)}
             </p>
           ) : <Skeleton className="mt-2 h-10 w-44" />}
-          <Badge variant={mode === "devnet" ? "outline" : "secondary"} className="mt-2">
-            {mode === "devnet" ? "Тестовая сеть Solana" : "Демо"}
-          </Badge>
         </div>
         <div
           role="group"
@@ -121,7 +106,6 @@ export function BalanceCard({
         <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
           <ChartNoAxesCombined className="size-4" />
           <span>+{formatEarningsMoney(earnings, currency)} доход за всё время</span>
-          {acceleratedAccrual ? <Badge variant="outline">Ускоренный режим</Badge> : null}
         </div>
       ) : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
     </Card>

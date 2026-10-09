@@ -7,11 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatActivityDay, formatMoney } from "@/lib/format";
 import { useAppStore, type ActivityItem } from "@/lib/store";
 import { useNow } from "@/lib/useNow";
-import { useBankEmbed } from "@/lib/useBankEmbed";
 
 export function ActivityScreen() {
   const { activity, displayCurrency, hydrated } = useAppStore();
-  const bankEmbed = useBankEmbed();
   const now = useNow();
 
   if (!hydrated || now === null) {
@@ -59,7 +57,6 @@ export function ActivityScreen() {
                 key={item.id}
                 item={item}
                 currency={displayCurrency}
-                bankEmbed={bankEmbed}
               />
             ))}
           </div>
@@ -72,11 +69,9 @@ export function ActivityScreen() {
 function ActivityRow({
   item,
   currency,
-  bankEmbed,
 }: {
   item: ActivityItem;
   currency: "USD" | "KZT";
-  bankEmbed: boolean;
 }) {
   const isInflow = item.type === "topup" || (item.type === "withdraw" && item.title.startsWith("Вывод:"));
   const Icon = item.type === "topup"
@@ -99,7 +94,7 @@ function ActivityRow({
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{item.title}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {time}{item.method ? ` · ${methodLabel(item.method, bankEmbed)}` : ""}
+          {time}{item.method ? ` · ${methodLabel(item.method)}` : ""}
         </p>
         {item.note ? <p className="mt-1 text-xs text-muted-foreground">{item.note}</p> : null}
         {item.explorerUrl ? (
@@ -120,21 +115,13 @@ function ActivityRow({
   );
 }
 
-function methodLabel(method: string, bankEmbed: boolean) {
+function methodLabel(method: string) {
   const labels: Record<string, string> = {
-    "devnet-faucet": "Тестовый банкомат",
-    "devnet-faucet-demo": "Демо",
+    "devnet-faucet": "Кран",
     moonpay: "Карта · MoonPay",
-    "moonpay-demo": "Демо",
     transak: "Карта · Transak",
-    "transak-demo": "Демо",
     crossmint: "Карта · Crossmint",
-    "crossmint-demo": "Демо",
-    mercuryo: "Карта · Mercuryo",
-    "mercuryo-demo": "Демо",
-    "bank-demo": "Счёт в Демо-банке",
-    kaspi: bankEmbed ? "Банковский перевод · концепт" : "Kaspi Pay · концепт",
-    freedom: bankEmbed ? "Банковский перевод · концепт" : "Freedom · концепт",
+    "bank-embed": "Со счёта в банке",
   };
   return labels[method] ?? method;
 }

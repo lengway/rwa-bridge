@@ -2,36 +2,20 @@
 
 import { ChevronDown, CircleHelp, Copy } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { YieldStrategy } from "@/lib/yields";
-import { useDevnet } from "@/lib/useDevnet";
 import { useAppStore } from "@/lib/store";
 import { getStrategyApy } from "@/lib/market-data";
 import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 
 export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
-  const devnet = useDevnet();
-  const { acceleratedAccrual } = useAppStore();
-  const steps = strategy.kind === "demo"
-    ? [
-        devnet.mode === "devnet"
-          ? "Вы отправляете тестовые доллары в казначейство Solana devnet."
-          : "Вы выбираете сумму в долларах из демо-баланса.",
-        devnet.mode === "devnet"
-          ? "Приложение выпускает vKZGB-DEMO — тестовую долю, а не токен облигации."
-          : "Приложение показывает условное вложение в тенговый продукт будущего.",
-        "Доходность на экране — ориентир индекса, не обещание выплаты. Токена самой облигации нет.",
-      ]
-    : [
-        "Эмитент сообщает, что токен обеспечен краткосрочными гособлигациями США и банковскими депозитами.",
-        "По описанию эмитента доход отражается в цене токена.",
-        devnet.mode === "devnet"
-          ? `Тестовые доллары переводятся в казначейство, а доходность начисляется в приложении${acceleratedAccrual ? " в ускоренном режиме" : " в реальном времени"}.`
-          : `В этой демо-версии вклад и начисления симулируются в приложении${acceleratedAccrual ? " в ускоренном режиме" : " в реальном времени"}; реальная покупка не выполняется.`,
-      ];
+  const steps = [
+    "Выберите сумму и подпишите перевод с кошелька.",
+    `После подтверждения операции доли ${strategy.ticker} поступят на ваш кошелёк.`,
+    strategy.description,
+  ];
 
   return (
     <>
@@ -40,9 +24,7 @@ export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
         <div className="space-y-2">
           {steps.map((step, index) => (
             <Card key={step} className="flex-row items-start gap-3 rounded-2xl p-4">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-                {index + 1}
-              </span>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{index + 1}</span>
               <p className="text-sm leading-5">{step}</p>
             </Card>
           ))}
@@ -51,16 +33,8 @@ export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Что вы получаете</h2>
         <Card className="gap-3 rounded-2xl p-4">
-          <p className="text-sm leading-6">
-            {strategy.kind === "live"
-              ? devnet.mode === "devnet"
-                ? "Тестовое вложение фиксируется переводом долларов в Solana devnet. Расчёт дохода остаётся демонстрационным; токен USDY не покупается."
-                : "Цифровой токен, стоимость которого, по описанию эмитента, отражает доход от обеспечивающих активов. В этой демо-версии покупка токена не выполняется: баланс вклада — симуляция."
-              : devnet.mode === "devnet"
-                ? "Вложение фиксируется транзакцией в Solana devnet, и пользователю выдаётся vKZGB-DEMO. Это тестовый SPL-токен, а не токен облигации mKZGB-DEMO; расчёт дохода демонстрационный."
-                : "Демонстрационную запись о вложении в будущий продукт. Токен mKZGB-DEMO не существует и доходность не является предложением купить облигацию."}
-          </p>
-          <p className="text-xs text-muted-foreground">Эмитент / модель: {strategy.issuer}</p>
+          <p className="text-sm leading-6">Токены доли {strategy.ticker} отражаются в кошельке и портфеле после подтверждения операции.</p>
+          <p className="text-xs text-muted-foreground">Эмитент / ориентир: {strategy.issuer}</p>
         </Card>
       </section>
     </>
@@ -75,14 +49,8 @@ export function RiskSection({ strategy }: { strategy: YieldStrategy }) {
         <CircleHelp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div className="space-y-2">
           <p className="text-sm leading-5">{strategy.riskLabel}</p>
-          <p className="text-sm leading-5">
-            {strategy.kind === "demo"
-              ? "Высокая ставка в тенге может частично или полностью быть съедена девальвацией к доллару. Сам токен демонстрационный."
-              : "Цена, доступность продажи и условия эмитента могут меняться. Возможна потеря части вложений."}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Не банковский вклад, не застраховано фондом гарантирования депозитов.
-          </p>
+          <p className="text-sm leading-5">Цена, доступность продажи и условия могут меняться. Возможна потеря части вложений.</p>
+          <p className="text-xs text-muted-foreground">Не банковский вклад, не застраховано фондом гарантирования депозитов.</p>
         </div>
       </Card>
     </section>
@@ -93,14 +61,7 @@ export function EligibilitySection({ strategy }: { strategy: YieldStrategy }) {
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Кому доступно</h2>
-      <Card className="gap-2 rounded-2xl p-4">
-        <p className="text-sm leading-5">{strategy.eligibilityLabel}</p>
-        {strategy.id === "kz-bond-demo" ? (
-          <p className="text-xs text-muted-foreground">
-            Это только демонстрация. Мы не представляемся партнёром биржи или государственного органа.
-          </p>
-        ) : null}
-      </Card>
+      <Card className="gap-2 rounded-2xl p-4"><p className="text-sm leading-5">{strategy.eligibilityLabel}</p></Card>
     </section>
   );
 }
@@ -121,51 +82,35 @@ export function TechnicalDetails({ strategy }: { strategy: YieldStrategy }) {
       toast.error("Не удалось скопировать адрес");
     }
   };
+
   return (
     <Collapsible>
       <Card className="rounded-2xl p-0">
         <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 p-4 text-left font-medium">
-          <span>Технические детали</span>
-          <ChevronDown className="size-4" />
+          <span>Технические детали</span><ChevronDown className="size-4" />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-3 border-t px-4 py-4 text-xs leading-5 text-muted-foreground">
           <p>Тикер: <span className="font-mono text-foreground">{strategy.ticker}</span></p>
           {strategy.mintAddress ? (
             <div className="flex flex-wrap items-center gap-1">
-              <span>Адрес токена:</span>
+              <span>Mint:</span>
               <a className="font-mono underline underline-offset-2" href={`https://solscan.io/token/${strategy.mintAddress}`} target="_blank" rel="noopener noreferrer" title={strategy.mintAddress}>{`${strategy.mintAddress.slice(0, 6)}…${strategy.mintAddress.slice(-5)}`}</a>
               <Button variant="ghost" size="icon" className="ml-1 size-6" aria-label="Скопировать адрес токена" onClick={() => void copyMint()}><Copy /></Button>
             </div>
-          ) : <p>Адрес токена: токен не существует.</p>}
+          ) : <p>Mint доли загружается из настроек продукта.</p>}
           {strategy.sourceUrl ? (
             <div className="space-y-1">
-              <p>
-                Документация эмитента: <a href={strategy.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">адрес токена</a>. APY {marketApyLabel(apy, apyAvailable)}.
-              </p>
+              <p>Документация эмитента: <a href={strategy.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">адрес токена</a>. APY {marketApyLabel(apy, apyAvailable)}.</p>
               <MarketDataNote data={apyData} />
             </div>
           ) : (
             <div className="space-y-1">
-              <p>Ориентир {marketApyLabel(apy, apyAvailable)}. Это демонстрационный показатель, не предложение от биржи или банка.</p>
+              <p>Ориентир доходности: {marketApyLabel(apy, apyAvailable)}. Источник — индекс государственных облигаций KASE.</p>
               <MarketDataNote data={apyData} />
             </div>
           )}
         </CollapsibleContent>
       </Card>
     </Collapsible>
-  );
-}
-
-export function DemoDisclosure() {
-  const devnet = useDevnet();
-  return (
-    <Card className="gap-2 rounded-2xl bg-muted/40 p-4">
-      <Badge variant="outline" className="w-fit">Демо-продукт</Badge>
-      <p className="text-sm leading-5">
-        Токена самой тенговой облигации в приложении нет. {devnet.mode === "devnet"
-          ? "Операции проходят в тестовой сети Solana (devnet): тестовый перевод и выпуск vKZGB-DEMO. Доходность остаётся демонстрационной."
-          : "Покупка изменит только демо-баланс."}
-      </p>
-    </Card>
   );
 }

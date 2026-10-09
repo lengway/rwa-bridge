@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { DEMO_OFFICE_ASSET } from "@/lib/assets";
+import { OFFICE_ASSET } from "@/lib/assets";
 import {
   appendMigration,
   getLedgerWallet,
@@ -98,8 +98,8 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
   const knownMints = new Map<string, Omit<Holding, "tokenAccount" | "balance" | "valueUsd" | "costUsd" | "pnlUsd" | "mintExplorerUrl" | "tokenAccountExplorerUrl">>();
   knownMints.set(devnetConfig.usdMint, {
     kind: "cash",
-    name: "Тестовые доллары",
-    ticker: "тест. долларов",
+    name: "Доллары",
+    ticker: "USD",
     mint: devnetConfig.usdMint,
     priceUsd: 1,
   });
@@ -116,9 +116,9 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
   }
   knownMints.set(devnetConfig.assetMint, {
     kind: "asset",
-    assetId: DEMO_OFFICE_ASSET.id,
-    name: DEMO_OFFICE_ASSET.name,
-    ticker: "OFFICE-DEMO",
+    assetId: OFFICE_ASSET.id,
+    name: OFFICE_ASSET.name,
+    ticker: "OFFICE",
     mint: devnetConfig.assetMint,
     priceUsd: 1,
   });
@@ -164,10 +164,10 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
       costUsd = issued > 0 ? cost * Math.min(balance, issued) / issued : valueUsd;
     } else if (config.kind === "asset") {
       const totalCost = ledger.purchases
-        .filter((purchase) => purchase.assetId === DEMO_OFFICE_ASSET.id)
+        .filter((purchase) => purchase.assetId === OFFICE_ASSET.id)
         .reduce((total, purchase) => total + purchase.amountUsd, 0);
       const totalUnits = ledger.purchases
-        .filter((purchase) => purchase.assetId === DEMO_OFFICE_ASSET.id)
+        .filter((purchase) => purchase.assetId === OFFICE_ASSET.id)
         .reduce((total, purchase) => total + purchase.units, 0);
       costUsd = totalUnits > 0 ? totalCost * Math.min(balance, totalUnits) / totalUnits : valueUsd;
     }
@@ -201,7 +201,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
       shares: holding.balance,
       priceUsd: holding.priceUsd,
       valueUsd: holding.valueUsd,
-      apy: quoteByProduct.get(holding.productId!)?.apy ?? strategy?.demoApy ?? 0,
+      apy: quoteByProduct.get(holding.productId!)?.apy ?? strategy?.fallbackApy ?? 0,
     };
   });
 
@@ -228,7 +228,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!mintRow) continue;
     recordMerged(deposit.signature, deposit.mintSignature, {
       id: deposit.mintSignature,
-      title: `Вклад · −${deposit.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} тест. долларов, +${deposit.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}`,
+      title: `Вклад · −${deposit.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долларов, +${deposit.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}`,
       type: "invest",
       amountUsd: deposit.amountUsd,
       at: Math.max(deposit.at, mintRow.at),
@@ -243,7 +243,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!quote || !payoutRow) continue;
     recordMerged(withdrawal.signature, withdrawal.payoutSignature, {
       id: withdrawal.payoutSignature,
-      title: `Вывод · −${withdrawal.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}, +${(withdrawal.amountUsd ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} тест. долларов`,
+      title: `Вывод · −${withdrawal.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}, +${(withdrawal.amountUsd ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долларов`,
       type: "withdraw",
       amountUsd: withdrawal.amountUsd ?? 0,
       at: Math.max(withdrawal.at, payoutRow.at),
@@ -256,7 +256,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!mintRow) continue;
     recordMerged(purchase.paymentSignature, purchase.mintSignature, {
       id: purchase.mintSignature,
-      title: `Покупка · −${purchase.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} тест. долларов, +${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} OFFICE-DEMO`,
+      title: `Покупка · −${purchase.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долларов, +${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} OFFICE`,
       type: "buy",
       amountUsd: purchase.amountUsd,
       at: Math.max(purchase.at, mintRow.at),

@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { useCrossmintAuth, useWallet } from "@crossmint/client-sdk-react-ui";
 import { Activity, ArrowLeft, BriefcaseBusiness, House, Landmark, PieChart } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useBankEmbed } from "@/lib/useBankEmbed";
+import { isCrossmintConfigured } from "@/lib/config";
 
 const tabs = [
   { href: "/home", label: "Главная", icon: House },
@@ -23,6 +26,49 @@ const titles: Record<string, string> = {
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  if (!isCrossmintConfigured) return <SignInScreen />;
+  return <AuthenticatedAppShell>{children}</AuthenticatedAppShell>;
+}
+
+function AuthenticatedAppShell({ children }: { children: React.ReactNode }) {
+  const { login, status } = useCrossmintAuth();
+  const { wallet } = useWallet();
+
+  if (status === "initializing" || (status === "logged-in" && !wallet?.address)) {
+    return <AuthLoader />;
+  }
+  if (status !== "logged-in") return <SignInScreen onLogin={login} busy={status === "in-progress"} />;
+  return <SignedInShell>{children}</SignedInShell>;
+}
+
+function AuthLoader() {
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-muted/40" aria-label="Загрузка">
+      <div className="size-8 animate-spin rounded-full border-2 border-muted-foreground/25 border-t-foreground" />
+    </main>
+  );
+}
+
+function SignInScreen({ onLogin, busy = false }: { onLogin?: () => void; busy?: boolean }) {
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
+      <section className="w-full max-w-md space-y-5 rounded-3xl border bg-background p-7 text-center shadow-sm sm:p-9">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight">RWA Bridge</h1>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Доход на реальных активах. Вход по email — кошелёк Solana создаётся автоматически.
+          </p>
+        </div>
+        <Button className="w-full" size="lg" onClick={onLogin} disabled={!onLogin || busy}>
+          Войти по email
+        </Button>
+        <p className="text-xs text-muted-foreground">Работает в сети Solana devnet</p>
+      </section>
+    </main>
+  );
+}
+
+function SignedInShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bankEmbed = useBankEmbed();
   const isEarnDetail = /^\/earn\/[^/]+/.test(pathname);
@@ -59,6 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ) : null}
             <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h1>
+            <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">devnet</span>
           </header>
         ) : null}
         <main className="flex-1 px-4 pb-28 pt-5">{children}</main>

@@ -5,9 +5,8 @@ import nodemailer, { type Transporter } from "nodemailer";
 export type ReceiptKind =
   | "welcome"
   | "faucet"
-  | "bank-demo"
+  | "bank-embed"
   | "transak"
-  | "moonpay"
   | "invest"
   | "redemption"
   | "asset-purchase"
@@ -24,12 +23,11 @@ export type Receipt = {
 const labels: Record<ReceiptKind, string> = {
   welcome: "Добро пожаловать",
   faucet: "Пополнение тестовыми долларами",
-  "bank-demo": "Пополнение через Демо-банк",
+  "bank-embed": "Пополнение со счёта в банке",
   transak: "Пополнение через Transak",
-  moonpay: "Пополнение через MoonPay",
   invest: "Вложение в тестовой сети",
   redemption: "Погашение долей",
-  "asset-purchase": "Покупка демо-актива",
+  "asset-purchase": "Покупка доли OFFICE",
   "wallet-send": "Перевод тестовых долларов",
 };
 
@@ -92,10 +90,10 @@ export async function sendReceipt({ to, kind, amountUsd, details, explorerUrl }:
     ? `<a href="${escapeHtml(href)}" style="display:inline-block;background:#172554;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">Открыть в обозревателе</a>`
     : "";
   const isWelcome = kind === "welcome";
-  const html = `<!doctype html><html lang="ru"><body style="margin:0;background:#f4f6fa;color:#172033;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e8f0;border-radius:14px"><tr><td style="padding:28px"><p style="margin:0 0 24px;color:#64748b;font-size:14px;font-weight:700;letter-spacing:.04em">RWA Bridge</p><h1 style="margin:0 0 18px;font-size:24px;line-height:1.3">${isWelcome ? "Добро пожаловать" : escapeHtml(label)}</h1>${isWelcome ? "<p style=\"margin:0 0 20px;color:#475569;line-height:1.6\">Начните с тестового пополнения, откройте вклад или купите долю демо-актива. Все действия проходят в тестовой сети.</p>" : `<p style="margin:0 0 8px;color:#64748b;font-size:13px">Сумма</p><p style="margin:0 0 20px;font-size:24px;font-weight:700">${formattedAmount}</p><p style="margin:0 0 22px;color:#475569;line-height:1.6">${safeDetails}</p>`}${button ? `<p style="margin:0 0 26px">${button}</p>` : ""}<p style="margin:0;padding-top:18px;border-top:1px solid #e4e8f0;color:#64748b;font-size:12px;line-height:1.6">Тестовая сеть Solana devnet · тестовые деньги</p></td></tr></table></td></tr></table></body></html>`;
+  const html = `<!doctype html><html lang="ru"><body style="margin:0;background:#f4f6fa;color:#172033;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e8f0;border-radius:14px"><tr><td style="padding:28px"><p style="margin:0 0 24px;color:#64748b;font-size:14px;font-weight:700;letter-spacing:.04em">RWA Bridge</p><h1 style="margin:0 0 18px;font-size:24px;line-height:1.3">${isWelcome ? "Добро пожаловать" : escapeHtml(label)}</h1>${isWelcome ? "<p style=\"margin:0 0 20px;color:#475569;line-height:1.6\">Пополните баланс, откройте вклад или купите долю OFFICE. Подтверждённые операции доступны в сети Solana devnet.</p>" : `<p style="margin:0 0 8px;color:#64748b;font-size:13px">Сумма</p><p style="margin:0 0 20px;font-size:24px;font-weight:700">${formattedAmount}</p><p style="margin:0 0 22px;color:#475569;line-height:1.6">${safeDetails}</p>`}${button ? `<p style="margin:0 0 26px">${button}</p>` : ""}<p style="margin:0;padding-top:18px;border-top:1px solid #e4e8f0;color:#64748b;font-size:12px;line-height:1.6">Solana devnet · тестовые доллары</p></td></tr></table></td></tr></table></body></html>`;
   const text = isWelcome
-    ? "Добро пожаловать в RWA Bridge. Попробуйте тестовое пополнение, вклад или покупку доли демо-актива. Все действия проходят в тестовой сети Solana devnet на тестовые деньги."
-    : `RWA Bridge — ${label}\nСумма: ${formattedAmount}\n${details}${href ? `\nОткрыть в обозревателе: ${href}` : ""}\n\nТестовая сеть Solana devnet · тестовые деньги`;
+    ? "Добро пожаловать в RWA Bridge. Пополните баланс, откройте вклад или купите долю OFFICE. Подтверждённые операции доступны в сети Solana devnet."
+    : `RWA Bridge — ${label}\nСумма: ${formattedAmount}\n${details}${href ? `\nОткрыть в обозревателе: ${href}` : ""}\n\nSolana devnet · тестовые доллары`;
 
   await getTransport().sendMail({
     from: process.env.MAIL_FROM,

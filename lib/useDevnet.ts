@@ -70,7 +70,6 @@ export type DevnetPortfolio = {
   unassignedDepositsUsd: number;
 };
 export type DevnetState = {
-  mode: "devnet" | "demo";
   walletAddress: string | null;
   usdMint: string | null;
   assetMint: string | null;
@@ -85,7 +84,6 @@ export type DevnetState = {
 };
 
 const defaultState: DevnetState = {
-  mode: "demo",
   walletAddress: null,
   usdMint: null,
   assetMint: null,

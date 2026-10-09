@@ -2,13 +2,12 @@ import Link from "next/link";
 import { ArrowDownToLine, BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { DEMO_ASSETS } from "@/lib/assets";
+import { BRIDGE_ASSETS } from "@/lib/assets";
 import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
 import { useAppStore, type Holding, type YieldPosition } from "@/lib/store";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 import { getStrategyApy } from "@/lib/market-data";
 import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
-import { useDevnet } from "@/lib/useDevnet";
 
 type PositionItem = {
   strategy: YieldStrategy;
@@ -17,7 +16,7 @@ type PositionItem = {
 };
 
 type HoldingItem = {
-  asset: (typeof DEMO_ASSETS)[number];
+  asset: (typeof BRIDGE_ASSETS)[number];
   holding: Holding;
 };
 
@@ -28,8 +27,6 @@ export function PositionSection({
   positions: PositionItem[];
   currency: "USD" | "KZT";
 }) {
-  const { acceleratedAccrual } = useAppStore();
-  const devnet = useDevnet();
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -39,18 +36,12 @@ export function PositionSection({
       <div className="space-y-2">
         {positions.map((item) => <PositionCard key={item.strategy.id} item={item} currency={currency} />)}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {devnet.mode === "devnet"
-          ? "Стоимость позиции следует цене долей в Solana devnet."
-          : acceleratedAccrual ? "Ускоренный режим начислений: 1 секунда = 1 день." : "Начисления идут в реальном времени."}
-      </p>
     </section>
   );
 }
 
 function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" | "KZT" }) {
-  const { acceleratedAccrual, marketData } = useAppStore();
-  const devnet = useDevnet();
+  const { marketData } = useAppStore();
   const { strategy, position, earned } = item;
   const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
   const apyData = strategy.id === "ondo-usdy"
@@ -59,25 +50,22 @@ function PositionCard({ item, currency }: { item: PositionItem; currency: "USD" 
   const apyLabel = marketApyLabel(getStrategyApy(strategy.id, marketData.yields), apyAvailable);
   return (
     <Card className="gap-0 rounded-2xl p-0 transition-colors hover:bg-muted/40">
-      <Link href={`/earn/${strategy.id}`} className="flex items-center gap-3 p-4">
+      <Link href={`/earn/${strategy.slug}`} className="flex items-center gap-3 p-4">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
           <BadgeCheck className="size-5" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{strategy.name}</span>
           <span className="mt-1 block text-xs text-muted-foreground">
-            {devnet.mode === "devnet"
-              ? `${formatQuantity(position.shares ?? 0)} ${strategy.id === "ondo-usdy" ? "vUSDY-DEMO" : "vKZGB-DEMO"} · ${apyLabel}`
-              : `Вложено ${formatMoney(position.principal, currency)} · ${apyLabel}`}
+            `${formatQuantity(position.shares ?? 0)} ${strategy.ticker} · ${apyLabel}`
           </span>
         </span>
         <span className="text-right">
           <span className="block font-medium tabular-nums">
-            {formatMoney(position.principal + earned, currency)}
+            {formatMoney(position.valueUsd ?? position.principal + earned, currency)}
           </span>
           <span className="mt-1 block text-xs tabular-nums text-emerald-600 dark:text-emerald-400">
             +{formatEarningsMoney(earned, currency)}
-            {devnet.mode === "devnet" ? <span className="ml-1 rounded-full border px-1.5 py-0.5">В сети Solana</span> : acceleratedAccrual ? <span className="ml-1 rounded-full border px-1.5 py-0.5">Ускоренный режим</span> : null}
           </span>
         </span>
       </Link>
@@ -95,13 +83,12 @@ export function HoldingsSection({
   holdings: HoldingItem[];
   currency: "USD" | "KZT";
 }) {
-  const devnet = useDevnet();
   return (
     <section className="space-y-3">
       <h2 className="text-base font-semibold">Ваши активы</h2>
       <div className="space-y-2">
         {holdings.map(({ asset, holding }) => (
-          <Link key={asset.id} href={`/assets/${asset.id}`} className="block">
+          <Link key={asset.id} href={`/assets/${asset.slug}`} className="block">
             <Card className="flex-row items-center gap-3 rounded-2xl p-4">
               <span className="flex size-10 items-center justify-center rounded-full bg-muted text-sm font-semibold">
                 {asset.ticker.slice(0, 2)}
@@ -109,7 +96,7 @@ export function HoldingsSection({
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{asset.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {formatQuantity(holding.units, 0)} {devnet.mode === "devnet" ? "OFFICE-DEMO" : "долей · демо"}
+                  {formatQuantity(holding.units, 0)} {asset.ticker}
                 </span>
               </span>
               <span className="font-medium tabular-nums">{formatMoney(holding.costUsd, currency)}</span>
@@ -129,7 +116,7 @@ export function PromoCard() {
   const apyData = apyAvailable ? marketData.yields.usdy : null;
   return (
     <Card className="gap-3 rounded-2xl border-emerald-600/20 bg-emerald-500/5 p-5">
-      <Link href={`/earn/${strategy.id}`} className="block space-y-3">
+      <Link href={`/earn/${strategy.slug}`} className="block space-y-3">
         <div className="flex items-center justify-between">
           <Badge variant="secondary" className={apyAvailable ? "text-emerald-700 dark:text-emerald-300" : "font-normal text-muted-foreground"}>
             {marketApyLabel(apy, apyAvailable)} годовых
@@ -139,7 +126,7 @@ export function PromoCard() {
         <div>
           <h2 className="font-semibold">Долларовый вклад</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Посмотрите, как цифровые доллары (USDC) могут получать доход.
+            Цена доли следует доходности USDY, публикуемой Ondo через DefiLlama.
           </p>
         </div>
       </Link>

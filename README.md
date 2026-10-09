@@ -2,13 +2,13 @@
 
 **A seamless yield layer between everyday money and tokenized real-world assets, on Solana.**
 
-Sign in with email, get an embedded Solana wallet, add money, and earn yield from tokenized US Treasuries or own fractional real estate. No seed phrases, no gas, no jargon. Every balance in the app is a token in the user's own wallet.
+Sign in with email (the only way in), get an embedded Solana wallet, add money, and earn yield from tokenized US Treasuries or own fractional real estate. No seed phrases, no gas, no jargon. Every balance in the app is a token in the user's own wallet.
 
 - **Live app (Solana devnet, test money):** https://plain.lengway.me
-- **Bank embedding demo:** https://plain.lengway.me/demo-bank
+- **Bank embedding example:** https://plain.lengway.me/bank
 - **Architecture and money flows:** [docs/architecture.md](docs/architecture.md)
 - **User stories:** [docs/user-stories.md](docs/user-stories.md)
-- **Demo script:** [docs/demo-script.md](docs/demo-script.md)
+- **Video script:** [docs/demo-script.md](docs/demo-script.md)
 
 ## What works today
 
@@ -18,9 +18,9 @@ Sign in with email, get an embedded Solana wallet, add money, and earn yield fro
 | Add money: test ATM | Server mints test dollars (USDC stand-in) to the wallet |
 | Add money: card (Transak, MoonPay test modes) | Provider order verified server-side, then test dollars minted |
 | Add money: inside a bank | Bank-style confirmation in tenge, then test dollars minted |
-| Deposit into a yield vault | User-signed transfer to the treasury, verified, then vault share tokens (vUSDY-DEMO / vKZGB-DEMO) minted; share price follows the live APY |
+| Deposit into a yield vault | User-signed transfer to the treasury, verified, then vault share tokens (vUSDY / vKZGB) minted; share price follows the live APY |
 | Withdraw | Shares sent back and burned, dollars paid at the current share price |
-| Buy a fractional asset | Payment verified, OFFICE-DEMO tokens minted 1:1 |
+| Buy a fractional asset | Payment verified, OFFICE tokens minted 1:1 |
 | Send to any wallet / card off-ramp | Plain SPL transfer / MoonPay sell widget (deposit simulated on devnet) |
 | Portfolio | Read from the wallet's token accounts with explorer links and on-chain history |
 | Receipts | Email per operation via Gmail SMTP, only to the verified login email |
@@ -32,14 +32,14 @@ Live data: USD/KZT from the National Bank of Kazakhstan, USDY APY from DefiLlama
 | Token | Mint |
 |---|---|
 | Test dollar | `Hx7e212hfKYHNV5jdfV4R9NQ5JHCdt9w1g4aGYk7cSaV` |
-| vUSDY-DEMO | `NybngzX175W1p8xoL1yikAV2WnpQzHihMKgGnmifPD4` |
-| vKZGB-DEMO | `Fn1idY7FZB4C3JaV5yZorqPUTg8sZN3ZHgqCp7mMJiAi` |
-| OFFICE-DEMO | `51UTD1qdeMmfudZdcWXgBVUoZNu4etKRDzRbkfBi9NR9` |
+| vUSDY | `NybngzX175W1p8xoL1yikAV2WnpQzHihMKgGnmifPD4` |
+| vKZGB | `Fn1idY7FZB4C3JaV5yZorqPUTg8sZN3ZHgqCp7mMJiAi` |
+| OFFICE | `51UTD1qdeMmfudZdcWXgBVUoZNu4etKRDzRbkfBi9NR9` |
 | Treasury owner | `8Mdmu9GN72J1scQC15SAa9pvDGpNMNJhxrPbCi3nQ6iD` |
 
-## Honest status
+## Status
 
-This is a devnet build with test money. Vault shares are priced from the live USDY yield, but we do not hold real USDY yet. The office building and the local bond token are fictional demos. Card providers run in their test modes. No bank, exchange or issuer named in the app is a partner.
+The product runs on Solana devnet with test dollars. Vault shares and asset tokens are issued by the app on devnet; vault prices follow the live USDY yield. Going to mainnet means holding real issuer tokens (e.g. USDY) and licensed fiat partners; those steps are described as user stories, not built yet. Card providers run in their test environments. No bank, exchange or issuer named in the docs is a partner.
 
 ## Stack
 
@@ -57,171 +57,61 @@ node scripts/devnet-smoke.mjs   # end-to-end check of every money flow
 
 ---
 
-# Разработка (RU)
+# Приложение (RU)
 
-Один вход (email, без seed-фразы) → тестовые доллары в Solana devnet → портфель из
-вкладов и токенизированных активов на одном экране. Контекст и полный план — в документе
-«RWA-агрегатор — план проекта» (см. родительский репозиторий).
+RWA Bridge работает в сети Solana devnet. Вход через Crossmint по email обязателен; после входа Solana-кошелёк создаётся автоматически. Главная страница `/` и банковская витрина `/bank` доступны публично, а приложение внутри банковской витрины требует такую же авторизованную сессию.
 
-Что уже реально работает, если добавить ключи:
+Баланс, позиции, доли активов и история операций загружаются из on-chain портфеля пользователя. Локально сохраняется только выбранная валюта отображения. Локальных балансов и финансовой истории в приложении нет.
 
-- **Вход и кошелёк** — Crossmint embedded wallet (email login, без seed-фразы),
-  Solana. Staging-ключ = devnet, бесплатно.
-- **Пополнение и переводы** — после входа и настройки сервера «Тестовый банкомат» выпускает
-  наши тестовые доллары SPL в кошелёк пользователя на devnet. Вклад переводит доллары в
-  казначейство и выпускает пользователю доли `vUSDY-DEMO` или `vKZGB-DEMO` как SPL-токены.
-  Вывод отправляет доли в казначейство, погашает их и возвращает тестовые доллары. Покупка
-  OFFICE-DEMO и отправка на другой кошелёк тоже проходят в сети.
-- **Доход на реальных активах (RWA)** — две карточки (см. `lib/yields.ts`):
-  - «Долларовый вклад» — Ondo USDY на Solana (гособлигации США). Адрес токена взят из
-    официальной документации Ondo, APY берётся из датированного пула DefiLlama. Резервное
-    значение — 3,75% по публичной странице Ondo на 2 октября 2026 года. Для демо-вклада
-    приложение выпускает собственный `vUSDY-DEMO`; это не токен Ondo и не реальная подписка на USDY.
-  - «Тенговые облигации (демо)» — реального токена `mKZGB-DEMO` не существует. Приложение
-    выпускает собственный `vKZGB-DEMO` и показывает ориентир доходности индекса KASE.
-  - Цена долей растёт в реальном времени по APY продукта. Ускоренный режим доступен только в локальном демо.
-- **Покупка демо-актива** — выдуманный объект «Офисное здание» выдаётся как наш SPL-токен
-  `OFFICE-DEMO` (1 токен = $1 условной доли) на кошелёк пользователя в Solana devnet. Это
-  настоящие транзакции оплаты и выпуска демонстрационного токена.
-  Токены создаются один раз: `node scripts/setup-devnet.mjs`.
+## Доступные операции
 
-Что **не** подключено намеренно (см. `lib/assets.ts`):
+- **Кран Solana devnet** — выпускает тестовые доллары SPL в кошелёк пользователя.
+- **Карта · Transak** — staging-заказ проверяется сервером; подтверждённая сумма зачисляется тестовыми долларами в devnet.
+- **Карта · Crossmint** — заказ создаётся через серверный Crossmint onramp.
+- **Со счёта в банке** — доступно внутри `/bank`; после подтверждения оплаты в банковской витрине тестовые доллары выпускаются в кошелёк.
+- **Вклад** — доллары переводятся в казначейство, а доли `vUSDY` или `vKZGB` выпускаются как SPL-токены. Цена доли обновляется в реальном времени.
+- **Погашение вклада** — доли отправляются в казначейство и сжигаются, доллары возвращаются в кошелёк.
+- **Доля недвижимости** — оплата проверяется в сети, после чего токены `OFFICE` выпускаются в кошелёк; 1 `OFFICE` соответствует $1 доли объекта.
+- **MoonPay** доступен только во вкладке вывода на карту. Перевод в MoonPay в сети devnet перемещает тестовые доллары в казначейство.
 
-- `XSTOCKS_DEMO_ASSET` — карточка показывает актив, но кнопка покупки отключена:
-  адрес контракта в коде — placeholder, не проверен по официальной документации
-  Backed/xStocks. Перед тем как это заработает по-настоящему, нужно (1) подставить
-  реальный mint address, (2) провести маршрут свопа USDC → AAPLx через DEX.
+Токены `vUSDY` отслеживают доходность USDY, публикуемую Ondo через DefiLlama. `vKZGB` ссылается на индекс государственных облигаций KASE. Данные курса USD/KZT, APY и котировок показывают источник и дату.
 
-## Настройка
+## Запуск и настройка
 
 ```bash
 cp .env.example .env.local
 npm install
+node scripts/setup-devnet.mjs
 npm run dev
 ```
 
-Открой [http://localhost:3000](http://localhost:3000). В demo-режиме без входа или
-настроенного devnet приложение продолжает работать с локальным балансом и симуляциями.
-В devnet-режиме вошедший пользователь получает SPL тестовые доллары, а позиции представлены
-SPL-долями `vUSDY-DEMO` и `vKZGB-DEMO`. Вклад, погашение долей и покупки фиксируются
-транзакциями в Solana devnet. Вкладка «Портфель» показывает токеновые балансы, оценку по
-текущей цене доли, on-chain историю и адреса mint/token account.
+Для работы задайте staging-ключи Crossmint и ключи нужных платёжных провайдеров. Серверные переменные для devnet mint сохраняют текущие имена:
 
-Ключи по порядку (весь пилот можно поднять бесплатно на тестовых/staging-ключах):
+- `DEMO_TOKEN_MINT`
+- `DEMO_USD_MINT`
+- `DEMO_VAULT_USDY_MINT`
+- `DEMO_VAULT_KZGB_MINT`
+- `DEMO_TOKEN_AUTHORITY_SECRET`
 
-1. **`NEXT_PUBLIC_CROSSMINT_API_KEY`** — staging client key с
-   [console.crossmint.com](https://staging.crossmint.com/console), scope Wallets.
-   Включает вход и кошелёк.
-2. **`CROSSMINT_SERVER_API_KEY`** — staging server key (`sk_staging_…`) из той же
-   консоли. Включает онрамп Crossmint (сервер создаёт заказ на USDC).
-3. **`DEMO_TOKEN_MINT` + `DEMO_USD_MINT` + `DEMO_VAULT_USDY_MINT` + `DEMO_VAULT_KZGB_MINT` + `DEMO_TOKEN_AUTHORITY_SECRET`** — выполни
-   `node scripts/setup-devnet.mjs`. Скрипт создаёт OFFICE-DEMO, тестовый доллар, два mint долей и treasury ATA.
-   Если авто-раздача SOL не сработает, пополни выведенный адрес на faucet.solana.com и
-   запусти скрипт ещё раз (ключ хранится в `.demo-authority.json`, который в `.gitignore`).
-   Можно указать собственный `SOLANA_RPC_URL`; по умолчанию используется devnet RPC.
-4. **`NEXT_PUBLIC_MERCURYO_WIDGET_ID`** (+ `NEXT_PUBLIC_MERCURYO_WIDGET_HOST` для
-   песочницы) — запасной онрамп Mercuryo.
-5. **`NEXT_PUBLIC_TRANSAK_API_KEY` + `TRANSAK_API_SECRET`** — тестовый виджет Transak.
-   API secret хранится только на сервере; обе staging-учётные записи нужны из
-   [кабинета Transak](https://dashboard.transak.com/).
+`node scripts/setup-devnet.mjs` создаёт mint `OFFICE`, тестовый доллар, два mint долей и адрес казначейства. Если автоматическая выдача SOL не сработает, пополните адрес полномочий через Solana devnet faucet и повторите запуск. При необходимости можно указать `SOLANA_RPC_URL`.
 
-6. **`NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY` + `MOONPAY_SECRET_KEY`** — покупка и вывод
-   через MoonPay в sandbox. Создайте тестовые ключи в [MoonPay Dashboard → Developers →
-   API Keys](https://dashboard.moonpay.com/developers/api-keys). Публичный ключ начинается
-   с `pk_test_`; секретный `sk_test_` используется только сервером для подписи ссылок и
-   не должен иметь префикс `NEXT_PUBLIC_`. Без `MOONPAY_SECRET_KEY` виджет не откроется;
-   пополнение предложит демо-режим. Ссылки строятся по [Buy URL integration](https://moonpay.readme.io/docs/on-ramp-integrate-using-simple-url)
-   и [Sell URL integration](https://moonpay.readme.io/docs/off-ramp-how-to-integrate-using-simple-url),
-   а HMAC URL signature создаётся на сервере.
+Для карточного пополнения Transak задайте `NEXT_PUBLIC_TRANSAK_API_KEY` и `TRANSAK_API_SECRET`. Для Crossmint — `CROSSMINT_SERVER_API_KEY`. MoonPay использует `NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY` и `MOONPAY_SECRET_KEY`; он остаётся доступен для вывода на карту. Настройки писем необязательны: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` и `MAIL_FROM`.
 
-   В sandbox для покупки можно использовать Visa `4242 4242 4242 4242`, срок `12/2030`,
-   CVC `123` (3DS Challenge, UK). Для тестового аккаунта укажите email
-   `test-demo@moonpay.test` и код `123456`; для телефона используйте `+1 500 555 0000`,
-   выберите код страны `+1` и введите код `123456`. Для тестовой выплаты на карту укажите Visa
-   `4000 0209 5159 5032`, срок `12/2030`, CVC `123`. Введённые данные KYC не проверяются;
-   документы можно пропустить. MoonPay рекомендует тестовому аккаунту адрес США или
-   Великобритании. Полный список карт и шаги sandbox доступны в
-   [руководстве MoonPay по sandbox-тестированию](https://moonpay.readme.io/docs/faq-sandbox-testing).
-   Если встроенный виджет не работает после входа по email, используйте «В новой вкладке».
+## On-chain адреса (devnet)
 
-   После завершённой sandbox-покупки приложение зеркально зачисляет полученную сумму в
-   собственный SPL тестовый доллар на devnet, чтобы сохранить один баланс: USDC MoonPay
-   — отдельный тестовый токен. Вывод на devnet тоже симулируется: кнопка отправляет
-   тестовые доллары с кошелька пользователя в treasury и записывает транзакцию в историю.
-   Эти тестовые доллары не отправляются на адрес MoonPay и реальная выплата не происходит.
-   В demo-режиме операция уменьшает только локальный баланс приложения.
+| Токен | Mint |
+|---|---|
+| Тестовый доллар | `Hx7e212hfKYHNV5jdfV4R9NQ5JHCdt9w1g4aGYk7cSaV` |
+| vUSDY | `NybngzX175W1p8xoL1yikAV2WnpQzHihMKgGnmifPD4` |
+| vKZGB | `Fn1idY7FZB4C3JaV5yZorqPUTg8sZN3ZHgqCp7mMJiAi` |
+| OFFICE | `51UTD1qdeMmfudZdcWXgBVUoZNu4etKRDzRbkfBi9NR9` |
+| Казначейство | `8Mdmu9GN72J1scQC15SAa9pvDGpNMNJhxrPbCi3nQ6iD` |
 
-7. **Письма о действиях (по желанию)** — на сервере задайте `SMTP_HOST=smtp.gmail.com`,
-   `SMTP_PORT=465`, `SMTP_USER`, `SMTP_PASS` и `MAIL_FROM`. Если SMTP не настроен,
-   отправка пропускается. Адрес берётся только из проверенного Crossmint JWT; настройка
-   писем по умолчанию включена, лимит — 20 писем на адрес в сутки. Приветственное письмо
-   отправляется один раз. Предпочтения и лимит хранятся в ledger; задайте постоянный
-   `DEMO_LEDGER_PATH` для сохранения между перезапусками и релизами.
+## Источники данных
 
-   Приложение поддерживает установку как PWA: на iPhone откройте сайт в Safari и выберите
-   «Поделиться» → «На экран Домой», на Android — меню Chrome → «Установить приложение».
-   В «Портфель → Настройки» эти шаги также показаны внутри приложения.
+- **USD/KZT** — Национальный банк Казахстана.
+- **Доходность USDY** — DefiLlama, данные пула USDY в Solana.
+- **3-месячные казначейские векселя США** — Daily Treasury Rates.
+- **Индекс KZGB** — индекс государственных облигаций KASE.
+- **Котировки Transak и MoonPay** — API провайдеров.
 
-Для проверки Transak STAGING документация даёт Visa `4024764449971519` (срок `10/33`,
-CVV `123`, USD, 3DS) и пароль 3DS `Checkout1!`. Для тестового US KYC: first name `Doe`,
-last name `Jane`, телефон `+12125550142`, дата рождения `01-01-1998`, адрес
-`179 Richmond Oak`, `California`, `CA`, `94016`, SSN `123456789`. Staging KYC использует
-фиктивные проверки и подтверждает прохождение. В staging-виджете заранее заполняется
-тестовая персона Transak, поэтому останется ввести код из письма и данные тестовой карты.
-[Инструкция Transak по тестовым данным](https://docs.transak.com/guides/sandbox-credentials).
-После статуса `COMPLETED` сервер повторно проверяет заказ Transak и в devnet зеркально
-зачисляет тестовые доллары один раз на `orderId`; в demo-режиме сумма пополняет только
-локальный баланс приложения.
-
-## Живые данные
-
-Числовые источники запрашиваются серверными Route Handlers с `cache: "no-store"`; последние удачные ответы хранятся в памяти процесса. Даты в интерфейсе относятся к данным источника.
-
-- **USD/KZT** — [НБ РК RSS/XML](https://nationalbank.kz/rss/get_rates.cfm?fdate=DD.MM.YYYY), обновление по рабочим дням, TTL 6 часов. При недоступности показывается ориентировочный резервный курс 480 ₸ со статусом устаревших данных.
-- **USDY APY** — [DefiLlama chart для пула USDY в Solana](https://yields.llama.fi/chart/00b83068-9f87-4411-b5d7-5d2ff48c40c4); пул выбран по символу USDY и сети Solana в [списке пулов](https://yields.llama.fi/pools), TTL 6 часов. Резервное значение — 3,75% на 2 октября 2026 года.
-- **3-месячные казначейские векселя США** — [Daily Treasury Rates CSV](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/2026/all?type=daily_treasury_yield_curve&field_tdr_date_value=2026), ежедневный источник по рабочим дням, TTL 12 часов.
-- **Индекс доходности гособлигаций KASE** — [страница индекса KZGB_Ym1m](https://kase.kz/en/indexes-and-indicators/gsecs/kzgb-ym1m). Надёжного публичного JSON/XML API не найдено; значение 14,6% на 6 октября 2026 года указано вручную и подписано датой.
-- **Котировки Transak** — [публичный Pricing API в staging](https://api-stg.transak.com/api/v1/pricing/public/quotes), котировка обновляется провайдером примерно раз в минуту, TTL 30 секунд; нужен ключ партнёра.
-- **Котировки MoonPay** — [Buy Quote API](https://api.moonpay.com/v3/currencies/sol/buy_quote) и [Sell Quote API](https://api.moonpay.com/v3/currencies/sol/sell_quote) для sandbox (SOL); запрашиваются по сумме и хранятся 30 секунд. Для production используется код `usdc_sol`.
-
-## Структура
-
-```
-app/
-  page.tsx               — публичная главная и описание сценария
-  (app)/                 — мобильное приложение с общей навигацией
-    home/                 — баланс, вклады, активы и быстрые действия
-    earn/                 — продукты дохода и детали вклада
-    assets/               — список активов, карточки и покупка доли
-    activity/             — история операций по дням
-    portfolio/            — баланс, распределение, on-chain активы, кошелёк и операции
-    profile/              — перенаправление на /portfolio
-  demo-bank/page.tsx      — вымышленный супер-апп Демо-банка с RWA Bridge и тестовой оплатой внутри
-  api/devnet/            — faucet, on-chain портфель, vault-доли, платежи и погашение токенов
-  api/moonpay/           — sandbox status, подписанные ссылки и проверка buy/sell транзакций
-  api/onramp-order/      — создаёт заказ онрампа Crossmint (карта → USDC)
-  api/transak-session/   — создаёт тестовую сессию виджета Transak
-components/
-  app/                   — экраны, карточки, оболочка и выдвижные панели
-  ui/                    — компоненты интерфейса на Base UI
-  CrossmintOnramp.tsx     — встроенная оплата картой Crossmint
-  providers.tsx           — тема, уведомления, состояние и Crossmint
-lib/
-  assets.ts               — список активов (что реально, что мок)
-  yields.ts               — продукты дохода и параметры APY
-  vaults.ts               — индекс цены долей с checkpoint в серверном ledger
-  onramps.ts              — способы пополнения (MoonPay, Crossmint, Transak, Mercuryo, Kaspi, Freedom)
-  store.tsx               — общее состояние и сохранение демо-данных в браузере
-  format.ts               — форматы сумм, ставок и дат операций
-  useNow.ts               — часы для начислений в реальном или ускоренном режиме
-scripts/
-  setup-devnet.mjs        — создаёт OFFICE-DEMO, тестовый доллар и vault SPL mint на devnet
-  devnet-smoke.mjs        — ручной сценарий проверки devnet API
-lib/config.ts             — чтение env и флаги подключения
-```
-
-## Дальше (после хакатона, не сейчас)
-
-Собственный кастоди, лицензия AFSA, реальный SPV и вторичный рынок — см. раздел
-«Что НЕ строим на хакатоне» в документе плана. Этот репозиторий — только фундамент
-для демо одного сценария.

@@ -72,7 +72,7 @@ export function CrossmintOnramp({
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         title="Crossmint"
-        testData={<p>Тестовый режим: карта 4242 4242 4242 4242, любая будущая дата и CVC.</p>}
+        testData={<p>Для sandbox: карта 4242 4242 4242 4242, любая будущая дата и CVC.</p>}
       >
         {order ? (
           <CrossmintCheckoutProvider>

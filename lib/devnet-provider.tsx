@@ -88,11 +88,10 @@ function DevnetRuntime({
   children: React.ReactNode;
 }) {
   const loggedInAddress = authStatus === "logged-in" ? walletAddress : null;
-  const mode = status?.configured && loggedInAddress ? "devnet" : "demo";
   const [portfolioState, setPortfolioState] = useState<{ walletAddress: string; portfolio: DevnetPortfolio } | null>(null);
 
   const refreshPortfolio = useCallback(async () => {
-    if (mode !== "devnet" || !loggedInAddress) return;
+    if (!loggedInAddress) return;
     try {
       const response = await fetch(`/api/devnet/portfolio?wallet=${encodeURIComponent(loggedInAddress)}`, { cache: "no-store" });
       if (!response.ok) return;
@@ -107,12 +106,12 @@ function DevnetRuntime({
     } catch {
       // Retain the last confirmed portfolio during transient RPC failures.
     }
-  }, [loggedInAddress, mode]);
+  }, [loggedInAddress]);
 
   const refresh = refreshPortfolio;
 
   useEffect(() => {
-    if (mode !== "devnet") {
+    if (!loggedInAddress) {
       return;
     }
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
@@ -128,9 +127,9 @@ function DevnetRuntime({
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [mode, refresh, refreshPortfolio]);
+  }, [loggedInAddress, refresh, refreshPortfolio]);
 
-  const portfolio = mode === "devnet" && portfolioState?.walletAddress === loggedInAddress
+  const portfolio = portfolioState?.walletAddress === loggedInAddress
     ? portfolioState.portfolio
     : null;
   const onchain = useMemo<DevnetBalance | null>(() => portfolio ? {
@@ -140,7 +139,6 @@ function DevnetRuntime({
       .reduce((total, holding) => total + holding.balance, 0),
   } : null, [portfolio]);
   const value = useMemo<DevnetState>(() => ({
-    mode,
     walletAddress: loggedInAddress,
     usdMint: status?.usdMint ?? null,
     assetMint: status?.assetMint ?? null,
@@ -152,7 +150,7 @@ function DevnetRuntime({
     portfolio,
     refresh,
     refreshPortfolio,
-  }), [loggedInAddress, mode, onchain, portfolio, refresh, refreshPortfolio, status?.assetMint, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
+  }), [loggedInAddress, onchain, portfolio, refresh, refreshPortfolio, status?.assetMint, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
 
   return <DevnetContext.Provider value={value}>{children}</DevnetContext.Provider>;
 }

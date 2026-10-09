@@ -69,7 +69,7 @@ export function ProviderSheet({
           </header>
           {testData ? (
             <details className="shrink-0 border-b px-4 py-2 text-xs text-slate-600">
-              <summary className="cursor-pointer font-medium text-slate-800">Тестовые данные</summary>
+              <summary className="cursor-pointer font-medium text-slate-800">Данные для sandbox</summary>
               <div className="pb-1 pt-2 leading-5">{testData}</div>
             </details>
           ) : null}

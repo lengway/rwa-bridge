@@ -9,13 +9,11 @@ import { QuickActions } from "@/components/app/home-actions";
 import { HoldingsSection, PositionSection, PromoCard } from "@/components/app/home-portfolio";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { DEMO_ASSETS } from "@/lib/assets";
+import { BRIDGE_ASSETS } from "@/lib/assets";
 import { formatMoney } from "@/lib/format";
-import { useNow } from "@/lib/useNow";
 import { useAppStore } from "@/lib/store";
-import { accruedPosition, YIELD_STRATEGIES } from "@/lib/yields";
+import { YIELD_STRATEGIES } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
-import { getStrategyApy } from "@/lib/market-data";
 
 export function HomeScreen() {
   const {
@@ -24,46 +22,30 @@ export function HomeScreen() {
     holdings,
     displayCurrency,
     setDisplayCurrency,
-    realizedEarningsUsd,
-    acceleratedAccrual,
-    marketData,
     hydrated,
   } = useAppStore();
   const devnet = useDevnet();
-  const displayHydrated = hydrated && (devnet.mode !== "devnet" || devnet.onchain !== null);
+  const displayHydrated = hydrated;
   const [addOpen, setAddOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [assigningDeposits, setAssigningDeposits] = useState(false);
-  const now = useNow();
 
   const positionValues = YIELD_STRATEGIES.flatMap((strategy) => {
     const position = positions[strategy.id];
     if (!position) return [];
-    const earned = devnet.mode === "devnet"
-      ? position.earnedCarryUsd ?? 0
-      : now === null
-        ? 0
-        : accruedPosition(position, getStrategyApy(strategy.id, marketData.yields), now, acceleratedAccrual);
+    const earned = position.earnedCarryUsd ?? 0;
     return [{ strategy, position, earned }];
   });
-  const holdingValues = DEMO_ASSETS.flatMap((asset) => {
+  const holdingValues = BRIDGE_ASSETS.flatMap((asset) => {
     const holding = holdings[asset.id];
     return holding ? [{ asset, holding }] : [];
   });
-  const positionsValue = positionValues.reduce(
-    (sum, item) => sum + item.position.principal + item.earned,
-    0,
-  );
-  const holdingsValue = holdingValues.reduce(
-    (sum, item) => sum + item.holding.costUsd,
-    0,
-  );
-  const total = cashUsd + positionsValue + holdingsValue;
+  const total = devnet.portfolio?.totalValueUsd ?? 0;
   const unrealizedEarnings = positionValues.reduce(
     (sum, item) => sum + item.earned,
     0,
   );
-  const portfolioReady = devnet.mode !== "devnet" || devnet.portfolio !== null;
+  const portfolioReady = devnet.portfolio !== null;
 
   const assignDeposits = async () => {
     if (!devnet.walletAddress || assigningDeposits) return;
@@ -94,11 +76,10 @@ export function HomeScreen() {
       <BalanceCard
         total={total}
         cashUsd={cashUsd}
-        earnings={realizedEarningsUsd + unrealizedEarnings}
+        earnings={unrealizedEarnings}
         currency={displayCurrency}
         hydrated={displayHydrated}
         onCurrencyChange={setDisplayCurrency}
-        mode={devnet.mode}
       />
       <QuickActions
         onAddMoney={() => setAddOpen(true)}
@@ -110,7 +91,7 @@ export function HomeScreen() {
           <h2 className="text-base font-semibold">Портфель</h2>
           <Link href="/portfolio" className="text-sm text-muted-foreground hover:text-foreground">Весь портфель →</Link>
         </div>
-        {devnet.mode === "devnet" && (devnet.portfolio?.unassignedDepositsUsd ?? 0) > 0 ? (
+        {(devnet.portfolio?.unassignedDepositsUsd ?? 0) > 0 ? (
           <Card className="gap-3 rounded-2xl p-4">
             <div>
               <p className="font-medium">
@@ -133,7 +114,7 @@ export function HomeScreen() {
               <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/earn" />}>
                 Открыть вклад
               </Button>
-              <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/assets/demo-office" />}>
+              <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/assets/office-building" />}>
                 Купить долю
               </Button>
             </div>

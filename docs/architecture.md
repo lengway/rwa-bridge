@@ -22,9 +22,9 @@ flowchart LR
   end
   subgraph Chain["Solana devnet"]
     USD[(Test dollar SPL)]
-    VU[(vUSDY-DEMO shares)]
-    VK[(vKZGB-DEMO shares)]
-    OFF[(OFFICE-DEMO asset)]
+    VU[(vUSDY shares)]
+    VK[(vKZGB shares)]
+    OFF[(OFFICE asset)]
     TR[(Treasury)]
   end
   subgraph External["Providers and data"]
@@ -56,11 +56,11 @@ flowchart LR
 | Object | Address | Role |
 |---|---|---|
 | Test dollar (SPL, 6 decimals) | `Hx7e212hfKYHNV5jdfV4R9NQ5JHCdt9w1g4aGYk7cSaV` | Cash balance. Stands in for USDC on devnet. |
-| vUSDY-DEMO (SPL share) | `NybngzX175W1p8xoL1yikAV2WnpQzHihMKgGnmifPD4` | Share of the dollar yield vault. Price follows the live USDY APY. |
-| vKZGB-DEMO (SPL share) | `Fn1idY7FZB4C3JaV5yZorqPUTg8sZN3ZHgqCp7mMJiAi` | Share of the local-currency bond demo vault. |
-| OFFICE-DEMO (SPL asset) | `51UTD1qdeMmfudZdcWXgBVUoZNu4etKRDzRbkfBi9NR9` | Fractional share of a fictional office building, 1 token = $1. |
+| vUSDY (SPL share) | `NybngzX175W1p8xoL1yikAV2WnpQzHihMKgGnmifPD4` | Share of the dollar yield vault. Price follows the live USDY APY. |
+| vKZGB (SPL share) | `Fn1idY7FZB4C3JaV5yZorqPUTg8sZN3ZHgqCp7mMJiAi` | Share of the local-currency government bond vault. |
+| OFFICE (SPL asset) | `51UTD1qdeMmfudZdcWXgBVUoZNu4etKRDzRbkfBi9NR9` | Fractional share of a class A office building, 1 token = $1. |
 | Treasury token account | `XBKEH8XpNxYdopu6Z7izwpDME2ZgX5hHrcamtVEEqmz` | Receives deposits and asset payments. |
-| Treasury owner | `8Mdmu9GN72J1scQC15SAa9pvDGpNMNJhxrPbCi3nQ6iD` | Mint authority for all demo tokens. |
+| Treasury owner | `8Mdmu9GN72J1scQC15SAa9pvDGpNMNJhxrPbCi3nQ6iD` | Mint authority for all app tokens. |
 
 All addresses open on https://explorer.solana.com with `?cluster=devnet`.
 
@@ -76,7 +76,7 @@ sequenceDiagram
   participant S as Server
   participant C as Solana devnet
   U->>A: Add $50
-  alt Test ATM
+  alt Devnet faucet
     A->>S: POST /api/devnet/faucet
   else Card (Transak / MoonPay)
     A->>S: create signed widget session (bound to user IP)
@@ -106,7 +106,7 @@ sequenceDiagram
   U->>C: transfer $50 test dollars to treasury (user-signed)
   U->>S: POST /api/devnet/invest {signature}
   S->>C: verify transfer (amount, sender, treasury, not reused)
-  S->>C: mint 50 / price shares of vUSDY-DEMO to the user
+  S->>C: mint 50 / price shares of vUSDY to the user
   Note over S: price(t) = checkpoint × (1 + APY)^(Δt / 365d)<br/>new checkpoint whenever the live APY changes
   U->>C: later: send shares back to treasury (user-signed)
   U->>S: POST /api/devnet/withdraw {signature, shares}
@@ -117,7 +117,7 @@ The position is a token in the user's wallet, so its value is visible in any exp
 
 ### 3. Buying a fractional asset
 
-The user pays test dollars to the treasury, the server verifies the payment on-chain and mints OFFICE-DEMO tokens 1:1. If the mint fails after a successful payment, the client retries with the same payment signature and the server returns the existing result instead of minting twice.
+The user pays test dollars to the treasury, the server verifies the payment on-chain and mints OFFICE tokens 1:1. If the mint fails after a successful payment, the client retries with the same payment signature and the server returns the existing result instead of minting twice.
 
 ### 4. Money out
 

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
   let transaction: Record<string, unknown> | null;
   try {
-    transaction = await getTransactionByExternalId(body.externalTransactionId, "sell");
+    transaction = await getTransactionByExternalId(body.externalTransactionId);
   } catch {
     return NextResponse.json({ error: "Не удалось проверить вывод MoonPay. Повторите попытку." }, { status: 502 });
   }

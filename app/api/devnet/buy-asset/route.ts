@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { DEMO_OFFICE_ASSET } from "@/lib/assets";
+import { OFFICE_ASSET } from "@/lib/assets";
 import {
   isConfigured,
   isValidAmount,
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   if (!isValidAmount(body?.amountUsd)) {
     return NextResponse.json({ error: "Сумма должна быть от $1 до $1 000." }, { status: 400 });
   }
-  if (body?.assetId !== DEMO_OFFICE_ASSET.id || DEMO_OFFICE_ASSET.buyFlow !== "spl-demo-mint") {
+  if (body?.assetId !== OFFICE_ASSET.id || OFFICE_ASSET.buyFlow !== "onchain") {
     return NextResponse.json({ error: "Покупка этого актива недоступна." }, { status: 400 });
   }
   if (typeof body?.signature !== "string" || body.signature.length < 32 || body.signature.length > 100) {
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       notifyReceipt(request, {
         kind: "asset-purchase",
         amountUsd: existingPurchase.amountUsd,
-        details: `Выпущено ${existingPurchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} единиц OFFICE-DEMO. Это демонстрационный актив.`,
+        details: `Выпущено ${existingPurchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долей OFFICE.`,
         explorerUrl: response.explorerUrl,
         receiptId: existingPurchase.paymentSignature,
       });
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
     try {
       const purchase = await appendPurchase(walletAddress, {
-        assetId: DEMO_OFFICE_ASSET.id,
+        assetId: OFFICE_ASSET.id,
         amountUsd,
         units: amountUsd,
         paymentSignature,
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       notifyReceipt(request, {
         kind: "asset-purchase",
         amountUsd: purchase.amountUsd,
-        details: `Выпущено ${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} единиц OFFICE-DEMO. Это демонстрационный актив.`,
+        details: `Выпущено ${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долей OFFICE.`,
         explorerUrl: response.explorerUrl,
         receiptId: purchase.paymentSignature,
       });

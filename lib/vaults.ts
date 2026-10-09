@@ -18,12 +18,12 @@ export const VAULT_PRODUCTS: Record<string, VaultProduct> = {
   "ondo-usdy": {
     productId: "ondo-usdy",
     mint: devnetConfig.vaultUsdyMint,
-    ticker: "vUSDY-DEMO",
+    ticker: "vUSDY",
   },
   "kz-bond-demo": {
     productId: "kz-bond-demo",
     mint: devnetConfig.vaultKzgbMint,
-    ticker: "vKZGB-DEMO",
+    ticker: "vKZGB",
   },
 };
 

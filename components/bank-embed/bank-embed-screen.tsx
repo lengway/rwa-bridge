@@ -81,7 +81,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-export function DemoBankScreen() {
+export function BankEmbedScreen() {
   const marketData = useMarketData();
   const [investmentOpen, setInvestmentOpen] = useState(false);
   const [bankBalanceKzt, setBankBalanceKzt] = useState(1_250_000);
@@ -95,7 +95,7 @@ export function DemoBankScreen() {
     { title: "Переводы без комиссии", detail: "Отправляйте близким удобно", tag: "Для вас", tone: "from-[#777de8] via-[#8e8bed] to-[#b9a0f4]", icon: ArrowLeftRight },
   ];
 
-  const showUnavailable = useCallback(() => toast("Недоступно в демо"), []);
+  const showUnavailable = useCallback(() => toast("Недоступно"), []);
   const openInvestments = useCallback(() => setInvestmentOpen(true), []);
 
   const sendPaymentResult = useCallback((id: string, status: "paid" | "cancelled") => {
@@ -175,13 +175,14 @@ export function DemoBankScreen() {
         <header className="sticky top-0 z-20 shrink-0 border-b border-[#eeeeef] bg-white/95 px-4 pb-3 pt-[max(env(safe-area-inset-top),12px)] backdrop-blur">
           <div className="mb-3 flex justify-center">
             <span className="rounded-full bg-[#fff1ef] px-3 py-1 text-[10px] font-semibold tracking-[0.01em] text-[#b12f27]">
-              Тестовый экран · вымышленный банк
+              Пример встраивания в банковское приложение
             </span>
           </div>
+          <p className="mb-3 text-sm font-semibold">Ваш банк</p>
           <div className="flex items-center gap-2">
             <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl bg-[#f4f5f6] px-3 text-[#777b82]">
               <Search className="size-[18px] shrink-0" />
-              <input aria-label="Поиск по Демо-банку" placeholder="Поиск по Демо-банку" className="min-w-0 flex-1 bg-transparent text-sm text-[#292b2f] outline-none placeholder:text-[#8c9097]" />
+              <input aria-label="Поиск по Вашему банку" placeholder="Поиск по Вашему банку" className="min-w-0 flex-1 bg-transparent text-sm text-[#292b2f] outline-none placeholder:text-[#8c9097]" />
               <button type="button" aria-label="Камера" onClick={showUnavailable} className="grid size-7 shrink-0 place-items-center rounded-lg text-[#60646b] hover:bg-black/5">
                 <Camera className="size-[18px]" />
               </button>
@@ -229,11 +230,11 @@ export function DemoBankScreen() {
             </div>
           </section>
 
-          <section className="mx-4 mt-4 flex items-center justify-between rounded-2xl border border-[#f0f0f1] bg-[#fffdfd] px-4 py-3" aria-label="Баланс демо-карты">
+          <section className="mx-4 mt-4 flex items-center justify-between rounded-2xl border border-[#f0f0f1] bg-[#fffdfd] px-4 py-3" aria-label="Баланс карты">
             <div className="flex min-w-0 items-center gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#fff0ee] text-[#e5352b]"><CreditCard className="size-5" /></span>
               <span className="min-w-0">
-                <span className="block text-xs text-[#858990]">Демо-карта ·· 4821</span>
+                <span className="block text-xs text-[#858990]">Карта ·· 4821</span>
                 <span className="mt-0.5 block truncate text-lg font-semibold tabular-nums">{formatTenge(bankBalanceKzt)}</span>
               </span>
             </div>
@@ -333,7 +334,7 @@ export function DemoBankScreen() {
               <X />
             </Button>
           </SheetHeader>
-          <iframe ref={iframeRef} src="/home?embed=bank" title="RWA Bridge внутри Демо-банка" className="min-h-0 w-full flex-1 border-0 bg-white" />
+          <iframe ref={iframeRef} src="/home?embed=bank" title="RWA Bridge в приложении Ваш банк" className="min-h-0 w-full flex-1 border-0 bg-white" />
         </SheetContent>
       </Sheet>
 
@@ -344,7 +345,7 @@ export function DemoBankScreen() {
               <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-[#d9dade]" />
               <SheetHeader className="relative p-0 text-left">
                 <SheetTitle className="text-center text-[19px] font-semibold">{payment.status === "success" ? "Оплачено" : "Подтверждение оплаты"}</SheetTitle>
-                <SheetDescription className="sr-only">Оплата в демонстрационном режиме</SheetDescription>
+                <SheetDescription className="sr-only">Подтверждение оплаты</SheetDescription>
                 {payment.status !== "processing" ? (
                   <button type="button" onClick={closePayment} aria-label="Закрыть подтверждение" className="absolute right-0 top-0 grid size-8 place-items-center rounded-full bg-[#f4f5f6] text-[#60646b]">
                     <X className="size-4" />
@@ -363,7 +364,7 @@ export function DemoBankScreen() {
               ) : payment.status === "processing" ? (
                 <div className="flex flex-col items-center gap-4 py-10 text-center">
                   <span className="grid size-[62px] place-items-center rounded-full bg-[#fff0ee] text-[#e5352b]"><LoaderCircle className="size-8 animate-spin" /></span>
-                  <p className="text-sm font-medium">Проводим тестовую оплату…</p>
+                  <p className="text-sm font-medium">Подтверждаем оплату…</p>
                   <p className="text-xs text-[#858990]">Обычно это занимает несколько секунд</p>
                 </div>
               ) : (
@@ -384,7 +385,7 @@ export function DemoBankScreen() {
                   <div className="divide-y divide-[#eeeeef] rounded-2xl border border-[#eeeeef] px-4">
                     <div className="flex items-center justify-between gap-4 py-3.5">
                       <span className="text-sm text-[#777b82]">Счёт списания</span>
-                      <span className="text-right text-sm font-medium">Демо-карта ·· 4821</span>
+                      <span className="text-right text-sm font-medium">Карта ·· 4821</span>
                     </div>
                     <div className="flex items-center justify-between gap-4 py-3.5">
                       <span className="text-sm text-[#777b82]">Баланс карты</span>
@@ -396,7 +397,7 @@ export function DemoBankScreen() {
                     </div>
                   </div>
 
-                  <p className="mt-4 rounded-xl bg-[#fff8e9] px-3 py-2.5 text-center text-xs leading-4 text-[#8d6b25]">Тестовая оплата — деньги не списываются</p>
+                  <p className="mt-4 rounded-xl bg-[#f7f7f8] px-3 py-2.5 text-center text-xs leading-4 text-[#777b82]">Оплата в сети Solana devnet</p>
                   <Button className="mt-4 h-12 w-full rounded-xl bg-[#e5352b] text-base font-semibold text-white hover:bg-[#cf3027]" onClick={() => setPayment((current) => current ? { ...current, status: "processing" } : null)}>
                     Оплатить
                   </Button>

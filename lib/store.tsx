@@ -1,10 +1,9 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { accrued, YIELD_STRATEGIES } from "@/lib/yields";
-import { getStrategyApy, type MarketData } from "@/lib/market-data";
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
 import { useMarketData } from "@/lib/useMarketData";
 import { useDevnet } from "@/lib/useDevnet";
+import type { MarketData } from "@/lib/market-data";
 
 export type ActivityType = "topup" | "invest" | "withdraw" | "buy";
 export type YieldPosition = {
@@ -28,371 +27,91 @@ export type ActivityItem = {
   signature?: string;
 };
 
-type PersistedState = {
+type AppStore = {
   cashUsd: number;
-  realizedEarningsUsd: number;
   positions: Record<string, YieldPosition>;
   holdings: Record<string, Holding>;
   activity: ActivityItem[];
   displayCurrency: "USD" | "KZT";
-  acceleratedAccrual: boolean;
-};
-
-type AppStore = PersistedState & {
   marketData: MarketData;
   hydrated: boolean;
-  topUp: (amount: number, method: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => void;
-  invest: (strategyId: string, amount: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => boolean;
-  withdraw: (strategyId: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => number;
-  recordCardWithdrawal: (amount: number, extra: { onchain?: boolean; signature?: string; explorerUrl?: string; note: string }) => boolean;
-  recordWalletSend: (amount: number, signature: string, explorerUrl: string) => void;
-  buy: (assetId: string, amountUsd: number, extra?: {
-    units?: number;
-    signature?: string;
-    explorerUrl?: string;
-    title?: string;
-    note?: string;
-    onchain?: boolean;
-  }) => boolean;
   setDisplayCurrency: (currency: "USD" | "KZT") => void;
-  setAcceleratedAccrual: (enabled: boolean) => void;
-  resetDemo: () => void;
 };
 
-const STORAGE_KEY = "rwa-bridge-demo-v1";
-const LEGACY_ASSET_ID = "aifc-mock-iconic-tower";
-const CURRENT_ASSET_ID = "demo-office";
-const initialState: PersistedState = {
-  cashUsd: 0,
-  realizedEarningsUsd: 0,
-  positions: {},
-  holdings: {},
-  activity: [],
-  displayCurrency: "USD",
-  acceleratedAccrual: false,
-};
-
+const STORAGE_KEY = "rwa-bridge-preferences";
 const AppStoreContext = createContext<AppStore | null>(null);
+const preferenceListeners = new Set<() => void>();
 
-function makeActivity(item: Omit<ActivityItem, "id" | "at">): ActivityItem {
-  return { ...item, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, at: Date.now() };
+function getDisplayCurrencySnapshot(): "USD" | "KZT" {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw && (JSON.parse(raw) as { displayCurrency?: unknown }).displayCurrency === "KZT") return "KZT";
+  } catch {
+    // Currency selection falls back to USD when browser storage is unavailable.
+  }
+  return "USD";
 }
 
-function migrateAssetReferences(value: unknown): unknown {
-  if (value === LEGACY_ASSET_ID) return CURRENT_ASSET_ID;
-  if (Array.isArray(value)) return value.map(migrateAssetReferences);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, nested]) => [
-        key === LEGACY_ASSET_ID ? CURRENT_ASSET_ID : key,
-        migrateAssetReferences(nested),
-      ]),
-    );
-  }
-  return value;
-}
-
-function mergeMigratedRecords(legacy: unknown, current: unknown): unknown {
-  if (!legacy || typeof legacy !== "object" || Array.isArray(legacy)
-    || !current || typeof current !== "object" || Array.isArray(current)) {
-    return current;
-  }
-  const merged = { ...legacy, ...current } as Record<string, unknown>;
-  for (const field of ["units", "costUsd", "principal", "earnedCarryUsd"]) {
-    const legacyNumber = (legacy as Record<string, unknown>)[field];
-    const currentNumber = (current as Record<string, unknown>)[field];
-    if (typeof legacyNumber === "number" && typeof currentNumber === "number") {
-      merged[field] = legacyNumber + currentNumber;
-    }
-  }
-  const legacySince = (legacy as Record<string, unknown>).since;
-  const currentSince = (current as Record<string, unknown>).since;
-  if (typeof legacySince === "number" && typeof currentSince === "number") {
-    merged.since = Math.min(legacySince, currentSince);
-  }
-  return merged;
-}
-
-function migrateKeyedAssetRecords(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const records = value as Record<string, unknown>;
-  const migrated = migrateAssetReferences(records) as Record<string, unknown>;
-  if (Object.hasOwn(records, LEGACY_ASSET_ID)) {
-    const legacy = migrateAssetReferences(records[LEGACY_ASSET_ID]);
-    const current = records[CURRENT_ASSET_ID] === undefined
-      ? undefined
-      : migrateAssetReferences(records[CURRENT_ASSET_ID]);
-    migrated[CURRENT_ASSET_ID] = current === undefined
-      ? legacy
-      : mergeMigratedRecords(legacy, current);
-  }
-  return migrated;
+function subscribeToDisplayCurrency(listener: () => void) {
+  preferenceListeners.add(listener);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY || event.key === null) listener();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    preferenceListeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
 }
 
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const marketData = useMarketData();
   const devnet = useDevnet();
-  const [state, setState] = useState<PersistedState>(initialState);
-  const [hydrated, setHydrated] = useState(false);
+  const displayCurrency = useSyncExternalStore(
+    subscribeToDisplayCurrency,
+    getDisplayCurrencySnapshot,
+    () => "USD" as const,
+  );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const saved = JSON.parse(raw) as Partial<PersistedState>;
-          const positions = migrateKeyedAssetRecords(saved.positions);
-          const holdings = migrateKeyedAssetRecords(saved.holdings);
-          const activity = migrateAssetReferences(saved.activity);
-          setState({
-            cashUsd: typeof saved.cashUsd === "number" ? saved.cashUsd : 0,
-            realizedEarningsUsd: typeof saved.realizedEarningsUsd === "number" ? saved.realizedEarningsUsd : 0,
-            positions: positions && typeof positions === "object" && !Array.isArray(positions)
-              ? positions as Record<string, YieldPosition>
-              : {},
-            holdings: holdings && typeof holdings === "object" && !Array.isArray(holdings)
-              ? holdings as Record<string, Holding>
-              : {},
-            activity: Array.isArray(activity) ? activity as ActivityItem[] : [],
-            displayCurrency: saved.displayCurrency === "KZT" ? "KZT" : "USD",
-            acceleratedAccrual: saved.acceleratedAccrual === true,
-          });
-        }
-      } catch {
-        // Storage can be disabled or contain invalid demo data. Start with an empty portfolio.
-      } finally {
-        setHydrated(true);
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated || devnet.mode !== "demo") return;
+  const setDisplayCurrency = useCallback((currency: "USD" | "KZT") => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ displayCurrency: currency }));
     } catch {
-      // Keep the in-memory demo usable when browser storage is unavailable.
+      // The preference remains available to subscribed views when storage is unavailable.
     }
-  }, [devnet.mode, hydrated, state]);
-
-  const topUp = useCallback((amount: number, method: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => {
-    if (devnet.mode === "devnet" || extra?.onchain) return;
-    if (!Number.isFinite(amount) || amount <= 0) return;
-    setState((current) => ({
-      ...current,
-      cashUsd: extra?.onchain ? current.cashUsd : current.cashUsd + amount,
-      activity: [makeActivity({
-        type: "topup",
-        title: method === "devnet-faucet" ? "Тестовый банкомат" : "Пополнение баланса",
-        amountUsd: amount,
-        method,
-        ...(extra?.signature ? { signature: extra.signature } : {}),
-        ...(extra?.explorerUrl ? { explorerUrl: extra.explorerUrl } : {}),
-      }), ...current.activity],
-    }));
-  }, [devnet.mode]);
-
-  const invest = useCallback((strategyId: string, amount: number, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => {
-    if (devnet.mode === "devnet") return false;
-    if (!Number.isFinite(amount) || amount <= 0) return false;
-    if (!extra?.onchain && state.cashUsd < amount) return false;
-    setState((current) => {
-      if (!extra?.onchain && current.cashUsd < amount) return current;
-      const key = extra?.onchain ? `devnet:${strategyId}` : strategyId;
-      const existing = current.positions[key];
-      const strategy = YIELD_STRATEGIES.find((item) => item.id === strategyId);
-      const apy = getStrategyApy(strategyId, marketData.yields);
-      const previousEarned = existing && strategy
-        ? (existing.earnedCarryUsd ?? 0) + accrued(existing.principal, existing.since, apy, Date.now(), current.acceleratedAccrual)
-        : 0;
-      const rolledForward = existing && strategy
-        ? existing.principal + accrued(existing.principal, existing.since, apy, Date.now(), current.acceleratedAccrual) + (existing.earnedCarryUsd ?? 0)
-        : (existing?.principal ?? 0);
-      const realizedEarningsUsd = extra?.onchain
-        ? current.realizedEarningsUsd
-        : current.realizedEarningsUsd + (
-          existing && strategy
-            ? accrued(existing.principal, existing.since, apy, Date.now(), current.acceleratedAccrual) + (existing.earnedCarryUsd ?? 0)
-            : 0
-        );
-      const position: YieldPosition = extra?.onchain
-        ? { principal: (existing?.principal ?? 0) + amount, since: Date.now(), earnedCarryUsd: previousEarned }
-        : { principal: rolledForward + amount, since: Date.now() };
-      const title = strategy?.name ?? "Вклад";
-      return {
-        ...current,
-        cashUsd: extra?.onchain ? current.cashUsd : current.cashUsd - amount,
-        realizedEarningsUsd,
-        positions: { ...current.positions, [key]: position },
-        activity: [makeActivity({
-          type: "invest",
-          title,
-          amountUsd: amount,
-          ...(extra?.signature ? { signature: extra.signature } : {}),
-          ...(extra?.explorerUrl ? { explorerUrl: extra.explorerUrl } : {}),
-        }), ...current.activity],
-      };
-    });
-    return true;
-  }, [devnet.mode, state.cashUsd, marketData.yields]);
-
-  const withdraw = useCallback((strategyId: string, extra?: { onchain?: boolean; signature?: string; explorerUrl?: string }) => {
-    if (devnet.mode === "devnet") return 0;
-    const key = extra?.onchain ? `devnet:${strategyId}` : strategyId;
-    const position = state.positions[key];
-    if (!position) return 0;
-    const strategy = YIELD_STRATEGIES.find((item) => item.id === strategyId);
-    const apy = getStrategyApy(strategyId, marketData.yields);
-    const gain = strategy
-      ? (position.earnedCarryUsd ?? 0) + accrued(position.principal, position.since, apy, Date.now(), state.acceleratedAccrual)
-      : (position.earnedCarryUsd ?? 0);
-    const payout = Math.round((position.principal + gain) * 100) / 100;
-    setState((current) => {
-      if (!current.positions[key]) return current;
-      const positions = { ...current.positions };
-      delete positions[key];
-      return {
-        ...current,
-        cashUsd: extra?.onchain ? current.cashUsd : current.cashUsd + payout,
-        realizedEarningsUsd: current.realizedEarningsUsd + gain,
-        positions,
-        activity: [makeActivity({
-          type: "withdraw",
-          title: `Вывод: ${strategy?.name ?? "вклад"}`,
-          amountUsd: payout,
-          ...(extra?.signature ? { signature: extra.signature } : {}),
-          ...(extra?.explorerUrl ? { explorerUrl: extra.explorerUrl } : {}),
-        }), ...current.activity],
-      };
-    });
-    return payout;
-  }, [devnet.mode, marketData.yields, state.acceleratedAccrual, state.positions]);
-
-  const buy = useCallback((assetId: string, amountUsd: number, extra?: {
-    units?: number;
-    signature?: string;
-    explorerUrl?: string;
-    title?: string;
-    note?: string;
-    onchain?: boolean;
-  }) => {
-    if (devnet.mode === "devnet") return false;
-    if (!Number.isFinite(amountUsd) || amountUsd <= 0) return false;
-    if (!extra?.onchain && state.cashUsd < amountUsd) return false;
-    setState((current) => {
-      if (!extra?.onchain && current.cashUsd < amountUsd) return current;
-      const existing = current.holdings[assetId] ?? { units: 0, costUsd: 0 };
-      return {
-        ...current,
-        cashUsd: extra?.onchain ? current.cashUsd : current.cashUsd - amountUsd,
-        holdings: {
-          ...current.holdings,
-          [assetId]: {
-            units: existing.units + (extra?.units ?? amountUsd),
-            costUsd: existing.costUsd + amountUsd,
-            ...(extra?.signature ? { signature: extra.signature } : {}),
-          },
-        },
-        activity: [makeActivity({
-          type: "buy",
-          title: extra?.title ?? "Покупка доли",
-          amountUsd,
-          ...(extra?.signature ? { signature: extra.signature } : {}),
-          ...(extra?.explorerUrl ? { explorerUrl: extra.explorerUrl } : {}),
-          ...(extra?.note
-            ? { note: extra.note }
-            : !extra?.signature
-              ? { note: "Демо: перевод не отправлен" }
-              : {}),
-        }), ...current.activity],
-      };
-    });
-    return true;
-  }, [devnet.mode, state.cashUsd]);
-
-  const recordWalletSend = useCallback((amount: number, signature: string, explorerUrl: string) => {
-    if (devnet.mode === "devnet") return;
-    if (!Number.isFinite(amount) || amount <= 0) return;
-    setState((current) => ({
-      ...current,
-      activity: [makeActivity({
-        type: "withdraw",
-        title: "Отправка на кошелёк",
-        amountUsd: amount,
-        signature,
-        explorerUrl,
-      }), ...current.activity],
-    }));
-  }, [devnet.mode]);
-
-  const recordCardWithdrawal = useCallback((amount: number, extra: {
-    onchain?: boolean;
-    signature?: string;
-    explorerUrl?: string;
-    note: string;
-  }) => {
-    if (devnet.mode === "devnet") return true;
-    if (!Number.isFinite(amount) || amount <= 0) return false;
-    if (!extra.onchain && state.cashUsd < amount) return false;
-    setState((current) => {
-      if (!extra.onchain && current.cashUsd < amount) return current;
-      return {
-        ...current,
-        cashUsd: extra.onchain ? current.cashUsd : current.cashUsd - amount,
-        activity: [makeActivity({
-          type: "withdraw",
-          title: "Вывод на карту · MoonPay",
-          amountUsd: amount,
-          method: "moonpay",
-          note: extra.note,
-          ...(extra.signature ? { signature: extra.signature } : {}),
-          ...(extra.explorerUrl ? { explorerUrl: extra.explorerUrl } : {}),
-        }), ...current.activity],
-      };
-    });
-    return true;
-  }, [devnet.mode, state.cashUsd]);
-
-  const setDisplayCurrency = useCallback((displayCurrency: "USD" | "KZT") => {
-    setState((current) => ({ ...current, displayCurrency }));
+    for (const listener of preferenceListeners) listener();
   }, []);
 
-  const setAcceleratedAccrual = useCallback((acceleratedAccrual: boolean) => {
-    setState((current) => {
-      if (current.acceleratedAccrual === acceleratedAccrual) return current;
-      const now = Date.now();
-      const positions = Object.fromEntries(Object.entries(current.positions).map(([key, position]) => {
-        const strategyId = key.startsWith("devnet:") ? key.slice("devnet:".length) : key;
-        const earned = accrued(
-          position.principal,
-          position.since,
-          getStrategyApy(strategyId, marketData.yields),
-          now,
-          current.acceleratedAccrual,
-        ) + (position.earnedCarryUsd ?? 0);
-        return [key, { principal: position.principal, since: now, earnedCarryUsd: earned }];
-      }));
-      return { ...current, acceleratedAccrual, positions };
-    });
-  }, [marketData.yields]);
+  const positions = useMemo(() => Object.fromEntries(
+    (devnet.portfolio?.positions ?? []).map((position) => [position.productId, {
+      principal: position.principalUsd,
+      since: position.since,
+      earnedCarryUsd: position.earnedCarryUsd,
+      shares: position.shares,
+      priceUsd: position.priceUsd,
+      valueUsd: position.valueUsd,
+    }]),
+  ), [devnet.portfolio?.positions]);
 
-  const resetDemo = useCallback(() => setState(initialState), []);
+  const holdings = useMemo(() => Object.fromEntries(
+    (devnet.portfolio?.holdings ?? [])
+      .filter((holding) => holding.kind === "asset")
+      .map((holding) => [holding.assetId ?? "office-building", {
+        units: holding.balance,
+        costUsd: holding.costUsd ?? holding.valueUsd,
+      }]),
+  ), [devnet.portfolio?.holdings]);
 
   const value = useMemo<AppStore>(() => ({
-    ...state,
+    cashUsd: devnet.portfolio?.cashUsd ?? 0,
+    positions,
+    holdings,
+    activity: (devnet.portfolio?.activity ?? []) as ActivityItem[],
+    displayCurrency,
     marketData,
-    hydrated,
-    topUp,
-    invest,
-    withdraw,
-    buy,
-    recordCardWithdrawal,
-    recordWalletSend,
+    hydrated: devnet.portfolio !== null,
     setDisplayCurrency,
-    setAcceleratedAccrual,
-    resetDemo,
-  }), [state, marketData, hydrated, topUp, invest, withdraw, buy, recordCardWithdrawal, recordWalletSend, setDisplayCurrency, setAcceleratedAccrual, resetDemo]);
+  }), [devnet.portfolio, displayCurrency, holdings, marketData, positions, setDisplayCurrency]);
 
   return <AppStoreContext.Provider value={value}>{children}</AppStoreContext.Provider>;
 }
@@ -400,36 +119,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 export function useAppStore() {
   const context = useContext(AppStoreContext);
   if (!context) throw new Error("useAppStore must be used within an AppStoreProvider");
-  const devnet = useDevnet();
-  const positions = devnet.mode === "devnet"
-    ? Object.fromEntries((devnet.portfolio?.positions ?? []).map((position) => [position.productId, {
-      principal: position.principalUsd,
-      since: position.since,
-      earnedCarryUsd: position.earnedCarryUsd,
-      shares: position.shares,
-      priceUsd: position.priceUsd,
-      valueUsd: position.valueUsd,
-    }]))
-    : Object.fromEntries(Object.entries(context.positions)
-      .filter(([key]) => !key.startsWith("devnet:")));
-  const holdings = devnet.mode === "devnet"
-    ? Object.fromEntries((devnet.portfolio?.holdings ?? []).filter((holding) => holding.kind === "asset").map((holding) => [holding.assetId ?? "demo-office", {
-      units: holding.balance,
-      costUsd: holding.valueUsd,
-    }]))
-    : context.holdings;
-  const activity = devnet.mode === "devnet"
-    ? (devnet.portfolio?.activity ?? [])
-    : context.activity;
-  const realizedEarningsUsd = devnet.mode === "devnet" ? 0 : context.realizedEarningsUsd;
-  return {
-    ...context,
-    positions,
-    holdings,
-    activity,
-    realizedEarningsUsd,
-    cashUsd: devnet.mode === "devnet" ? (devnet.portfolio?.cashUsd ?? 0) : context.cashUsd,
-  };
+  return context;
 }
 
 export function useCashBalance() {

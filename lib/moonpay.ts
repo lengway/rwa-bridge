@@ -3,7 +3,6 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import { isIP } from "node:net";
 
-export type MoonPayFlow = "buy" | "sell";
 export type MoonPayEnvironment = "sandbox" | "production";
 
 const publishableKey = process.env.NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY?.trim() ?? "";
@@ -16,28 +15,22 @@ export const moonpayConfig = {
   canSign: Boolean(publishableKey && secretKey),
 };
 
-export function getMoonPayCurrencyParam(flow: MoonPayFlow) {
+export function getMoonPayCurrencyParam() {
   return {
-    name: flow === "buy" ? "currencyCode" : "baseCurrencyCode",
+    name: "baseCurrencyCode",
     value: moonpayConfig.environment === "sandbox" ? "sol" : "usdc_sol",
   } as const;
 }
 
 export const MOONPAY_MISSING_SECRET_MESSAGE = "Добавьте MOONPAY_SECRET_KEY в .env.local, чтобы подписывать ссылку MoonPay.";
 
-const widgetHosts: Record<MoonPayFlow, Record<MoonPayEnvironment, string>> = {
-  buy: {
-    sandbox: "https://buy-sandbox.moonpay.com/",
-    production: "https://buy.moonpay.com/",
-  },
-  sell: {
-    sandbox: "https://sell-sandbox.moonpay.com/",
-    production: "https://sell.moonpay.com/",
-  },
+const widgetHosts: Record<MoonPayEnvironment, string> = {
+  sandbox: "https://sell-sandbox.moonpay.com/",
+  production: "https://sell.moonpay.com/",
 };
 
-export function createWidgetUrl(flow: MoonPayFlow, params: URLSearchParams) {
-  const url = new URL(widgetHosts[flow][moonpayConfig.environment]);
+export function createWidgetUrl(params: URLSearchParams) {
+  const url = new URL(widgetHosts[moonpayConfig.environment]);
   url.search = params.toString();
   return signUrl(url.toString());
 }
@@ -172,13 +165,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export async function getTransactionByExternalId(id: string, flow: MoonPayFlow) {
+export async function getTransactionByExternalId(id: string) {
   if (!publishableKey) throw new Error("MoonPay publishable key is not configured.");
 
-  const path = flow === "buy"
-    ? `/v1/transactions/ext/${encodeURIComponent(id)}`
-    : `/v3/sell_transactions/ext/${encodeURIComponent(id)}`;
-  const url = new URL(path, "https://api.moonpay.com");
+  const url = new URL(`/v3/sell_transactions/ext/${encodeURIComponent(id)}`, "https://api.moonpay.com");
   url.searchParams.set("apiKey", publishableKey);
 
   const response = await fetch(url, {

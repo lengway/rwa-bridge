@@ -1,5 +1,5 @@
-import { DemoBankScreen } from "@/components/demo-bank/demo-bank-screen";
+import { redirect } from "next/navigation";
 
-export default function DemoBankPage() {
-  return <DemoBankScreen />;
+export default function LegacyBankPage() {
+  redirect("/bank");
 }
