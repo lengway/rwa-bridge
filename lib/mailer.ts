@@ -7,6 +7,7 @@ export type ReceiptKind =
   | "faucet"
   | "bank-embed"
   | "transak"
+  | "moonpay"
   | "invest"
   | "redemption"
   | "asset-purchase"
@@ -25,6 +26,7 @@ const labels: Record<ReceiptKind, string> = {
   faucet: "Пополнение тестовыми долларами",
   "bank-embed": "Пополнение со счёта в банке",
   transak: "Пополнение через Transak",
+  moonpay: "Пополнение через MoonPay",
   invest: "Вложение в тестовой сети",
   redemption: "Погашение долей",
   "asset-purchase": "Покупка доли OFFICE",

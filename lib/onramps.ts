@@ -19,6 +19,11 @@ export const ONRAMP_OPTIONS: OnrampOption[] = [
     hint: "",
   },
   {
+    id: "moonpay",
+    name: "Карта · MoonPay",
+    hint: "Покупка картой · USD/EUR, Казахстан поддерживается",
+  },
+  {
     id: "crossmint",
     name: "Карта · Crossmint",
     hint: "",

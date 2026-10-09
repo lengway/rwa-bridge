@@ -81,17 +81,22 @@ async function fetchTransakQuote(amount: number): Promise<ProviderQuote> {
   };
 }
 
-async function fetchMoonPayQuote(amount: number): Promise<ProviderQuote> {
+async function fetchMoonPayQuote(side: "buy" | "sell", amount: number): Promise<ProviderQuote> {
   const apiKey = process.env.NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY ?? "";
   if (!apiKey) throw new Error("MoonPay quote key is not configured");
 
   const currencyCode = apiKey.startsWith("pk_test_") ? "sol" : "usdc_sol";
-  const endpoint = `https://api.moonpay.com/v3/currencies/${currencyCode}/sell_quote`;
+  const endpoint = `https://api.moonpay.com/v3/currencies/${currencyCode}/${side}_quote`;
   const url = new URL(endpoint);
   url.searchParams.set("apiKey", apiKey);
-  // The withdrawal input is USD. Ask how much provider crypto would be sold for that payout.
-  url.searchParams.set("quoteCurrencyAmount", amount.toFixed(2));
-  url.searchParams.set("quoteCurrencyCode", "usd");
+  if (side === "buy") {
+    url.searchParams.set("baseCurrencyAmount", amount.toFixed(2));
+    url.searchParams.set("baseCurrencyCode", "usd");
+  } else {
+    // The withdrawal input is USD. Ask how much provider crypto would be sold for that payout.
+    url.searchParams.set("quoteCurrencyAmount", amount.toFixed(2));
+    url.searchParams.set("quoteCurrencyCode", "usd");
+  }
 
   const response = await fetch(url, {
     cache: "no-store",
@@ -100,8 +105,12 @@ async function fetchMoonPayQuote(amount: number): Promise<ProviderQuote> {
   });
   if (!response.ok) throw new Error("MoonPay quote request failed");
   const quote = await response.json() as Record<string, unknown>;
-  const cryptoAmount = numberValue(quote.baseCurrencyAmount);
-  const fiatAmount = numberValue(quote.quoteCurrencyAmount);
+  const cryptoAmount = side === "buy"
+    ? numberValue(quote.quoteCurrencyAmount)
+    : numberValue(quote.baseCurrencyAmount);
+  const fiatAmount = side === "buy"
+    ? numberValue(quote.baseCurrencyAmount)
+    : numberValue(quote.quoteCurrencyAmount);
   const feeUsd = [quote.feeAmount, quote.networkFeeAmount, quote.extraFeeAmount]
     .map(numberValue)
     .filter((value) => Number.isFinite(value))
@@ -112,7 +121,7 @@ async function fetchMoonPayQuote(amount: number): Promise<ProviderQuote> {
 
   return {
     provider: "moonpay",
-    side: "sell",
+    side,
     amount,
     cryptoAmount,
     cryptoCode: currencyCode === "sol" ? "SOL" : "USDC",
@@ -133,7 +142,7 @@ export async function readProviderQuote(
   side: "buy" | "sell",
   amount: number,
 ) {
-  if ((provider === "transak" && side !== "buy") || (provider === "moonpay" && side !== "sell")) {
+  if (provider === "transak" && side !== "buy") {
     throw new Error("Provider flow is not supported");
   }
   const key = `${provider}:${side}:${amount.toFixed(2)}`;
@@ -144,7 +153,7 @@ export async function readProviderQuote(
   const pending = quoteInFlight.get(key);
   if (pending) return pending;
 
-  const load = (provider === "transak" ? fetchTransakQuote(amount) : fetchMoonPayQuote(amount))
+  const load = (provider === "transak" ? fetchTransakQuote(amount) : fetchMoonPayQuote(side, amount))
     .then((value) => {
       quoteCache.set(key, { value, expiresAt: Date.now() + QUOTE_TTL_MS });
       return value;

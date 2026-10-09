@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { getVerifiedEmailFromRequest } from "@/lib/auth-server";
 import { isValidAmount, isValidWalletAddress } from "@/lib/devnet-route";
 import {
   createWidgetUrl,
@@ -21,9 +22,12 @@ export async function POST(request: Request) {
     userIp?: unknown;
   } | null;
   const flow = body?.flow;
+  if (!await getVerifiedEmailFromRequest(request)) {
+    return NextResponse.json({ error: "Войдите, чтобы открыть MoonPay." }, { status: 401 });
+  }
 
-  if (flow !== "sell") {
-    return NextResponse.json({ error: "Укажите сценарий вывода MoonPay." }, { status: 400 });
+  if (flow !== "buy" && flow !== "sell") {
+    return NextResponse.json({ error: "Укажите сценарий MoonPay: покупка или вывод." }, { status: 400 });
   }
   if (!isValidWalletAddress(body?.walletAddress)) {
     return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
@@ -31,8 +35,11 @@ export async function POST(request: Request) {
   if (typeof body?.userIp !== "string" || !normalizeMoonPayIp(body.userIp)) {
     return NextResponse.json({ error: "Не удалось определить IP-адрес MoonPay." }, { status: 400 });
   }
-  if (!isValidAmount(body?.amountUsd, 20, 1000)) {
-    return NextResponse.json({ error: "Сумма вывода должна быть от $20 до $1 000." }, { status: 400 });
+  const minimum = flow === "buy" ? 5 : 20;
+  if (!isValidAmount(body?.amountUsd, minimum, 1000)) {
+    return NextResponse.json({
+      error: flow === "buy" ? "Сумма покупки должна быть от $5 до $1 000." : "Сумма вывода должна быть от $20 до $1 000.",
+    }, { status: 400 });
   }
   if (!moonpayConfig.publishableKey) {
     return NextResponse.json({
@@ -57,20 +64,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Не удалось определить IP-адрес MoonPay." }, { status: 400 });
   }
   params.set("allowedIpAddress", allowedIpAddress);
-  const currency = getMoonPayCurrencyParam();
+  const currency = getMoonPayCurrencyParam(flow);
   params.set(currency.name, currency.value);
-  if (moonpayConfig.environment === "sandbox") {
-    const solAmount = await getSandboxSellSolAmount(body.amountUsd as number);
-    // If MoonPay cannot quote the USD amount, leave its amount field open for the customer in the widget.
-    if (solAmount !== null) params.set("baseCurrencyAmount", String(solAmount));
-  } else {
+  if (flow === "buy") {
+    params.set("walletAddress", body.walletAddress);
+    params.set("baseCurrencyCode", "usd");
     params.set("baseCurrencyAmount", String(body.amountUsd));
+  } else {
+    if (moonpayConfig.environment === "sandbox") {
+      const solAmount = await getSandboxSellSolAmount(body.amountUsd as number);
+      // If MoonPay cannot quote the USD amount, leave its amount field open for the customer in the widget.
+      if (solAmount !== null) params.set("baseCurrencyAmount", String(solAmount));
+    } else {
+      params.set("baseCurrencyAmount", String(body.amountUsd));
+    }
+    params.set("quoteCurrencyCode", "usd");
+    params.set("refundWalletAddress", body.walletAddress);
   }
-  params.set("quoteCurrencyCode", "usd");
-  params.set("refundWalletAddress", body.walletAddress);
 
   try {
-    const url = createWidgetUrl(params);
+    const url = createWidgetUrl(params, flow);
     return NextResponse.json({ url, externalTransactionId });
   } catch {
     return NextResponse.json({ error: "Не удалось подписать ссылку MoonPay. Проверьте настройки ключей." }, { status: 502 });

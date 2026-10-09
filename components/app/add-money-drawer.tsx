@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { DrawerSuccess } from "@/components/app/drawer-success";
 import { CrossmintPath, MethodOption, TransakPath } from "@/components/app/onramp-methods";
+import { MoonPayBuyPath } from "@/components/app/moonpay-paths";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/lib/format";
@@ -34,7 +35,9 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
   const amountValue = Number(amount);
   const valid = Number.isFinite(amountValue) && amountValue >= 1 && amountValue <= 1000;
   const methods = useMemo(
-    () => bankEmbed ? ["bank-embed", "devnet-faucet", "transak", "crossmint"] : ["devnet-faucet", "transak", "crossmint"],
+    () => bankEmbed
+      ? ["bank-embed", "devnet-faucet", "transak", "moonpay", "crossmint"]
+      : ["devnet-faucet", "transak", "moonpay", "crossmint"],
     [bankEmbed],
   );
   const selectedMethod = method ?? methods[0];
@@ -118,6 +121,10 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
     complete(credit.amountUsd, "Покупка подтверждена Transak. Тестовые доллары зачислены.", "Зачисление подтверждено в сети Solana devnet.", credit.explorerUrl);
   }, [complete]);
 
+  const completeMoonPay = useCallback((credit: { amountUsd: number; signature: string; explorerUrl: string }) => {
+    complete(credit.amountUsd, "Покупка подтверждена MoonPay. Тестовые доллары зачислены.", "Зачисление подтверждено в сети Solana devnet.", credit.explorerUrl);
+  }, [complete]);
+
   const completeCrossmint = useCallback((value: number) => {
     complete(value, "Покупка подтверждена Crossmint.", "Данные кошелька обновлены.");
   }, [complete]);
@@ -157,6 +164,9 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
           ) : null}
           {selectedMethod === "transak" ? (
             <TransakPath amount={amountValue} onCompleteOnchain={completeTransak} onSelectAnotherMethod={selectAnotherMethod} />
+          ) : null}
+          {selectedMethod === "moonpay" ? (
+            <MoonPayBuyPath amount={amountValue} onComplete={completeMoonPay} onSelectAnotherMethod={selectAnotherMethod} />
           ) : null}
           {selectedMethod === "crossmint" ? (
             <CrossmintPath amount={amountValue} onComplete={completeCrossmint} onSelectAnotherMethod={selectAnotherMethod} />
