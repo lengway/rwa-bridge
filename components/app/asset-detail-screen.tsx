@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { AssetFacts, ExistingHolding, TowerArtwork } from "@/components/app/asset-parts";
 import { BuyAssetDrawer } from "@/components/app/buy-asset-drawer";
+import { DetailActionBar } from "@/components/app/detail-action-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +18,7 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
   const holding = holdings[asset.id];
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6">
       <section className="space-y-4">
         <TowerArtwork />
         <div className="flex items-center gap-2">
@@ -38,18 +39,14 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
         <p className="text-sm leading-5">1 {asset.ticker} = $1 доли объекта. Количество токенов соответствует сумме покупки в долларах.</p>
       </Card>
 
-      <div className="fixed inset-x-0 bottom-[4.5rem] z-30 mx-auto w-full max-w-md border-t bg-background/95 p-3 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted-foreground">Доступно</p>
-            <p className="truncate text-sm font-semibold tabular-nums">{formatMoney(cashUsd, displayCurrency)}</p>
-          </div>
-          <Button className="h-11 flex-1" onClick={() => setBuyOpen(true)} disabled={cashUsd < 10}>
-            <ArrowRight />Купить от $10
-          </Button>
-        </div>
-        {cashUsd < 10 ? <p className="mt-2 text-center text-xs text-muted-foreground">Пополните баланс хотя бы на $10, чтобы продолжить.</p> : null}
-      </div>
+      <DetailActionBar
+        amount={formatMoney(cashUsd, displayCurrency)}
+        note={cashUsd < 10 ? "Пополните баланс хотя бы на $10, чтобы продолжить." : undefined}
+      >
+        <Button className="h-11 flex-1" onClick={() => setBuyOpen(true)} disabled={cashUsd < 10}>
+          <ArrowRight />Купить от $10
+        </Button>
+      </DetailActionBar>
       <BuyAssetDrawer open={buyOpen} onOpenChange={setBuyOpen} asset={asset} />
     </div>
   );

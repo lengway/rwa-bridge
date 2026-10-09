@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { InvestDrawer, WithdrawDrawer } from "@/components/app/drawers";
+import { DetailActionBar } from "@/components/app/detail-action-bar";
 import {
   EligibilitySection,
   ExplainerSections,
@@ -27,7 +28,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
     : undefined;
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6">
       <ProductSummary strategy={strategy} />
       <ProjectionCalculator
         strategy={strategy}
@@ -41,33 +42,25 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
       <EligibilitySection strategy={strategy} />
       <TechnicalDetails strategy={strategy} />
 
-      <div className="fixed inset-x-0 bottom-[4.5rem] z-30 mx-auto w-full max-w-md border-t bg-background/95 p-3 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted-foreground">Доступно</p>
-            <p className="truncate text-sm font-semibold tabular-nums">
-              {hydrated ? formatMoney(cashUsd, displayCurrency) : "…"}
-            </p>
-          </div>
-          {position ? (
-            <Button
-              variant="outline"
-              className="h-11 flex-1"
-              onClick={() => setWithdrawOpen(true)}
-              disabled={!hydrated}
-            >
-              Вывести
-            </Button>
-          ) : null}
+      <DetailActionBar amount={hydrated ? formatMoney(cashUsd, displayCurrency) : "…"}>
+        {position ? (
           <Button
+            variant="outline"
             className="h-11 flex-1"
-            onClick={() => setInvestOpen(true)}
+            onClick={() => setWithdrawOpen(true)}
             disabled={!hydrated}
           >
-            <ArrowRight />Вложить
+            Вывести
           </Button>
-        </div>
-      </div>
+        ) : null}
+        <Button
+          className="h-11 flex-1"
+          onClick={() => setInvestOpen(true)}
+          disabled={!hydrated}
+        >
+          <ArrowRight />Вложить
+        </Button>
+      </DetailActionBar>
       <InvestDrawer
         open={investOpen}
         onOpenChange={setInvestOpen}

@@ -221,7 +221,11 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
             <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">devnet</span>
           </header>
         ) : null}
-        <main className="flex-1 px-4 pb-28 pt-5">{children}</main>
+        <main
+          className={`flex-1 px-4 pt-5 ${isDetail ? "pb-[calc(12rem_+_env(safe-area-inset-bottom))]" : "pb-28"}`}
+        >
+          {children}
+        </main>
         <nav
           aria-label="Основная навигация"
           className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t bg-background/95 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur"
