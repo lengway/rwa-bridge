@@ -16,36 +16,42 @@ export function RwaDemoScreen() {
     <div className="space-y-6">
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">DEVNET DEMO</Badge>
-          <Badge variant="outline">Solana Devnet</Badge>
+          <Badge variant="secondary">ДЕМО</Badge>
         </div>
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">RWA-DEMO</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">
+            RWA-DEMO
+          </h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            A direct Meteora DLMM test-token roundtrip — not a real-world asset,
-            security, fiat payment, or KZT payout.
+            Цифровая доля в демонстрационном портфеле. Выберите сумму, проверьте
+            условия и подтвердите покупку.
           </p>
         </div>
       </section>
 
-      <Card className="gap-2 rounded-2xl border-amber-500/25 bg-amber-500/5 p-4">
-        <p className="text-sm font-medium">Demo truth model</p>
-        <p className="text-xs leading-5 text-muted-foreground">
-          `RWA-DEMO` and the configured Devnet quote token have no real-asset
-          backing or legal rights. Depending on the server configuration, the
-          quote token may be supplied externally; the direct Devnet swap is the
-          only trading transaction in this journey.
-        </p>
+      <Card className="gap-3 rounded-2xl p-4">
+        <p className="text-sm font-medium">Как это работает</p>
+        <ol className="grid gap-3 text-xs leading-5 text-muted-foreground sm:grid-cols-3">
+          <li>
+            <span className="font-medium text-foreground">1. Выберите сумму.</span>{" "}
+            Укажите, сколько USDC использовать для покупки.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">2. Проверьте условия.</span>{" "}
+            До подтверждения увидите точный результат операции.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">3. Подтвердите.</span>{" "}
+            Кошелёк попросит подтвердить демонстрационную операцию.
+          </li>
+        </ol>
       </Card>
 
-      <Card className="gap-2 rounded-2xl p-4">
-        <p className="text-sm font-medium">Connected network</p>
-        <p className="text-xs leading-5 text-muted-foreground">
-          {devnet.walletAddress
-            ? "Your app wallet will be asked to sign any swap after a fresh quote."
-            : "Sign in to load the app wallet. The demo will not prepare a transaction without one."}
-        </p>
-      </Card>
+      <p className="text-center text-xs leading-5 text-muted-foreground">
+        {devnet.walletAddress
+          ? "Демо-среда: операция использует тестовые средства и не создаёт прав на реальный актив."
+          : "Войдите в приложение, чтобы продолжить в демонстрационном режиме."}
+      </p>
 
       <RwaDemoLauncher onTradeConfirmed={() => void devnet.refreshPortfolio()} />
     </div>

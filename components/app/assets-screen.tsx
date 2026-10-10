@@ -32,12 +32,12 @@ export function AssetsScreen() {
 
       <section className="space-y-2 pt-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Devnet demo</h2>
-          <Badge variant="secondary">DEVNET DEMO</Badge>
+          <h2 className="text-lg font-semibold">RWA-DEMO</h2>
+          <Badge variant="secondary">ДЕМО</Badge>
         </div>
         <p className="text-sm leading-5 text-muted-foreground">
-          A separate direct-Meteora test-token flow. It does not represent a real
-          asset, KZT payment, or payout.
+          Цифровая доля в демонстрационном портфеле. Откройте актив, чтобы
+          посмотреть условия покупки.
         </p>
         <Link href="/assets/rwa-demo" className="block">
           <Card className="gap-2 rounded-2xl p-4 transition-colors hover:bg-muted/50">
@@ -45,13 +45,13 @@ export function AssetsScreen() {
               <div>
                 <p className="font-semibold">RWA-DEMO</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Configured Devnet quote token ↔ RWA-DEMO via a direct Meteora DLMM Devnet pool.
+                  Выберите сумму, проверьте условия и подтвердите покупку.
                 </p>
               </div>
-              <span className="text-sm text-muted-foreground">Open →</span>
+              <span className="text-sm text-muted-foreground">Открыть →</span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              DEVNET TEST TOKEN — no monetary value
+            <p className="text-xs leading-5 text-muted-foreground">
+              Демо-среда · тестовые средства, без прав на реальный актив.
             </p>
           </Card>
         </Link>

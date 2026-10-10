@@ -42,13 +42,13 @@ export function RwaDemoLauncher({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-semibold">RWA-DEMO</p>
-              <Badge variant="secondary">DEVNET DEMO</Badge>
+              <Badge variant="outline">ДЕМО</Badge>
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">Test-token trading through a direct Meteora DLMM Devnet pool. It is not a real-world asset or a fiat on-ramp.</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Цифровая доля в демонстрационном портфеле. Начните с небольшой суммы в USDC.</p>
           </div>
           <ShieldCheck className="mt-0.5 size-5 text-muted-foreground" />
         </div>
-        <Button className="w-full" variant="outline" onClick={() => setOpen(true)}>Open Devnet demo</Button>
+        <Button className="w-full" onClick={() => setOpen(true)}>Купить долю</Button>
       </Card>
       <RwaDemoDrawer open={open} onOpenChange={setOpen} assetId={assetId} onTradeConfirmed={onTradeConfirmed} />
     </>
@@ -136,10 +136,10 @@ class DemoApiError extends Error {
   }
 }
 
-const SIMULATED_FUNDING_DISCLOSURE = "SIMULATED — no fiat payment";
-const SIMULATED_PAYOUT_DISCLOSURE = "SIMULATED — no KZT payout";
-const DEVNET_TOKEN_DISCLOSURE = "DEVNET TEST TOKEN — no monetary value";
-const DEVNET_SWAP_DISCLOSURE = "DEVNET SWAP — no real asset rights";
+const SIMULATED_FUNDING_DISCLOSURE = "Демо-пополнение · реальный платёж не проводится";
+const SIMULATED_PAYOUT_DISCLOSURE = "Демо-выплата · банковский перевод не создаётся";
+const DEVNET_TOKEN_DISCLOSURE = "Демо-среда · используются тестовые средства, без прав на реальный актив.";
+const DEVNET_SWAP_DISCLOSURE = "Демо-операция · без реальных средств и прав на актив";
 
 export function RwaDemoDrawer({
   open,
@@ -154,7 +154,7 @@ export function RwaDemoDrawer({
   const [assetsDisclosure, setAssetsDisclosure] = useState<string | null>(null);
   const [side, setSide] = useState<Side>("BUY");
   const [kztInput, setKztInput] = useState("25000");
-  const [buyInput, setBuyInput] = useState("10");
+  const [buyInput, setBuyInput] = useState("1");
   const [fundingRequestId, setFundingRequestId] = useState<string | null>(null);
   const [sellInput, setSellInput] = useState("");
   const [funding, setFunding] = useState<Funding | null>(null);
@@ -202,7 +202,7 @@ export function RwaDemoDrawer({
   const resetForClose = useCallback(() => {
     setFunding(null);
     setFundingRequestId(null);
-    setBuyInput("10");
+    setBuyInput("1");
     setSellInput("");
     clearTrade();
     setError(null);
@@ -222,10 +222,10 @@ export function RwaDemoDrawer({
         ? assets.find((item) => item.id === assetId)
         : assets.find((item) => item.id === "rwa-demo") ?? assets[0];
       if (!selected) {
-        throw new DemoApiError("RWA-DEMO asset is not configured for this environment.", 503);
+        throw new DemoApiError("Демонстрационный актив пока недоступен.", 503);
       }
       if (assetId && selected.id !== assetId) {
-        throw new DemoApiError("The requested demo asset is unavailable.", 404);
+        throw new DemoApiError("Этот актив сейчас недоступен.", 404);
       }
       setAsset(selected);
       setConfigured(response?.configured === true);
@@ -233,7 +233,7 @@ export function RwaDemoDrawer({
     } catch (requestError) {
       setAsset(null);
       setConfigured(false);
-      setError({ message: userFacingError(requestError, "Could not load the Devnet demo asset."), retryStage: "assets" });
+      setError({ message: userFacingError(requestError, "Не удалось загрузить данные актива."), retryStage: "assets" });
     } finally {
       setBusy(null);
     }
@@ -256,7 +256,7 @@ export function RwaDemoDrawer({
     if (!demoReady || busy || !walletAddress || funding || externalQuoteMint) return;
     const requestedKztAmount = parseKztInput(kztInput);
     if (requestedKztAmount === null) {
-      setError({ message: "Enter a whole illustrative KZT amount within the demo limits.", retryStage: null });
+      setError({ message: "Укажите корректную сумму для демонстрационного пополнения.", retryStage: null });
       return;
     }
     setBusy("funding");
@@ -275,14 +275,14 @@ export function RwaDemoDrawer({
       });
       const response = asRecord(payload);
       const nextFunding = normalizeFunding(response?.funding);
-      if (!nextFunding) throw new DemoApiError("The funding response did not contain a valid demo funding event.", 502);
+      if (!nextFunding) throw new DemoApiError("Не удалось подготовить демонстрационное пополнение.", 502);
       setFunding(nextFunding);
       clearTrade();
       setNotice(nextFunding.status === "TEST_TOKEN_ISSUED"
-        ? `${quoteSymbol} issuance was confirmed on Solana Devnet. Request a fresh Meteora quote before trading.`
-        : `The simulated top-up was recorded. ${quoteSymbol} has not been issued yet, so trading remains disabled.`);
+        ? `${quoteSymbol} зачислены. Теперь можно посмотреть условия покупки.`
+        : `Пополнение записано, но ${quoteSymbol} ещё не зачислены.`);
     } catch (requestError) {
-      setError({ message: userFacingError(requestError, "Could not create the simulated funding event."), retryStage: "funding" });
+      setError({ message: userFacingError(requestError, "Не удалось подготовить пополнение."), retryStage: "funding" });
     } finally {
       setBusy(null);
     }
@@ -291,16 +291,16 @@ export function RwaDemoDrawer({
   const requestQuote = async () => {
     if (!demoReady || busy || !asset || !walletAddress) return;
     if (side === "BUY" && !externalQuoteMint && !isFundingIssued) {
-      setError({ message: `Issue ${quoteSymbol} first. A simulated funding record alone is not spendable.`, retryStage: null });
+      setError({ message: `Сначала подготовьте ${quoteSymbol} для покупки.`, retryStage: null });
       return;
     }
     if (!quoteInputAtomic || !isPositiveAtomic(quoteInputAtomic)) {
       setError({
         message: side === "BUY"
           ? externalQuoteMint
-            ? `Enter a valid ${quoteSymbol} amount to spend.`
-            : `No issued ${quoteSymbol} amount is available for this buy.`
-          : "Enter a valid RWA-DEMO amount to sell.",
+            ? `Укажите корректную сумму в ${quoteSymbol}.`
+            : `Для покупки пока нет доступных ${quoteSymbol}.`
+          : "Укажите корректное количество долей для продажи.",
         retryStage: null,
       });
       return;
@@ -321,9 +321,9 @@ export function RwaDemoDrawer({
       });
       const response = asRecord(payload);
       const nextQuote = normalizeQuote(response?.quote);
-      if (!nextQuote) throw new DemoApiError("The quote response is incomplete. Please request a fresh quote.", 502);
+      if (!nextQuote) throw new DemoApiError("Не удалось рассчитать условия. Попробуйте ещё раз.", 502);
       if (nextQuote.network.toLowerCase() !== "devnet" || nextQuote.route !== "meteora-dlmm-devnet") {
-        throw new DemoApiError("The execution route is not a direct Meteora DLMM Devnet route.", 409);
+        throw new DemoApiError("Операция временно недоступна. Обновите условия и попробуйте снова.", 409);
       }
       setQuote(nextQuote);
       setOrder(null);
@@ -331,7 +331,7 @@ export function RwaDemoDrawer({
       setCompletedOrder(null);
       setPayout(null);
     } catch (requestError) {
-      setError({ message: userFacingError(requestError, "Could not request a fresh Meteora Devnet quote."), retryStage: "quote" });
+      setError({ message: userFacingError(requestError, "Не удалось рассчитать условия покупки."), retryStage: "quote" });
     } finally {
       setBusy(null);
     }
@@ -348,20 +348,20 @@ export function RwaDemoDrawer({
       });
       const response = asRecord(payload);
       const nextOrder = normalizeOrder(response?.order);
-      if (!nextOrder) throw new DemoApiError("The confirmation response did not contain a valid order.", 502);
+      if (!nextOrder) throw new DemoApiError("Не удалось проверить результат операции.", 502);
       setOrder(nextOrder);
       if (isCompletedStatus(nextOrder.status)) {
         setCompletedOrder(nextOrder);
-        setNotice("The swap is confirmed on Solana Devnet and balances are being refreshed.");
+        setNotice("Операция подтверждена. Обновляем баланс портфеля.");
         void devnet.refreshPortfolio();
         onTradeConfirmed?.();
       } else if (isFailureStatus(nextOrder.status)) {
-        throw new DemoApiError(`The swap finished with status ${nextOrder.status}.`, 409);
+        throw new DemoApiError("Операция не была завершена. Попробуйте рассчитать условия ещё раз.", 409);
       } else {
-        setNotice("The transaction was submitted. Check confirmation before sending anything again.");
+        setNotice("Операция отправлена. Проверяем подтверждение.");
       }
     } catch (requestError) {
-      setError({ message: userFacingError(requestError, "Could not verify the Devnet transaction yet."), retryStage: "confirm" });
+      setError({ message: userFacingError(requestError, "Пока не удалось проверить результат. Попробуйте ещё раз."), retryStage: "confirm" });
     } finally {
       setBusy(null);
     }
@@ -370,7 +370,7 @@ export function RwaDemoDrawer({
   const signAndSubmit = async () => {
     if (!demoReady || !asset || !quote || !wallet || !walletAddress || busy) return;
     if (quoteExpired) {
-      setError({ message: "This quote has expired. Request a fresh quote before signing.", retryStage: "quote" });
+      setError({ message: "Условия устарели. Пересчитайте их перед подтверждением.", retryStage: "quote" });
       return;
     }
     if (order && pendingSignature) {
@@ -395,7 +395,7 @@ export function RwaDemoDrawer({
         });
         const response = asRecord(payload);
         currentOrder = normalizeOrder(response?.order);
-        if (!currentOrder) throw new DemoApiError("The order response did not contain a valid order.", 502);
+        if (!currentOrder) throw new DemoApiError("Не удалось подготовить операцию.", 502);
         setOrder(currentOrder);
       }
 
@@ -411,23 +411,23 @@ export function RwaDemoDrawer({
       const serializedTransaction = readString(transactionResponse?.serializedTransaction);
       const transactionOrder = normalizeOrder(transactionResponse?.order);
       if (!serializedTransaction || !transactionOrder) {
-        throw new DemoApiError("The server could not prepare a current transaction for this order.", 502);
+        throw new DemoApiError("Не удалось подготовить подтверждение операции.", 502);
       }
       if (isFailureStatus(transactionOrder.status)) {
-        throw new DemoApiError(`The order cannot be signed because its status is ${transactionOrder.status}.`, 409);
+        throw new DemoApiError("Эту операцию уже нельзя подтвердить. Пересчитайте условия.", 409);
       }
       setOrder(transactionOrder);
 
       setBusy("signing");
       const result = await SolanaWallet.from(wallet).sendTransaction({ serializedTransaction });
-      if (!result.hash) throw new DemoApiError("The wallet did not return a transaction signature.", 502);
+      if (!result.hash) throw new DemoApiError("Кошелёк не подтвердил операцию.", 502);
       submittedSignature = result.hash;
       setPendingSignature(result.hash);
       setOrder((current) => current ? { ...current, signature: result.hash } : current);
       await confirmExistingOrder(transactionOrder.id, result.hash);
     } catch (requestError) {
       setBusy(null);
-      const message = userFacingError(requestError, "Could not prepare or sign the Meteora Devnet swap.");
+      const message = userFacingError(requestError, "Не удалось подготовить или подтвердить операцию.");
       setError({
         message,
         retryStage: isLikelyUserRejection(requestError) ? null : (submittedSignature ?? pendingSignature) ? "confirm" : "quote",
@@ -447,13 +447,13 @@ export function RwaDemoDrawer({
       });
       const response = asRecord(payload);
       const nextPayout = normalizePayout(response?.payout);
-      if (!nextPayout) throw new DemoApiError("The payout response did not contain a valid simulated payout record.", 502);
+      if (!nextPayout) throw new DemoApiError("Не удалось подготовить демонстрационную запись о выплате.", 502);
       setPayout(nextPayout);
       setNotice(nextPayout.status === "SIMULATED_CONFIRMED"
-        ? "The simulated payout receipt is complete. No bank transfer was sent."
-        : "The simulated payout record was created. No bank transfer was sent.");
+        ? "Демонстрационная запись о выплате готова. Банковский перевод не отправлялся."
+        : "Демонстрационная запись о выплате создана. Банковский перевод не отправлялся.");
     } catch (requestError) {
-      setError({ message: userFacingError(requestError, "Could not create the simulated payout record."), retryStage: "payout" });
+      setError({ message: userFacingError(requestError, "Не удалось подготовить запись о выплате."), retryStage: "payout" });
     } finally {
       setBusy(null);
     }
@@ -481,97 +481,90 @@ export function RwaDemoDrawer({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      title="RWA-DEMO · Devnet"
-      description="A direct Meteora DLMM test-token swap. No real asset rights or fiat payment."
+      title="RWA-DEMO"
+      description="Цифровая доля в учебном портфеле."
     >
       {successfulBuy ? (
         <DrawerSuccess
           amount={0}
           amountLabel={`+ ${formatAtomic(completedOrder.actualOutputAmountAtomic ?? quote?.expectedOutputAtomic ?? "0", asset?.decimals ?? 0)} ${asset?.symbol ?? "RWA-DEMO"}`}
-          sentence="RWA-DEMO buy confirmed on Solana Devnet via Meteora DLMM."
+          sentence="Покупка демо-доли подтверждена."
           note={DEVNET_SWAP_DISCLOSURE}
           explorerUrl={completedOrder.explorerUrl ?? explorerForSignature(completedOrder.signature)}
           onDone={() => changeOpen(false)}
           secondaryHref="/portfolio"
-          secondaryLabel="Open portfolio"
+          secondaryLabel="Открыть портфель"
         />
       ) : successfulExternalSell ? (
         <DrawerSuccess
           amount={0}
           amountLabel={`+ ${formatAtomic(completedOrder.actualOutputAmountAtomic ?? quote?.expectedOutputAtomic ?? "0", asset?.quoteDecimals ?? 0)} ${quoteSymbol}`}
-          sentence={`${quoteSymbol} sale proceeds confirmed on Solana Devnet via Meteora DLMM.`}
-          note="No KZT payout is created in the external quote-token flow."
+          sentence={`Тестовые ${quoteSymbol} после продажи поступили в кошелёк.`}
+          note="Это учебная операция — реальная выплата не создаётся."
           explorerUrl={completedOrder.explorerUrl ?? explorerForSignature(completedOrder.signature)}
           onDone={() => changeOpen(false)}
           secondaryHref="/portfolio"
-          secondaryLabel="Open portfolio"
+          secondaryLabel="Открыть портфель"
         />
       ) : successfulPayout ? (
         <DrawerSuccess
           amount={0}
           amountLabel={`${payout.simulatedKztAmount ?? "0"} ₸`}
-          sentence="A simulated KZT payout record was created after the confirmed Devnet sale."
-          note={payout.disclosure || SIMULATED_PAYOUT_DISCLOSURE}
+          sentence="После продажи создана учебная запись о выплате."
+          note={SIMULATED_PAYOUT_DISCLOSURE}
           explorerUrl={completedOrder?.explorerUrl ?? explorerForSignature(completedOrder?.signature ?? null)}
           onDone={() => changeOpen(false)}
           secondaryHref="/portfolio"
-          secondaryLabel="Open portfolio"
+          secondaryLabel="Открыть портфель"
         />
       ) : (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">DEVNET DEMO</Badge>
-            <Badge variant="outline">Solana Devnet</Badge>
-            <Badge variant="outline">Direct Meteora DLMM</Badge>
+            <Badge variant="outline">ДЕМО</Badge>
           </div>
 
-          <Disclosure>
-            <p className="font-medium">{DEVNET_TOKEN_DISCLOSURE}</p>
-            <p>{DEVNET_SWAP_DISCLOSURE}</p>
-            <p>{assetsDisclosure ?? "This demo uses test tokens only and does not represent a financial product or legal right."}</p>
-          </Disclosure>
-
-          {busy === "assets" ? <LoadingLine label="Loading RWA-DEMO configuration…" /> : null}
+          {busy === "assets" ? <LoadingLine label="Готовим демо-покупку…" /> : null}
           {!busy && !asset && !error ? <EmptyState onRetry={() => void loadAssets()} /> : null}
 
           {asset ? (
             <>
-              <AssetCard asset={asset} configured={configured} />
+              <AssetCard asset={asset} configured={configured} disclosure={assetsDisclosure} />
+              <p className="text-center text-xs leading-5 text-muted-foreground">{DEVNET_TOKEN_DISCLOSURE}</p>
 
               {!configured ? (
-                <GuardAlert title="Demo configuration is incomplete">
-                  Trading is disabled until the server validates the Devnet mints and Meteora pool.
+                <GuardAlert title="Демо пока недоступно">
+                  Подготовка ещё не завершена. Попробуйте обновить страницу через минуту.
                 </GuardAlert>
               ) : null}
               {!isDevnet ? (
-                <GuardAlert title="Wrong network">
-                  This demo fails closed unless the API explicitly reports Solana Devnet. No transaction can be prepared.
+                <GuardAlert title="Неподходящая тестовая сеть">
+                  Для учебной покупки нужна тестовая сеть приложения. Операция не будет подготовлена, пока она не выбрана.
                 </GuardAlert>
               ) : null}
               {!asset.tradeEnabled ? (
-                <GuardAlert title="Trading is disabled">
-                  The configured RWA-DEMO pool is not currently available for trading.
+                <GuardAlert title="Покупка временно недоступна">
+                  Тестовая ликвидность сейчас недоступна. Попробуйте чуть позже.
                 </GuardAlert>
               ) : null}
               {!wallet ? (
-                <GuardAlert title="Wallet unavailable">
-                  Sign in with the app wallet before creating a demo order. Your wallet signs every Devnet swap.
+                <GuardAlert title="Нужно войти в приложение">
+                  Войдите, чтобы приложение могло сохранить результат учебной покупки в вашем кошельке.
                 </GuardAlert>
               ) : null}
               {walletMismatch ? (
-                <GuardAlert title="Wallet session mismatch">
-                  The connected wallet and the current Devnet portfolio do not match. Reopen the app and try again.
+                <GuardAlert title="Кошелёк нужно обновить">
+                  Закройте и снова откройте приложение — текущий кошелёк не совпадает с учебным портфелем.
                 </GuardAlert>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Trade direction">
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Направление операции">
                 <Button
                   type="button"
                   variant={side === "BUY" ? "secondary" : "outline"}
                   onClick={() => selectSide("BUY")}
                   disabled={Boolean(busy)}
                 >
-                  Buy RWA-DEMO
+                  Купить долю
                 </Button>
                 <Button
                   type="button"
@@ -579,7 +572,7 @@ export function RwaDemoDrawer({
                   onClick={() => selectSide("SELL")}
                   disabled={Boolean(busy)}
                 >
-                  Sell RWA-DEMO
+                  Продать долю
                 </Button>
               </div>
 
@@ -589,8 +582,6 @@ export function RwaDemoDrawer({
                     value={buyInput}
                     symbol={quoteSymbol}
                     disabled={!demoReady || Boolean(busy)}
-                    atomic={buyInputAtomic}
-                    decimals={asset.quoteDecimals}
                     onValueChange={(value) => {
                       setBuyInput(value);
                       clearTrade();
@@ -619,8 +610,6 @@ export function RwaDemoDrawer({
                   value={sellInput}
                   symbol={asset.symbol}
                   disabled={!demoReady || Boolean(busy)}
-                  atomic={sellInputAtomic}
-                  decimals={asset.decimals}
                   onValueChange={(value) => {
                     setSellInput(value);
                     clearTrade();
@@ -632,14 +621,14 @@ export function RwaDemoDrawer({
               {quote ? <QuoteCard quote={quote} asset={asset} /> : null}
               {quote && quoteExpired && !completedOrder ? (
                 <Button className="w-full" variant="outline" onClick={() => void requestQuote()} disabled={Boolean(busy)}>
-                  <RefreshCw />Refresh expired quote
+                  <RefreshCw />Пересчитать сумму
                 </Button>
               ) : null}
 
               {notice ? (
                 <Alert>
                   <ShieldCheck />
-                  <AlertTitle>Devnet status</AlertTitle>
+                  <AlertTitle>Статус операции</AlertTitle>
                   <AlertDescription>{notice}</AlertDescription>
                 </Alert>
               ) : null}
@@ -647,12 +636,12 @@ export function RwaDemoDrawer({
               {error ? (
                 <Alert variant="destructive">
                   <AlertTriangle />
-                  <AlertTitle>Action required</AlertTitle>
+                  <AlertTitle>Нужно действие</AlertTitle>
                   <AlertDescription>
                     <span>{error.message}</span>
                     {error.retryStage ? (
                       <Button className="mt-3" size="sm" variant="outline" onClick={retry} disabled={Boolean(busy)}>
-                        <RefreshCw />Retry
+                        <RefreshCw />Повторить
                       </Button>
                     ) : null}
                   </AlertDescription>
@@ -660,8 +649,8 @@ export function RwaDemoDrawer({
               ) : null}
 
               {side === "BUY" && !externalQuoteMint && funding && !isFundingIssued ? (
-                <GuardAlert title={`${quoteSymbol} has not been issued`}>
-                  {funding.disclosure || SIMULATED_FUNDING_DISCLOSURE}. Follow the documented Devnet funding step or enable the guarded faucet; do not treat this as a fiat payment.
+                <GuardAlert title={`${quoteSymbol} ещё не зачислены`}>
+                  Пополнение подготовлено, но средства ещё не доступны для покупки. Попробуйте обновить статус чуть позже.
                 </GuardAlert>
               ) : null}
 
@@ -672,11 +661,11 @@ export function RwaDemoDrawer({
                     onClick={() => void signAndSubmit()}
                     disabled={!demoReady || quoteExpired || Boolean(busy)}
                   >
-                    {busy === "building" ? <><LoaderCircle className="animate-spin" />Preparing fresh transaction…</> : null}
-                    {busy === "signing" ? <><LoaderCircle className="animate-spin" />Awaiting wallet signature…</> : null}
-                    {busy === "confirming" ? <><LoaderCircle className="animate-spin" />Confirming on Devnet…</> : null}
-                    {!busy && pendingSignature ? <><RefreshCw />Check confirmation</> : null}
-                    {!busy && !pendingSignature ? <><ArrowDownUp />Review and sign Devnet swap</> : null}
+                    {busy === "building" ? <><LoaderCircle className="animate-spin" />Готовим подтверждение…</> : null}
+                    {busy === "signing" ? <><LoaderCircle className="animate-spin" />Подтвердите {side === "BUY" ? "покупку" : "продажу"} в кошельке…</> : null}
+                    {busy === "confirming" ? <><LoaderCircle className="animate-spin" />Проверяем результат…</> : null}
+                    {!busy && pendingSignature ? <><RefreshCw />Проверить результат</> : null}
+                    {!busy && !pendingSignature ? <><ArrowDownUp />Подтвердить {side === "BUY" ? "покупку" : "продажу"}</> : null}
                   </Button>
                 ) : (
                   <Button
@@ -685,7 +674,7 @@ export function RwaDemoDrawer({
                     onClick={() => void requestQuote()}
                     disabled={!demoReady || Boolean(busy) || (side === "BUY" && !canRequestBuyQuote) || (side === "SELL" && !isPositiveAtomic(sellInputAtomic))}
                   >
-                    {busy === "quoting" ? <><LoaderCircle className="animate-spin" />Requesting fresh quote…</> : <><RefreshCw />Get fresh Meteora quote</>}
+                    {busy === "quoting" ? <><LoaderCircle className="animate-spin" />Считаем условия…</> : <><RefreshCw />Посмотреть условия {side === "BUY" ? "покупки" : "продажи"}</>}
                   </Button>
                 )
               ) : null}
@@ -693,11 +682,11 @@ export function RwaDemoDrawer({
               {completedOrder && side === "SELL" ? (
                 <Card className="gap-3 rounded-2xl p-4">
                   <div>
-                    <p className="font-medium">Devnet sale confirmed</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Create an explicitly simulated payout receipt. This does not send KZT or start a bank transfer.</p>
+                    <p className="font-medium">Продажа подтверждена</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Можно создать демонстрационную запись о выплате. Банковский перевод не будет отправлен.</p>
                   </div>
                   <Button className="w-full" onClick={() => void createPayout()} disabled={Boolean(busy)}>
-                    {busy === "payout" ? <><LoaderCircle className="animate-spin" />Creating simulated payout…</> : "Create simulated KZT payout receipt"}
+                    {busy === "payout" ? <><LoaderCircle className="animate-spin" />Готовим запись о выплате…</> : "Создать запись о выплате"}
                   </Button>
                 </Card>
               ) : null}
@@ -727,13 +716,13 @@ function FundingPanel({
   onFunding: () => void;
 }) {
   return (
-    <Card className="gap-3 rounded-2xl p-4">
+    <Card className="gap-4 rounded-2xl p-4">
       <div className="space-y-1">
-        <p className="font-medium">1. Simulate a KZT top-up</p>
-        <p className="text-xs leading-5 text-muted-foreground">{SIMULATED_FUNDING_DISCLOSURE}. The illustrative rate is not a live FX rate and no payment is collected.</p>
+        <p className="font-medium">Сумма пополнения</p>
+        <p className="text-xs leading-5 text-muted-foreground">Укажите сумму для демонстрационного баланса.</p>
       </div>
       <label className="space-y-1.5 text-sm">
-        <span className="font-medium">Illustrative KZT amount</span>
+        <span className="font-medium">Сумма</span>
         <div className="flex items-center gap-2">
           <Input
             type="text"
@@ -743,26 +732,32 @@ function FundingPanel({
             onChange={(event) => onValueChange(event.target.value.replace(/[^0-9]/g, ""))}
             disabled={disabled}
             className="h-11 text-lg tabular-nums"
-            aria-label="Illustrative KZT amount"
+            aria-label="Сумма демонстрационного пополнения"
           />
           <span className="text-sm font-medium">₸</span>
         </div>
       </label>
       <Button className="w-full" variant="outline" onClick={onFunding} disabled={disabled || Boolean(funding) || parseKztInput(value) === null}>
-        Create simulated top-up and issue {quoteSymbol}
+        Пополнить демонстрационный баланс
       </Button>
       {funding ? (
         <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-muted-foreground">Funding status</span>
-            <Badge variant={funding.status === "TEST_TOKEN_ISSUED" ? "secondary" : "outline"}>{funding.status}</Badge>
+            <span className="text-muted-foreground">Статус</span>
+            <Badge variant={funding.status === "TEST_TOKEN_ISSUED" ? "secondary" : "outline"}>{funding.status === "TEST_TOKEN_ISSUED" ? "Готово" : "В обработке"}</Badge>
           </div>
-          <p>{SIMULATED_FUNDING_DISCLOSURE}</p>
-          {funding.demoRate ? <p>Illustrative demo rate: {funding.demoRate} KZT per {quoteSymbol}.</p> : null}
-          <p>{quoteSymbol}: {formatAtomic(funding.quoteTokenAmountAtomic, quoteDecimals)} (atomic: {funding.quoteTokenAmountAtomic})</p>
-          {funding.mintExplorerUrl ? <ExplorerLink href={funding.mintExplorerUrl} label={`View ${quoteSymbol} issue transaction`} /> : null}
+          <p>Доступно: {formatAtomic(funding.quoteTokenAmountAtomic, quoteDecimals)} {quoteSymbol}</p>
+          <details className="rounded-lg bg-background/60 px-2.5 py-2 text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">Подробнее</summary>
+            <div className="space-y-2 pt-2">
+              <p>{funding.disclosure || SIMULATED_FUNDING_DISCLOSURE}.</p>
+              {funding.demoRate ? <p>Демонстрационный курс: {funding.demoRate} KZT за {quoteSymbol}.</p> : null}
+              {funding.mintExplorerUrl ? <ExplorerLink href={funding.mintExplorerUrl} label="Открыть технические сведения" /> : null}
+            </div>
+          </details>
         </div>
       ) : null}
+      <p className="text-xs leading-5 text-muted-foreground">{SIMULATED_FUNDING_DISCLOSURE}.</p>
     </Card>
   );
 }
@@ -771,27 +766,23 @@ function ExternalQuotePanel({
   value,
   symbol,
   disabled,
-  atomic,
-  decimals,
   onValueChange,
 }: {
   value: string;
   symbol: string;
   disabled: boolean;
-  atomic: string | null;
-  decimals: number;
   onValueChange: (value: string) => void;
 }) {
   return (
-    <Card className="gap-3 rounded-2xl p-4">
+    <Card className="gap-4 rounded-2xl p-4">
       <div className="space-y-1">
-        <p className="font-medium">1. Use externally supplied Devnet {symbol}</p>
+        <p className="font-medium">Сумма покупки</p>
         <p className="text-xs leading-5 text-muted-foreground">
-          Get {symbol} from a Devnet source outside this app, then ensure this wallet also has Devnet SOL for network fees. This app does not process KZT, issue {symbol}, or create a payout receipt.
+          Выберите, сколько {symbol} использовать для покупки доли.
         </p>
       </div>
       <label className="space-y-1.5 text-sm">
-        <span className="font-medium">{symbol} amount to spend</span>
+        <span className="font-medium">К оплате</span>
         <div className="flex items-center gap-2">
           <Input
             type="text"
@@ -801,16 +792,18 @@ function ExternalQuotePanel({
             onChange={(event) => onValueChange(sanitizeDecimalInput(event.target.value))}
             disabled={disabled}
             className="h-11 text-lg tabular-nums"
-            aria-label={`${symbol} amount to spend`}
+            aria-label={`Сумма в ${symbol}`}
           />
           <span className="text-sm font-medium">{symbol}</span>
         </div>
       </label>
-      <p className="text-xs text-muted-foreground">
-        {atomic && isPositiveAtomic(atomic)
-          ? `Atomic input: ${atomic} (${formatAtomic(atomic, decimals)} ${symbol})`
-          : `Enter a positive ${symbol} amount; raw token units are calculated without floating-point arithmetic.`}
-      </p>
+      <p className="text-xs text-muted-foreground">Начните с небольшой суммы — перед подтверждением покажем точный результат.</p>
+      <details className="rounded-xl bg-muted/50 px-3 py-2 text-xs leading-5 text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground">Что потребуется для покупки?</summary>
+        <p className="pt-2">
+          На кошельке нужны тестовые {symbol} и небольшая сумма тестового SOL на комиссию сети. Здесь используются только тестовые средства.
+        </p>
+      </details>
     </Card>
   );
 }
@@ -819,25 +812,21 @@ function SellPanel({
   value,
   symbol,
   disabled,
-  atomic,
-  decimals,
   onValueChange,
 }: {
   value: string;
   symbol: string;
   disabled: boolean;
-  atomic: string | null;
-  decimals: number;
   onValueChange: (value: string) => void;
 }) {
   return (
-    <Card className="gap-3 rounded-2xl p-4">
+    <Card className="gap-4 rounded-2xl p-4">
       <div className="space-y-1">
-        <p className="font-medium">1. Choose RWA-DEMO to sell</p>
-        <p className="text-xs leading-5 text-muted-foreground">{DEVNET_SWAP_DISCLOSURE}</p>
+        <p className="font-medium">Сумма продажи</p>
+        <p className="text-xs leading-5 text-muted-foreground">Укажите количество долей, которое хотите продать.</p>
       </div>
       <label className="space-y-1.5 text-sm">
-        <span className="font-medium">RWA-DEMO amount</span>
+        <span className="font-medium">Количество долей</span>
         <div className="flex items-center gap-2">
           <Input
             type="text"
@@ -847,14 +836,12 @@ function SellPanel({
             onChange={(event) => onValueChange(sanitizeDecimalInput(event.target.value))}
             disabled={disabled}
             className="h-11 text-lg tabular-nums"
-            aria-label="RWA-DEMO amount to sell"
+            aria-label="Количество долей для продажи"
           />
           <span className="text-sm font-medium">{symbol}</span>
         </div>
       </label>
-      <p className="text-xs text-muted-foreground">
-        {atomic && isPositiveAtomic(atomic) ? `Atomic input: ${atomic} (${formatAtomic(atomic, decimals)} ${symbol})` : "Enter a positive amount; raw token units are calculated without floating-point arithmetic."}
-      </p>
+      <p className="text-xs text-muted-foreground">Условия продажи появятся до подтверждения.</p>
     </Card>
   );
 }
@@ -864,52 +851,78 @@ function QuoteCard({ quote, asset }: { quote: DemoQuote; asset: DemoAsset }) {
   const outputSymbol = quote.side === "BUY" ? asset.symbol : asset.quoteSymbol;
   const inputDecimals = quote.side === "BUY" ? asset.quoteDecimals : asset.decimals;
   const outputDecimals = quote.side === "BUY" ? asset.decimals : asset.quoteDecimals;
+  const priceImpactPercent = quote.priceImpactBps === null ? null : quote.priceImpactBps / 100;
+  const action = quote.side === "BUY" ? "Покупка" : "Продажа";
   return (
     <Card className="gap-3 rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">2. Fresh Meteora quote</p>
-          <p className="mt-1 text-xs text-muted-foreground">{quote.route} · Devnet pool quote, not a real market price.</p>
+          <p className="font-medium">Проверьте условия</p>
+          <p className="mt-1 text-xs text-muted-foreground">Сумма фиксируется ненадолго перед подтверждением.</p>
         </div>
-        <Badge variant="outline">{quote.side}</Badge>
+        <Badge variant="outline">{action}</Badge>
       </div>
-      <QuoteRow label="Input" value={`${formatAtomic(quote.inputAmountAtomic, inputDecimals)} ${inputSymbol}`} />
-      <QuoteRow label="Expected output" value={`${formatAtomic(quote.expectedOutputAtomic, outputDecimals)} ${outputSymbol}`} />
-      <QuoteRow label="Minimum output" value={`${formatAtomic(quote.minimumOutputAtomic, outputDecimals)} ${outputSymbol}`} />
-      <QuoteRow label="Slippage" value={quote.slippageBps === null ? "—" : `${(quote.slippageBps / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`} />
-      <QuoteRow label="Fee" value={quote.feeAmountAtomic === null ? "—" : `${formatAtomic(quote.feeAmountAtomic, inputDecimals)} ${inputSymbol}`} />
-      <QuoteRow label="Price impact" value={quote.priceImpactBps === null ? "—" : `${(quote.priceImpactBps / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`} />
-      <QuoteRow label="Expiry" value={formatExpiry(quote.expiresAt)} warning={isExpired(quote.expiresAt)} />
-      <Disclosure compact>
-        <p>{DEVNET_SWAP_DISCLOSURE}</p>
-        <p>Review the expected output and minimum output before your wallet signs.</p>
-      </Disclosure>
+      <QuoteRow label="К оплате" value={`${formatAtomic(quote.inputAmountAtomic, inputDecimals)} ${inputSymbol}`} />
+      <QuoteRow label="Вы получите" value={`${formatAtomic(quote.expectedOutputAtomic, outputDecimals)} ${outputSymbol}`} />
+      <QuoteRow label="Не менее" value={`${formatAtomic(quote.minimumOutputAtomic, outputDecimals)} ${outputSymbol}`} />
+      {priceImpactPercent !== null && priceImpactPercent >= 2 ? (
+        <Disclosure>
+          <p className="font-medium">Эта сумма заметно влияет на цену в демо-пуле.</p>
+          <p>Результат может быть ниже обычного. Рассмотрите меньшую сумму перед подтверждением.</p>
+        </Disclosure>
+      ) : null}
+      <details className="rounded-xl bg-muted/50 px-3 py-2 text-xs leading-5 text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground">Расчёт и технические данные</summary>
+        <div className="space-y-2 pt-3">
+          <QuoteRow label="Допустимое отклонение" value={quote.slippageBps === null ? "—" : `${(quote.slippageBps / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`} />
+          <QuoteRow label="Комиссия пула" value={quote.feeAmountAtomic === null ? "—" : `${formatAtomic(quote.feeAmountAtomic, inputDecimals)} ${inputSymbol}`} />
+          <QuoteRow label="Влияние на цену" value={priceImpactPercent === null ? "—" : `${priceImpactPercent.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`} />
+          <QuoteRow label="Действует до" value={formatExpiry(quote.expiresAt)} warning={isExpired(quote.expiresAt)} />
+          <QuoteRow label="Маршрут" value={quote.route} />
+          <p className="pt-1">{DEVNET_SWAP_DISCLOSURE}</p>
+        </div>
+      </details>
     </Card>
   );
 }
 
-function AssetCard({ asset, configured }: { asset: DemoAsset; configured: boolean }) {
+function AssetCard({
+  asset,
+  configured,
+  disclosure,
+}: {
+  asset: DemoAsset;
+  configured: boolean;
+  disclosure: string | null;
+}) {
   return (
     <Card className="gap-3 rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-semibold">{asset.name}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{asset.description ?? "Devnet-only RWA demonstration asset."}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Цифровая доля в демонстрационном портфеле.</p>
         </div>
-        <Badge variant={configured && asset.tradeEnabled ? "secondary" : "outline"}>{asset.symbol}</Badge>
+        <Badge variant={configured && asset.tradeEnabled ? "secondary" : "outline"}>{configured && asset.tradeEnabled ? "Доступно" : "Недоступно"}</Badge>
       </div>
       <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs">
-        <QuoteRow label="Network" value={asset.network || "unknown"} />
-        <QuoteRow label="Quote token" value={asset.quoteSymbol} />
-        <QuoteRow label="Pool" value={asset.poolAddress ? shortenAddress(asset.poolAddress) : "Not configured"} />
-        <QuoteRow label="Route" value="Direct Meteora DLMM Devnet" />
+        <QuoteRow label="Валюта расчёта" value={asset.quoteSymbol} />
+        <QuoteRow label="Статус" value={configured && asset.tradeEnabled ? "Открыто для демо-покупки" : "Временно недоступно"} />
       </div>
-      <div className="flex flex-wrap gap-2">
-        {asset.explorerUrl ? <ExplorerLink href={asset.explorerUrl} label="RWA mint" /> : null}
-        {asset.quoteMintExplorerUrl ? <ExplorerLink href={asset.quoteMintExplorerUrl} label={`${asset.quoteSymbol} mint`} /> : null}
-        {asset.poolExplorerUrl ? <ExplorerLink href={asset.poolExplorerUrl} label="Pool" /> : null}
-      </div>
-      <p className="text-xs leading-5 text-muted-foreground">{asset.rightsDisclosure}</p>
+      <details className="rounded-xl bg-muted/50 px-3 py-2 text-xs leading-5 text-muted-foreground">
+        <summary className="cursor-pointer font-medium text-foreground">Технические сведения</summary>
+        <div className="space-y-2 pt-3">
+          <QuoteRow label="Сеть" value={asset.network || "—"} />
+          <QuoteRow label="Токен расчёта" value={asset.quoteSymbol} />
+          <QuoteRow label="Пул" value={asset.poolAddress ? shortenAddress(asset.poolAddress) : "Не настроен"} />
+          <QuoteRow label="Маршрут" value="Direct Meteora DLMM Devnet" />
+          <div className="flex flex-wrap gap-2 pt-1">
+            {asset.explorerUrl ? <ExplorerLink href={asset.explorerUrl} label="Токен RWA" /> : null}
+            {asset.quoteMintExplorerUrl ? <ExplorerLink href={asset.quoteMintExplorerUrl} label={`Токен ${asset.quoteSymbol}`} /> : null}
+            {asset.poolExplorerUrl ? <ExplorerLink href={asset.poolExplorerUrl} label="Пул" /> : null}
+          </div>
+          <p className="pt-1">{disclosure ?? asset.rightsDisclosure}</p>
+        </div>
+      </details>
     </Card>
   );
 }
@@ -946,10 +959,10 @@ function EmptyState({ onRetry }: { onRetry: () => void }) {
     <Card className="items-center gap-3 rounded-2xl p-5 text-center">
       <AlertTriangle className="size-5 text-muted-foreground" />
       <div>
-        <p className="font-medium">RWA-DEMO is not available</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">The Devnet demo asset has not been configured yet.</p>
+        <p className="font-medium">RWA-DEMO пока недоступен</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">Попробуйте обновить данные через минуту.</p>
       </div>
-      <Button variant="outline" onClick={onRetry}><RefreshCw />Retry</Button>
+      <Button variant="outline" onClick={onRetry}><RefreshCw />Обновить</Button>
     </Card>
   );
 }
@@ -1106,8 +1119,16 @@ function readApiError(payload: unknown, fallback: string) {
 }
 
 function userFacingError(error: unknown, fallback: string) {
-  if (error instanceof DemoApiError) return error.message;
-  if (isLikelyUserRejection(error)) return "Wallet signature was rejected. No transaction was sent.";
+  if (isLikelyUserRejection(error)) return "Подтверждение в кошельке отменено. Операция не отправлена.";
+  if (error instanceof DemoApiError) {
+    if (/insufficient|not enough|balance/i.test(error.message)) {
+      return "Недостаточно средств на кошельке для этой операции.";
+    }
+    if (/expired|quote/i.test(error.message)) {
+      return "Условия устарели. Пересчитайте их и попробуйте снова.";
+    }
+    return error.message;
+  }
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
@@ -1181,8 +1202,8 @@ function isExpired(value: string | number | null) {
 
 function formatExpiry(value: string | number | null) {
   const date = toDate(value);
-  if (!date) return "Not provided";
-  if (date.getTime() <= Date.now()) return "Expired — refresh quote";
+  if (!date) return "Не указано";
+  if (date.getTime() <= Date.now()) return "Истекло — пересчитайте условия";
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(date);
 }
 
