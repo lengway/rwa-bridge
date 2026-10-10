@@ -5,10 +5,7 @@ import { Card } from "@/components/ui/card";
 import { RwaDemoLauncher } from "@/components/app/rwa-demo-drawer";
 import { useDevnet } from "@/lib/useDevnet";
 
-/**
- * A deliberately separate screen: RWA-DEMO must never inherit the real-asset
- * language used by the existing OFFICE flow.
- */
+/** A separate Devnet asset route with explicit no-value boundaries. */
 export function RwaDemoScreen() {
   const devnet = useDevnet();
 
@@ -17,7 +14,7 @@ export function RwaDemoScreen() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">SOLANA DEVNET</Badge>
-          <Badge variant="outline">SIMULATED FUNDING</Badge>
+          <Badge variant="outline">DEVNET TEST UNITS</Badge>
           <Badge variant="outline">NO MONETARY VALUE</Badge>
         </div>
         <div>
@@ -25,8 +22,8 @@ export function RwaDemoScreen() {
             RWA · Solana Devnet
           </h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Цифровая доля в портфеле Solana Devnet. Выберите сумму, проверьте
-            условия и подтвердите покупку.
+            Цифровая Devnet-доля. Выберите сумму, проверьте условия и
+            подтвердите операцию в кошельке.
           </p>
         </div>
       </section>

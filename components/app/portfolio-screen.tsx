@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { BuyAssetDrawer } from "@/components/app/buy-asset-drawer";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { ExchangeDrawer } from "@/components/app/exchange-drawer";
-import { InvestDrawer } from "@/components/app/invest-drawer";
+import { KaminoLendDrawer } from "@/components/app/kamino-lend-drawer";
 import { presentDevnetCopy } from "@/components/app/earn-detail-parts";
 import { PortfolioSettings } from "@/components/app/profile-screen";
 import { WithdrawDrawer } from "@/components/app/withdraw-drawer";
@@ -18,16 +18,16 @@ import { OFFICE_ASSET } from "@/lib/assets";
 import { formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet, type DevnetPortfolio } from "@/lib/useDevnet";
-import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
 
 type DisplayHolding = DevnetPortfolio["holdings"][number];
 
 const allocationNames = [
-  { id: "cash", name: "Свободные TEST QUOTE", color: "bg-sky-500" },
+  { id: "cash", name: "Доступные Devnet units", color: "bg-sky-500" },
   { id: "kzte", name: "Legacy KZTE · Devnet only", color: "bg-rose-500" },
-  { id: "ondo-usdy", name: "Solana Devnet Strategy", color: "bg-emerald-500" },
-  { id: "kz-bond-demo", name: "Historic Devnet shares · exit only", color: "bg-amber-500" },
-  { id: "demo-office", name: "OFFICE · app test token", color: "bg-violet-500" },
+  { id: "kamino-lend", name: "Kamino Lend · Devnet position", color: "bg-emerald-500" },
+  { id: "ondo-usdy", name: "Legacy Devnet position · exit only", color: "bg-emerald-500" },
+  { id: "kz-bond-demo", name: "Archived Devnet position · exit only", color: "bg-amber-500" },
+  { id: "demo-office", name: "OFFICE · app Devnet token", color: "bg-violet-500" },
 ] as const;
 
 // Legacy KZT/card adapter screens are retained for a separately reviewed
@@ -39,8 +39,8 @@ export function PortfolioScreen() {
   const devnet = useDevnet();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selected, setSelected] = useState<DisplayHolding | null>(null);
-  const [investStrategy, setInvestStrategy] = useState<YieldStrategy>(YIELD_STRATEGIES[0]);
-  const [investOpen, setInvestOpen] = useState(false);
+  const [kaminoOpen, setKaminoOpen] = useState(false);
+  const [kaminoAction, setKaminoAction] = useState<"deposit" | "withdraw">("deposit");
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
@@ -58,11 +58,10 @@ export function PortfolioScreen() {
   const visibleAllocationValues = allocationValues.filter((item) => Number.isFinite(item.value) && item.value > 0);
   const allocationTotal = visibleAllocationValues.reduce((sum, item) => sum + item.value, 0);
 
-  const openInvest = (holding?: DisplayHolding) => {
-    const strategy = YIELD_STRATEGIES.find((item) => item.id === holding?.productId) ?? YIELD_STRATEGIES[0];
-    setInvestStrategy(strategy);
+  const openInvest = () => {
     setSelected(null);
-    setInvestOpen(true);
+    setKaminoAction("deposit");
+    setKaminoOpen(true);
   };
 
   const copyValue = async (value: string, label: string) => {
@@ -81,7 +80,7 @@ export function PortfolioScreen() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Портфель</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Ваши тестовые активы и доли Solana Devnet
+            Локальные активы Solana Devnet и история операций
           </p>
         </div>
         <Button variant="outline" size="icon" aria-label="Настройки" onClick={() => setSettingsOpen(true)}>
@@ -91,9 +90,9 @@ export function PortfolioScreen() {
 
       <Card className="gap-4 rounded-2xl p-5">
         <div>
-          <p className="text-sm text-muted-foreground">Тестовый баланс</p>
-          <p className="mt-1 text-3xl font-semibold tabular-nums">{formatQuantity(totalValue)} TEST QUOTE</p>
-          <p className="mt-1 text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE · ILLUSTRATIVE YIELD не отражается в балансе.</p>
+          <p className="text-sm text-muted-foreground">Локальная сводка Devnet</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums">{formatQuantity(totalValue)} DEVNET UNITS</p>
+          <p className="mt-1 text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. Переменная ставка Kamino Lend проверяется в карточке стратегии, а не в этой локальной сводке.</p>
         </div>
         {allocationTotal > 0 ? (
           <div className="space-y-3">
@@ -108,14 +107,14 @@ export function PortfolioScreen() {
                   <span className={`size-2 shrink-0 rounded-full ${item.color}`} />
                   <span className="min-w-0 flex-1 text-muted-foreground">{item.name}</span>
                   <span className="shrink-0 text-right font-medium tabular-nums">
-                    {formatQuantity(item.value)} TEST QUOTE · {allocationTotal > 0 ? `${formatQuantity(item.value / allocationTotal * 100, 1)}%` : "0%"}
+                    {formatQuantity(item.value)} DEVNET UNITS · {allocationTotal > 0 ? `${formatQuantity(item.value / allocationTotal * 100, 1)}%` : "0%"}
                   </span>
                 </div>
               ))}
             </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Распределение появится после пополнения портфеля.</p>
+          <p className="text-sm text-muted-foreground">Локальная сводка обновится после операции в Devnet.</p>
         )}
       </Card>
 
@@ -129,8 +128,8 @@ export function PortfolioScreen() {
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
             <Wallet className="size-6 text-muted-foreground" />
             <p className="font-medium">Пока нет активов</p>
-            <p className="text-sm text-muted-foreground">Подготовьте тестовые единицы или откройте Solana Devnet.</p>
-            <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Посмотреть Solana Devnet</Button>
+            <p className="text-sm text-muted-foreground">Откройте Kamino Lend, чтобы проверить доступный маршрут Devnet.</p>
+            <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Открыть Kamino Lend</Button>
           </Card>
         ) : null}
         <div className="space-y-2">
@@ -170,7 +169,7 @@ export function PortfolioScreen() {
           kzteReserve={devnet.kzteReserve}
           kzteSupply={devnet.kzteSupply}
           onOpenChange={(open) => { if (!open) setSelected(null); }}
-          onInvest={() => openInvest(selected)}
+          onInvest={openInvest}
           onWithdraw={() => { setSelected(null); setWithdrawOpen(true); }}
           onBuy={() => { setSelected(null); setBuyOpen(true); }}
           legacyFiatAdaptersEnabled={legacyFiatAdaptersEnabled}
@@ -182,7 +181,12 @@ export function PortfolioScreen() {
           onCopy={copyValue}
         />
       ) : null}
-      <InvestDrawer open={investOpen} onOpenChange={setInvestOpen} strategy={investStrategy} />
+      <KaminoLendDrawer
+        key={kaminoAction}
+        open={kaminoOpen}
+        onOpenChange={setKaminoOpen}
+        initialAction={kaminoAction}
+      />
       <WithdrawDrawer open={withdrawOpen} onOpenChange={setWithdrawOpen} />
       <BuyAssetDrawer open={buyOpen} onOpenChange={setBuyOpen} asset={OFFICE_ASSET} />
       {legacyFiatAdaptersEnabled ? (
@@ -193,7 +197,7 @@ export function PortfolioScreen() {
 }
 
 function HoldingRow({ holding }: { holding: DisplayHolding }) {
-  const name = holding.kind === "asset" ? "OFFICE · app test token" : presentDevnetCopy(holding.name);
+  const name = holding.kind === "asset" ? "OFFICE · app Devnet token" : presentPortfolioCopy(holding.name);
   return (
     <Card className="gap-3 rounded-2xl p-4 transition-colors hover:bg-muted/40">
       <div className="flex items-start gap-3">
@@ -203,17 +207,17 @@ function HoldingRow({ holding }: { holding: DisplayHolding }) {
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{name}</span>
           <span className="mt-1 block truncate text-xs text-muted-foreground">
-            {formatQuantity(holding.balance)} {presentDevnetCopy(holding.ticker)}
+            {formatQuantity(holding.balance)} {presentPortfolioCopy(holding.ticker)}
           </span>
         </span>
         <span className="text-right">
-          <span className="block font-semibold tabular-nums">{formatQuantity(holding.valueUsd)} TEST QUOTE</span>
+          <span className="block font-semibold tabular-nums">{formatQuantity(holding.valueUsd)} DEVNET UNITS</span>
           {holding.kind === "vault" ? (
-            <span className="mt-1 block text-xs text-muted-foreground">ILLUSTRATIVE YIELD · excluded</span>
+            <span className="mt-1 block text-xs text-muted-foreground">Проверяйте условия выхода из позиции</span>
           ) : <span className="mt-1 block text-xs text-muted-foreground">NO MONETARY VALUE</span>}
         </span>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Фиксированная Devnet-стоимость · 1 TEST QUOTE" : "App test token · NO MONETARY VALUE"}</span></div>
+      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Devnet-позиция · проверьте доступность выхода" : "App Devnet token · NO MONETARY VALUE"}</span></div>
     </Card>
   );
 }
@@ -266,18 +270,17 @@ function HoldingDetails({
   onExchange: (direction: "kzte-to-usd" | "usd-to-kzte") => void;
   onCopy: (value: string, label: string) => void;
 }) {
-  const name = holding.kind === "asset" ? "OFFICE · app test token" : presentDevnetCopy(holding.name);
-  const strategy = YIELD_STRATEGIES.find((item) => item.id === holding.productId);
-  const canInvest = holding.kind === "cash" || Boolean(strategy?.gateway.capabilities.deposit && strategy.gateway.availability === "ENABLED");
+  const name = holding.kind === "asset" ? "OFFICE · app Devnet token" : presentPortfolioCopy(holding.name);
+  const canInvest = holding.kind === "cash";
   const canWithdraw = holding.kind === "vault";
   const canBuy = holding.kind === "asset" || holding.kind === "cash";
   const canExchange = legacyFiatAdaptersEnabled && (holding.kind === "cash" || holding.kind === "kzte");
   const exchangeDirection = holding.kind === "kzte" ? "kzte-to-usd" : "usd-to-kzte";
   return (
-    <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${presentDevnetCopy(holding.ticker)} · ${formatQuantity(holding.valueUsd)} TEST QUOTE · NO MONETARY VALUE`}>
+    <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${presentPortfolioCopy(holding.ticker)} · ${formatQuantity(holding.valueUsd)} DEVNET UNITS · NO MONETARY VALUE`}>
       <div className="space-y-4">
           <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
-            <span className="text-muted-foreground">{holding.kind === "vault" ? "Стоимость Devnet-доли" : "Статус токена"}</span><span className="font-medium">{holding.kind === "vault" ? "1 TEST QUOTE · fixed" : "NO MONETARY VALUE"}</span>
+            <span className="text-muted-foreground">{holding.kind === "vault" ? "Статус Devnet-позиции" : "Статус токена"}</span><span className="font-medium">{holding.kind === "vault" ? "Проверьте условия выхода" : "NO MONETARY VALUE"}</span>
           </div>
         {holding.kind === "kzte" ? (
           <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
@@ -323,7 +326,7 @@ function OnchainHistory({ rows }: { rows: DevnetPortfolio["history"] }) {
         <Card key={row.id} className="flex-row items-start gap-3 rounded-2xl p-3">
           <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"><ArrowDownToLine className="size-4 text-muted-foreground" /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium leading-5">{row.title}</p>
+            <p className="text-sm font-medium leading-5">{presentPortfolioCopy(row.title)}</p>
             <p className="mt-1 text-xs text-muted-foreground">{new Date(row.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
             <a href={row.explorerUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs underline underline-offset-4">Solana Explorer <ExternalLink className="size-3" /></a>
           </div>
@@ -335,4 +338,13 @@ function OnchainHistory({ rows }: { rows: DevnetPortfolio["history"] }) {
 
 function shortAddress(address: string) {
   return address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-5)}` : address;
+}
+
+function presentPortfolioCopy(value: string) {
+  return presentDevnetCopy(value)
+    .replace(/\btest quote\b/gi, "Devnet units")
+    .replace(/\btest token\b/gi, "Devnet token")
+    .replace(/\bsimulated (funding|payout)\b/gi, "Legacy Devnet operation")
+    .replace(/\billustrative yield\b/gi, "Legacy Devnet rate")
+    .replace(/тестов\p{L}*/giu, "Devnet");
 }

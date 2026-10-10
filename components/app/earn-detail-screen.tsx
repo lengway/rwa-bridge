@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { InvestDrawer, WithdrawDrawer } from "@/components/app/drawers";
+import { KaminoLendDrawer } from "@/components/app/kamino-lend-drawer";
 import { DetailActionBar } from "@/components/app/detail-action-bar";
 import {
   EligibilitySection,
@@ -26,6 +27,8 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
   const [amount, setAmount] = useState(1000);
   const [investOpen, setInvestOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [kaminoOpen, setKaminoOpen] = useState(false);
+  const [kaminoAction, setKaminoAction] = useState<"deposit" | "withdraw">("deposit");
   const position = positions[strategy.id];
   const currentEarned = position?.earnedCarryUsd ?? 0;
   const currentPosition = position
@@ -33,6 +36,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
     : undefined;
   const canInvest = canInvestInStrategy(strategy);
   const canRedeem = canRedeemStrategy(strategy);
+  const isKaminoLend = strategy.gateway.provider === "KAMINO";
 
   return (
     <div className="space-y-6">
@@ -48,7 +52,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
       <EligibilitySection strategy={strategy} />
       <TechnicalDetails strategy={strategy} />
 
-      {!canInvest ? (
+      {!isKaminoLend && !canInvest ? (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5 text-muted-foreground">
           RESEARCH / UNSUPPORTED: новые пополнения для этой карточки отключены. Она не является предложением вложить
           реальные средства.
@@ -60,8 +64,20 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
           совместимый путь выхода не будет подтверждён.
         </p>
       ) : null}
-      <DetailActionBar amount={hydrated ? `${formatQuantity(cashUsd)} TEST QUOTE` : "…"}>
-        {position ? (
+      <DetailActionBar amount={isKaminoLend ? "Devnet USDC" : hydrated ? `${formatQuantity(cashUsd)} TEST QUOTE` : "…"}>
+        {isKaminoLend ? (
+          <Button
+            variant="outline"
+            className="h-11 flex-1"
+            onClick={() => {
+              setKaminoAction("withdraw");
+              setKaminoOpen(true);
+            }}
+            disabled={!hydrated || !canRedeem}
+          >
+            {canRedeem ? "Вывести" : "Вывод недоступен"}
+          </Button>
+        ) : position ? (
           <Button
             variant="outline"
             className="h-11 flex-1"
@@ -76,22 +92,38 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
         <Button
           className="h-11 flex-1"
           onClick={() => {
-            if (canInvest) setInvestOpen(true);
+            if (isKaminoLend) {
+              setKaminoAction("deposit");
+              setKaminoOpen(true);
+            } else if (canInvest) {
+              setInvestOpen(true);
+            }
           }}
           disabled={!hydrated || !canInvest}
         >
-          <ArrowRight />{canInvest ? "Открыть Solana Devnet" : "Недоступно"}
+          <ArrowRight />{canInvest ? isKaminoLend ? "Пополнить Kamino" : "Открыть Solana Devnet" : "Недоступно"}
         </Button>
       </DetailActionBar>
-      <InvestDrawer
-        open={investOpen}
-        onOpenChange={setInvestOpen}
-        strategy={strategy}
-      />
-      <WithdrawDrawer
-        open={withdrawOpen}
-        onOpenChange={setWithdrawOpen}
-      />
+      {isKaminoLend ? (
+        <KaminoLendDrawer
+          key={kaminoAction}
+          open={kaminoOpen}
+          onOpenChange={setKaminoOpen}
+          initialAction={kaminoAction}
+        />
+      ) : (
+        <>
+          <InvestDrawer
+            open={investOpen}
+            onOpenChange={setInvestOpen}
+            strategy={strategy}
+          />
+          <WithdrawDrawer
+            open={withdrawOpen}
+            onOpenChange={setWithdrawOpen}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -145,7 +145,7 @@ function InvestDrawerContents({
       open={open}
       onOpenChange={changeOpen}
       title={`Solana Devnet · ${displayStrategyName(strategy)}`}
-      description="SIMULATED FUNDING · тестовые токены и доли не имеют денежной стоимости."
+      description="DEVNET FUNDING · тестовые токены и доли не имеют денежной стоимости."
     >
       {!canInvest ? (
         <Card className="gap-3 rounded-2xl p-4">
@@ -163,7 +163,7 @@ function InvestDrawerContents({
           amount={success.amount}
           amountLabel={`${formatQuantity(success.shares ?? Number.NaN)} ${success.shareTicker ?? "тестовых долей"}`}
           sentence="Подтверждён перевод тестового токена в Solana Devnet; тестовые доли выпущены в кошелёк."
-          note="ILLUSTRATIVE YIELD не начисляется на эту операцию. NO MONETARY VALUE."
+          note="REFERENCE RATE не начисляется на эту операцию. NO MONETARY VALUE."
           onDone={() => changeOpen(false)}
           secondaryHref="/home"
           secondaryLabel="Перейти к тестовому портфелю"
@@ -173,7 +173,7 @@ function InvestDrawerContents({
         <div className="space-y-5">
           <GatewayDisclosureBadges strategy={strategy} />
           <p className="text-xs leading-5 text-muted-foreground">
-            SIMULATED FUNDING: доступный баланс и сумма ниже — только тестовые единицы. NO MONETARY VALUE.
+            DEVNET FUNDING: доступный баланс и сумма ниже — только Devnet-единицы. NO MONETARY VALUE.
           </p>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
@@ -212,17 +212,17 @@ function InvestDrawerContents({
           </div>
 
           <Card className="gap-3 p-4">
-            <p className="text-sm font-medium">Иллюстративный результат</p>
+            <p className="text-sm font-medium">Справочный результат</p>
             {hasIllustrativeApy ? (
               <>
                 <IllustrativeLine label="Пример за месяц" amount={illustrativeMonth} />
                 <IllustrativeLine label="Пример за год" amount={illustrativeYear} />
               </>
             ) : (
-              <p className="text-sm leading-6 text-muted-foreground">Числовая иллюстративная ставка не задана, поэтому пример не рассчитывается.</p>
+              <p className="text-sm leading-6 text-muted-foreground">Числовая ставка не задана, поэтому пример не рассчитывается.</p>
             )}
             <p className="text-xs text-muted-foreground">
-              ILLUSTRATIVE YIELD: он не является фактическим доходом и не начисляется на тестовые доли.
+              REFERENCE RATE: он не является фактическим доходом и не начисляется на Devnet-доли.
             </p>
             <p className="text-xs text-muted-foreground">{presentDevnetCopy(gateway.yield.sourceNote)}</p>
             <p className="text-xs text-muted-foreground">Источник / режим: {presentDevnetCopy(gateway.sourceLabel)}.</p>
@@ -234,7 +234,7 @@ function InvestDrawerContents({
               onCheckedChange={(checked) => setAccepted(checked === true)}
               className="mt-0.5"
             />
-            <span>Понимаю: это SOLANA DEVNET, SIMULATED FUNDING и NO MONETARY VALUE; доходность только иллюстративна.</span>
+            <span>Понимаю: это SOLANA DEVNET, DEVNET FUNDING и NO MONETARY VALUE; ставка не гарантируется.</span>
           </label>
           {amountValue > cashUsd ? (
             <p className="text-xs text-destructive">

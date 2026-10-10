@@ -271,7 +271,7 @@ export async function POST(request: Request) {
     notifyReceipt(request, {
       kind: "faucet",
       amountUsd,
-      details: "SIMULATED FUNDING: тестовые токены выпущены на кошелёк в Solana Devnet; это не банковский или карточный платёж.",
+      details: "DEVNET TEST FUNDING: тестовые токены выпущены на кошелёк в Solana Devnet; это не банковский или карточный платёж.",
       explorerUrl: explorerUrl(signature),
       receiptId: signature,
     });

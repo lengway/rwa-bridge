@@ -109,12 +109,12 @@ export function PromoCard() {
         <div>
           <h2 className="font-semibold">{displayStrategyName(strategy)}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            SIMULATED FUNDING · тестовый токен обменивается на Devnet-долю 1:1 после подтверждённой операции Devnet.
+            USER-SIGNED ON-CHAIN · сервер проверяет маршрут и симулирует транзакцию, а подключённый кошелёк подписывает её в Solana Devnet.
           </p>
         </div>
       </Link>
       <div className="space-y-1 text-xs text-muted-foreground">
-        <p>ILLUSTRATIVE YIELD не начисляется в баланс. NO MONETARY VALUE.</p>
+        <p>VARIABLE PROTOCOL RATE · NO MONETARY VALUE.</p>
       </div>
     </Card>
   );

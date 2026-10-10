@@ -3,19 +3,13 @@
 import Link from "next/link";
 import { ArrowDownToLine, ArrowUpFromLine, Plus, ShoppingBag } from "lucide-react";
 
-export function QuickActions({
-  onAddMoney,
-  onWithdraw,
-}: {
-  onAddMoney: () => void;
-  onWithdraw: () => void;
-}) {
+export function QuickActions() {
   return (
     <section aria-label="Быстрые действия" className="grid grid-cols-4 gap-2">
-      <QuickAction label="Пополнить" icon={<Plus />} onClick={onAddMoney} />
-      <QuickAction label="Вложить" icon={<ArrowDownToLine />} href="/earn" />
+      <QuickAction label="Пополнить" icon={<Plus />} href="/earn/kamino-lend" />
+      <QuickAction label="Вложить" icon={<ArrowDownToLine />} href="/earn/kamino-lend" />
       <QuickAction label="Купить долю" icon={<ShoppingBag />} href="/assets" />
-      <QuickAction label="Вывести" icon={<ArrowUpFromLine />} onClick={onWithdraw} />
+      <QuickAction label="Вывести" icon={<ArrowUpFromLine />} href="/earn/kamino-lend" />
     </section>
   );
 }

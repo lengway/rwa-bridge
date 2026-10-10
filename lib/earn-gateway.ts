@@ -13,22 +13,32 @@ export type EarnProviderId = "SIMULATED_DEMO" | "KAMINO" | "NATIVE_STAKE";
 export type EarnStrategyMode = "SIMULATED_DEMO" | "KAMINO" | "NATIVE_STAKE";
 /**
  * `REDEMPTION_ONLY` is a migration state, not a second marketed strategy:
- * old Devnet demo shares may exit, while no quote, funding, or deposit can
+ * old Devnet positions may exit, while no quote, funding, or deposit can
  * begin for that record.
  */
 export type EarnStrategyAvailability = "ENABLED" | "DISABLED" | "REDEMPTION_ONLY";
-export type EarnFundingKind = "SIMULATED" | "UNAVAILABLE";
-export type EarnPayoutKind = "SIMULATED" | "UNAVAILABLE";
-export type EarnYieldKind = "ILLUSTRATIVE" | "UNAVAILABLE";
+export type EarnFundingKind = "ONCHAIN" | "SIMULATED" | "UNAVAILABLE";
+export type EarnPayoutKind = "ONCHAIN" | "SIMULATED" | "UNAVAILABLE";
+export type EarnYieldKind = "PROTOCOL_VARIABLE" | "ILLUSTRATIVE" | "UNAVAILABLE";
 
+/** Required labels for historic app-controlled Devnet positions. */
 export const EARN_REQUIRED_DISCLOSURE_LABELS = [
   "SOLANA DEVNET",
-  "SIMULATED FUNDING",
-  "ILLUSTRATIVE YIELD",
+  "LEGACY POSITION",
   "NO MONETARY VALUE",
 ] as const;
 
-export type EarnDisclosureLabel = (typeof EARN_REQUIRED_DISCLOSURE_LABELS)[number];
+export const KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS = [
+  "SOLANA DEVNET",
+  "KAMINO LEND",
+  "USER-SIGNED ON-CHAIN",
+  "VARIABLE PROTOCOL RATE",
+  "NO MONETARY VALUE",
+] as const;
+
+export type EarnDisclosureLabel =
+  | (typeof EARN_REQUIRED_DISCLOSURE_LABELS)[number]
+  | (typeof KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS)[number];
 
 export type EarnDisclosure = Readonly<{
   label: EarnDisclosureLabel;
@@ -73,7 +83,7 @@ export type EarnYieldMetadata = Readonly<{
   label: string;
   /**
    * BPS is an integer representation, never a floating-point APY. The first
-   * demo deliberately has no numeric claim, so this remains null.
+   * Strategies without a verified numeric rate deliberately keep this null.
    */
   apyBps: number | null;
   sourceNote: string;
@@ -82,7 +92,7 @@ export type EarnYieldMetadata = Readonly<{
 export type EarnStrategyId =
   | "devnet-simulated-demo"
   | "legacy-devnet-redemption"
-  | "kamino-devnet-placeholder"
+  | "kamino-lend-devnet-usdc"
   | "native-sol-stake-placeholder";
 
 /**
@@ -128,7 +138,7 @@ export type PublicEarnStrategy = Readonly<
 
 /**
  * A normalized, JSON-safe position shape for provider adapters. The current
- * demo keeps its durable action records in the Devnet ledger; this contract
+ * legacy route keeps its durable action records in the Devnet ledger; this contract
  * keeps later providers from reintroducing floating-point balances or inferred
  * yield claims at the UI/API boundary.
  */
@@ -201,12 +211,8 @@ const REQUIRED_DISCLOSURES: readonly EarnDisclosure[] = [
     text: "SOLANA DEVNET — this strategy is limited to the Solana Devnet cluster.",
   },
   {
-    label: "SIMULATED FUNDING",
-    text: "SIMULATED FUNDING — no fiat payment is accepted or processed.",
-  },
-  {
-    label: "ILLUSTRATIVE YIELD",
-    text: "ILLUSTRATIVE YIELD — any displayed return is illustrative, not earned or on-chain yield.",
+    label: "LEGACY POSITION",
+    text: "LEGACY POSITION — this record supports exit only; no new deposits or funding are accepted.",
   },
   {
     label: "NO MONETARY VALUE",
@@ -214,16 +220,40 @@ const REQUIRED_DISCLOSURES: readonly EarnDisclosure[] = [
   },
 ];
 
+const KAMINO_REQUIRED_DISCLOSURES: readonly EarnDisclosure[] = [
+  {
+    label: "SOLANA DEVNET",
+    text: "SOLANA DEVNET — this route is limited to the Solana Devnet cluster.",
+  },
+  {
+    label: "KAMINO LEND",
+    text: "KAMINO LEND — the prepared transaction targets one pinned Kamino Lend reserve.",
+  },
+  {
+    label: "USER-SIGNED ON-CHAIN",
+    text: "USER-SIGNED ON-CHAIN — the application prepares and simulates the transaction; the connected wallet signs and submits it.",
+  },
+  {
+    label: "VARIABLE PROTOCOL RATE",
+    text: "VARIABLE PROTOCOL RATE — reserve terms and availability are verified before each transaction and are not guaranteed.",
+  },
+  {
+    label: "NO MONETARY VALUE",
+    text: "NO MONETARY VALUE — Devnet tokens and positions have no monetary value.",
+  },
+];
+
 /** Exported so every presentation layer renders the exact same disclosures. */
 export const EARN_REQUIRED_DISCLOSURES = REQUIRED_DISCLOSURES;
+export const KAMINO_EARN_REQUIRED_DISCLOSURES = KAMINO_REQUIRED_DISCLOSURES;
 
-const ENABLED_DEMO_CAPABILITIES: EarnStrategyCapabilities = {
-  quote: true,
-  fund: true,
+const ENABLED_KAMINO_CAPABILITIES: EarnStrategyCapabilities = {
+  quote: false,
+  fund: false,
   deposit: true,
   withdraw: true,
   exit: true,
-  payout: true,
+  payout: false,
   position: true,
 };
 
@@ -255,40 +285,40 @@ const REDEMPTION_ONLY_CAPABILITIES: EarnStrategyCapabilities = {
 export const EARN_STRATEGIES: readonly EarnStrategy[] = [
   {
     id: "devnet-simulated-demo",
-    name: "Devnet Earn Strategy",
+    name: "Legacy Devnet position",
     provider: "SIMULATED_DEMO",
     source: {
       provider: "SIMULATED_DEMO",
       label: "Internal Solana Devnet ledger",
-      statusNote: "A Devnet strategy with explicit simulated funding, payout, and illustrative yield metadata.",
+      statusNote: "Historic app-controlled Devnet positions support exit only; new funding and deposits are closed.",
       referenceUrl: null,
     },
     sourceLabel: "Internal Solana Devnet ledger",
     network: EARN_DEVNET_CLUSTER,
     mode: "SIMULATED_DEMO",
-    availability: "ENABLED",
-    availabilityReason: null,
-    capabilities: ENABLED_DEMO_CAPABILITIES,
-    fundingKind: "SIMULATED",
+    availability: "REDEMPTION_ONLY",
+    availabilityReason: "Historic Devnet positions support exit only and are not offered for new deposits.",
+    capabilities: REDEMPTION_ONLY_CAPABILITIES,
+    fundingKind: "UNAVAILABLE",
     funding: {
-      kind: "SIMULATED",
-      label: "SIMULATED FUNDING",
-      description: "Records a simulated Devnet funding intent only; no fiat payment is collected.",
+      kind: "UNAVAILABLE",
+      label: "Funding unavailable",
+      description: "Historic Devnet positions cannot receive new funding.",
       acceptsFiat: false,
     },
-    payoutKind: "SIMULATED",
+    payoutKind: "ONCHAIN",
     payout: {
-      kind: "SIMULATED",
-      label: "SIMULATED PAYOUT",
-      description: "Records a simulated Devnet payout only; no fiat or off-ramp transfer is sent.",
+      kind: "ONCHAIN",
+      label: "USER-SIGNED DEVNET EXIT",
+      description: "A historic exit uses Devnet test tokens only; no fiat or off-ramp transfer is sent.",
       sendsFiat: false,
     },
-    yieldKind: "ILLUSTRATIVE",
+    yieldKind: "UNAVAILABLE",
     yield: {
-      kind: "ILLUSTRATIVE",
-      label: "ILLUSTRATIVE YIELD",
+      kind: "UNAVAILABLE",
+      label: "Rate unavailable",
       apyBps: null,
-      sourceNote: "Yield is illustrative only and is excluded from real balance accounting.",
+      sourceNote: "Historic Devnet positions do not expose a provider rate.",
     },
     disclosures: REQUIRED_DISCLOSURES,
   },
@@ -299,7 +329,7 @@ export const EARN_STRATEGIES: readonly EarnStrategy[] = [
     source: {
       provider: "SIMULATED_DEMO",
       label: "Legacy Solana Devnet ledger",
-      statusNote: "Historic Devnet shares may be redeemed only; new funding, quotes, and deposits are disabled.",
+      statusNote: "Historic Devnet positions may be exited only; new funding, quotes, and deposits are disabled.",
       referenceUrl: null,
     },
     sourceLabel: "Legacy Solana Devnet ledger",
@@ -315,60 +345,60 @@ export const EARN_STRATEGIES: readonly EarnStrategy[] = [
       description: "Historic Devnet shares cannot receive new funding.",
       acceptsFiat: false,
     },
-    payoutKind: "SIMULATED",
+    payoutKind: "ONCHAIN",
     payout: {
-      kind: "SIMULATED",
-      label: "SIMULATED PAYOUT",
-      description: "A legacy redemption returns Devnet test tokens only; no fiat or off-ramp transfer is sent.",
-      sendsFiat: false,
-    },
-    yieldKind: "ILLUSTRATIVE",
-    yield: {
-      kind: "ILLUSTRATIVE",
-      label: "ILLUSTRATIVE YIELD",
-      apyBps: null,
-      sourceNote: "Historic Devnet positions do not accrue real or on-chain yield.",
-    },
-    disclosures: REQUIRED_DISCLOSURES,
-  },
-  {
-    id: "kamino-devnet-placeholder",
-    name: "Kamino (verification required)",
-    provider: "KAMINO",
-    source: {
-      provider: "KAMINO",
-      label: "Kamino",
-      statusNote: "Disabled until a specific, supported Devnet market or vault and user route are verified.",
-      referenceUrl: "https://github.com/Kamino-Finance/klend",
-    },
-    sourceLabel: "Kamino — disabled pending verified Devnet route",
-    network: EARN_DEVNET_CLUSTER,
-    mode: "KAMINO",
-    availability: "DISABLED",
-    availabilityReason: "No verified, supported Devnet Kamino user strategy is configured.",
-    capabilities: DISABLED_CAPABILITIES,
-    fundingKind: "UNAVAILABLE",
-    funding: {
-      kind: "UNAVAILABLE",
-      label: "Funding unavailable",
-      description: "No funding route is enabled for this placeholder.",
-      acceptsFiat: false,
-    },
-    payoutKind: "UNAVAILABLE",
-    payout: {
-      kind: "UNAVAILABLE",
-      label: "Payout unavailable",
-      description: "No payout route is enabled for this placeholder.",
+      kind: "ONCHAIN",
+      label: "USER-SIGNED DEVNET EXIT",
+      description: "A legacy exit returns Devnet test tokens only; no fiat or off-ramp transfer is sent.",
       sendsFiat: false,
     },
     yieldKind: "UNAVAILABLE",
     yield: {
       kind: "UNAVAILABLE",
-      label: "Yield unavailable",
+      label: "Rate unavailable",
       apyBps: null,
-      sourceNote: "No provider-derived yield value has been verified for this route.",
+      sourceNote: "Historic Devnet positions do not expose a provider rate.",
     },
     disclosures: REQUIRED_DISCLOSURES,
+  },
+  {
+    id: "kamino-lend-devnet-usdc",
+    name: "Kamino Lend",
+    provider: "KAMINO",
+    source: {
+      provider: "KAMINO",
+      label: "Kamino Lend · Solana Devnet",
+      statusNote: "User-signed supply and withdrawal through one pinned, validated Kamino Lend Devnet USDC reserve.",
+      referenceUrl: "https://kamino.com/docs/build/developers/borrow/operations/deposit",
+    },
+    sourceLabel: "Kamino Lend · Solana Devnet",
+    network: EARN_DEVNET_CLUSTER,
+    mode: "KAMINO",
+    availability: "ENABLED",
+    availabilityReason: null,
+    capabilities: ENABLED_KAMINO_CAPABILITIES,
+    fundingKind: "ONCHAIN",
+    funding: {
+      kind: "ONCHAIN",
+      label: "USER-SIGNED ON-CHAIN",
+      description: "The connected wallet signs the prepared Devnet USDC supply transaction; no fiat payment is accepted.",
+      acceptsFiat: false,
+    },
+    payoutKind: "ONCHAIN",
+    payout: {
+      kind: "ONCHAIN",
+      label: "USER-SIGNED ON-CHAIN",
+      description: "The connected wallet signs a Devnet collateral redemption transaction; no fiat or off-ramp transfer is sent.",
+      sendsFiat: false,
+    },
+    yieldKind: "PROTOCOL_VARIABLE",
+    yield: {
+      kind: "PROTOCOL_VARIABLE",
+      label: "VARIABLE PROTOCOL RATE",
+      apyBps: null,
+      sourceNote: "Reserve state, liquidity, and transaction simulation are revalidated before each user-signed action; no rate is guaranteed.",
+    },
+    disclosures: KAMINO_REQUIRED_DISCLOSURES,
   },
   {
     id: "native-sol-stake-placeholder",
@@ -412,9 +442,9 @@ export const EARN_STRATEGIES: readonly EarnStrategy[] = [
 ];
 
 const PUBLIC_EARN_STRATEGY_IDS: Readonly<Record<EarnStrategyId, string>> = {
-  "devnet-simulated-demo": "devnet-simulated-earn",
+  "devnet-simulated-demo": "legacy-devnet-position",
   "legacy-devnet-redemption": "legacy-devnet-redemption",
-  "kamino-devnet-placeholder": "kamino-devnet-placeholder",
+  "kamino-lend-devnet-usdc": "kamino-lend",
   "native-sol-stake-placeholder": "native-sol-stake-placeholder",
 };
 
@@ -635,10 +665,8 @@ export function assertStrategyOperationSupported(
 }
 
 /**
- * The first strategy's adapters deliberately expose only catalog metadata and
- * capability gates. Sign/confirm logic remains in the session-bound Devnet
- * route handlers, so these objects cannot turn a disabled placeholder into an
- * executable provider by themselves.
+ * Provider adapters deliberately expose only catalog metadata and capability
+ * gates. Sign/confirm logic remains in session-bound route handlers.
  */
 export const SIMULATED_DEMO_YIELD_PROVIDER: YieldProvider = {
   provider: "SIMULATED_DEMO",
@@ -661,6 +689,30 @@ export const SIMULATED_DEMO_FUNDING_PROVIDER: FundingProvider = {
   },
   getOperationGate(strategy) {
     return getEarnStrategyOperationGate(strategy, "fund");
+  },
+};
+
+export const KAMINO_LEND_YIELD_PROVIDER: YieldProvider = {
+  provider: "KAMINO",
+  network: EARN_DEVNET_CLUSTER,
+  getStrategy(strategyId) {
+    const strategy = EARN_STRATEGIES.find((candidate) => candidate.id === strategyId);
+    return strategy?.provider === "KAMINO" ? strategy : null;
+  },
+  getOperationGate(strategy, operation) {
+    return getEarnStrategyOperationGate(strategy, operation);
+  },
+};
+
+export const KAMINO_LEND_FUNDING_PROVIDER: FundingProvider = {
+  kind: "ONCHAIN",
+  network: EARN_DEVNET_CLUSTER,
+  acceptsFiat: false,
+  getFunding(strategy) {
+    return resolveEarnStrategy(strategy).funding;
+  },
+  getOperationGate(strategy) {
+    return getEarnStrategyOperationGate(strategy, "deposit");
   },
 };
 
@@ -773,8 +825,22 @@ export function assertDevnetEarnCluster(requestedCluster: unknown): EarnNetwork 
   return EARN_DEVNET_CLUSTER;
 }
 
-/** Ensures all mandatory demo labels are present with non-empty copy. */
-export function hasRequiredEarnDisclosures(disclosures: unknown): disclosures is readonly EarnDisclosure[] {
+const EARN_DISCLOSURE_LABELS = new Set<EarnDisclosureLabel>([
+  ...EARN_REQUIRED_DISCLOSURE_LABELS,
+  ...KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS,
+]);
+
+export function requiredEarnDisclosureLabels(strategy: Pick<EarnStrategy, "provider">): readonly EarnDisclosureLabel[] {
+  return strategy.provider === "KAMINO"
+    ? KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS
+    : EARN_REQUIRED_DISCLOSURE_LABELS;
+}
+
+/** Ensures all required labels are present with non-empty copy. */
+export function hasRequiredEarnDisclosures(
+  disclosures: unknown,
+  requiredLabels: readonly EarnDisclosureLabel[] = EARN_REQUIRED_DISCLOSURE_LABELS,
+): disclosures is readonly EarnDisclosure[] {
   if (!Array.isArray(disclosures)) return false;
 
   const labels = new Set<EarnDisclosureLabel>();
@@ -783,7 +849,7 @@ export function hasRequiredEarnDisclosures(disclosures: unknown): disclosures is
     const candidate = disclosure as { label?: unknown; text?: unknown };
     if (
       typeof candidate.label !== "string"
-      || !EARN_REQUIRED_DISCLOSURE_LABELS.includes(candidate.label as EarnDisclosureLabel)
+      || !EARN_DISCLOSURE_LABELS.has(candidate.label as EarnDisclosureLabel)
       || typeof candidate.text !== "string"
       || candidate.text.trim().length === 0
     ) {
@@ -792,28 +858,31 @@ export function hasRequiredEarnDisclosures(disclosures: unknown): disclosures is
     labels.add(candidate.label as EarnDisclosureLabel);
   }
 
-  return EARN_REQUIRED_DISCLOSURE_LABELS.every((label) => labels.has(label));
+  return requiredLabels.every((label) => labels.has(label));
 }
 
-export function assertRequiredEarnDisclosures(disclosures: unknown): asserts disclosures is readonly EarnDisclosure[] {
-  if (!hasRequiredEarnDisclosures(disclosures)) {
+export function assertRequiredEarnDisclosures(
+  disclosures: unknown,
+  requiredLabels: readonly EarnDisclosureLabel[] = EARN_REQUIRED_DISCLOSURE_LABELS,
+): asserts disclosures is readonly EarnDisclosure[] {
+  if (!hasRequiredEarnDisclosures(disclosures, requiredLabels)) {
     throw new EarnGatewayError(
       "INVALID_DISCLOSURES",
-      "Earn strategies must include every required Devnet demo disclosure.",
+      "Earn strategies must include every required Devnet disclosure.",
     );
   }
 }
 
 /**
- * Guards the catalog itself, including the deliberate single-enabled-strategy
- * product decision. It is exported for tests and future catalog loaders.
+ * Guards the catalog itself, including its single enabled Kamino Lend route.
+ * It is exported for tests and future catalog loaders.
  */
 export function assertEarnCatalogInvariants(catalog: readonly EarnStrategy[] = EARN_STRATEGIES): void {
   const enabled = catalog.filter((strategy) => strategy.availability === "ENABLED");
-  if (enabled.length !== 1 || enabled[0]?.mode !== "SIMULATED_DEMO") {
+  if (enabled.length !== 1 || enabled[0]?.provider !== "KAMINO") {
     throw new EarnGatewayError(
       "INVALID_CATALOG",
-      "Exactly one enabled Earn strategy is required, and it must be SIMULATED_DEMO.",
+      "Exactly one enabled Earn strategy is required, and it must be Kamino Lend.",
     );
   }
 
@@ -824,7 +893,7 @@ export function assertEarnCatalogInvariants(catalog: readonly EarnStrategy[] = E
     if (strategy.sourceLabel !== strategy.source.label && strategy.provider === "SIMULATED_DEMO") {
       throw new EarnGatewayError("INVALID_CATALOG", "The enabled strategy source label must match its source metadata.");
     }
-    assertRequiredEarnDisclosures(strategy.disclosures);
+    assertRequiredEarnDisclosures(strategy.disclosures, requiredEarnDisclosureLabels(strategy));
 
     if (strategy.availability === "DISABLED") {
       const hasEnabledOperation = EARN_STRATEGY_OPERATIONS.some(
@@ -851,10 +920,17 @@ export function assertEarnCatalogInvariants(catalog: readonly EarnStrategy[] = E
 
   const kamino = catalog.find((strategy) => strategy.provider === "KAMINO");
   const nativeStake = catalog.find((strategy) => strategy.provider === "NATIVE_STAKE");
-  if (kamino?.availability !== "DISABLED" || nativeStake?.availability !== "DISABLED") {
+  if (
+    kamino?.availability !== "ENABLED"
+    || kamino.id !== "kamino-lend-devnet-usdc"
+    || !kamino.capabilities.deposit
+    || !kamino.capabilities.withdraw
+    || kamino.yieldKind !== "PROTOCOL_VARIABLE"
+    || nativeStake?.availability !== "DISABLED"
+  ) {
     throw new EarnGatewayError(
       "INVALID_CATALOG",
-      "Kamino and native staking must remain disabled placeholders in the first delivery.",
+      "The pinned Kamino Lend route must be enabled and native staking must remain disabled.",
     );
   }
 }

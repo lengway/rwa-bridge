@@ -11,10 +11,12 @@ import { EARN_STRATEGIES, toPublicEarnStrategy } from "@/lib/earn-gateway";
 export async function GET() {
   return NextResponse.json({
     network: "devnet",
-    strategies: EARN_STRATEGIES.map(toPublicEarnStrategy),
+    strategies: EARN_STRATEGIES
+      .filter((strategy) => strategy.availability === "ENABLED")
+      .map(toPublicEarnStrategy),
     disclosures: {
-      funding: "SIMULATED FUNDING",
-      yield: "ILLUSTRATIVE YIELD",
+      funding: "USER-SIGNED ON-CHAIN",
+      yield: "VARIABLE PROTOCOL RATE",
       value: "NO MONETARY VALUE",
     },
   });

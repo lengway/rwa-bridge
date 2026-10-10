@@ -75,7 +75,7 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
 
   const issueFaucetDollars = useCallback(async (value: number, source: "faucet" | "bank-embed") => {
     if (!devnet.legacyFaucetEnabled) {
-      setError("Тестовый issuer выключен. Это ожидаемо: SIMULATED FUNDING не создаёт фиатное пополнение.");
+      setError("Тестовый issuer выключен. Devnet-зачисление не создаёт фиатное пополнение.");
       return;
     }
     if (!devnet.walletAddress || processing) return;
@@ -103,7 +103,7 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
       faucetActionRef.current = null;
       complete(
         value,
-        "SIMULATED FUNDING: тестовые единицы зачислены.",
+        "DEVNET TEST FUNDING: тестовые единицы зачислены.",
         "Подтверждено в Solana Devnet; это не банковский или карточный платёж и не имеет денежной стоимости.",
         result.explorerUrl,
         "USD",
@@ -185,7 +185,7 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
   }, [complete]);
 
   return (
-    <DrawerFrame open={open} onOpenChange={changeOpen} title="Подготовить тестовые единицы" description="SIMULATED FUNDING · только Devnet-тестовые токены, без фиатного платежа.">
+    <DrawerFrame open={open} onOpenChange={changeOpen} title="Подготовить Devnet-единицы" description="DEVNET TEST FUNDING · только Devnet-токены, без фиатного платежа.">
       {success ? (
         <DrawerSuccess amount={success.amount} currency={success.currency} amountLabel={success.amountLabel} sentence={success.sentence} note={success.note} explorerUrl={success.explorerUrl} onDone={() => changeOpen(false)} secondaryHref="/earn" secondaryLabel="Открыть вклад" />
       ) : (

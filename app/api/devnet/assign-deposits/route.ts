@@ -3,7 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { appendDeposits, getLedgerWallet, hasLedgerSignature, type LedgerDeposit } from "@/lib/devnet-ledger";
 import { isConfigured, isValidWalletAddress, safeError, unavailableResponse } from "@/lib/devnet-route";
-import { YIELD_STRATEGIES } from "@/lib/yields";
+import { APP_CONTROLLED_LEGACY_YIELD_STRATEGIES } from "@/lib/yields";
 import { getUnassignedIncomingPayments, verifyIncomingPayment } from "@/lib/solana-server";
 import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 import { getSessionWallet } from "@/lib/session-wallet";
@@ -25,7 +25,10 @@ export async function POST(request: Request) {
   if (!isValidWalletAddress(body?.walletAddress)) {
     return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
   }
-  if (typeof body?.productId !== "string" || !YIELD_STRATEGIES.some((item) => item.id === body.productId)) {
+  if (
+    typeof body?.productId !== "string"
+    || !APP_CONTROLLED_LEGACY_YIELD_STRATEGIES.some((item) => item.id === body.productId)
+  ) {
     return NextResponse.json({ error: "Неизвестный продукт дохода." }, { status: 400 });
   }
 

@@ -12,13 +12,15 @@ export function getGatewayInfo(strategy: YieldStrategy): GatewayInfo {
 }
 
 export function displayStrategyName(strategy: YieldStrategy) {
-  if (strategy.id === "ondo-usdy") return "Solana Devnet Strategy";
+  if (strategy.id === "kamino-lend") return "Kamino Lend";
+  if (strategy.id === "ondo-usdy") return "Legacy Devnet position";
   if (strategy.id === "kz-bond-demo") return "Historic Devnet shares";
   return strategy.name;
 }
 
 export function displayStrategyTicker(strategy: YieldStrategy) {
-  return strategy.id === "ondo-usdy" ? "vUSDY · TEST TOKEN" : strategy.ticker;
+  if (strategy.id === "kamino-lend") return "Devnet USDC";
+  return strategy.id === "ondo-usdy" ? "Legacy position" : strategy.ticker;
 }
 
 export function presentDevnetCopy(value: string) {
@@ -30,19 +32,20 @@ export function presentDevnetCopy(value: string) {
 }
 
 export function displayGatewayMode(mode: string) {
+  if (mode === "KAMINO") return "KAMINO LEND";
   return mode === "SIMULATED_DEMO" ? "SOLANA DEVNET" : presentDevnetCopy(mode);
 }
 
 export function canInvestInStrategy(strategy: YieldStrategy) {
   const gateway = getGatewayInfo(strategy);
   return gateway.network === "devnet"
-    && gateway.mode === "SIMULATED_DEMO"
     && gateway.availability === "ENABLED"
     && gateway.capabilities.deposit;
 }
 
 export function canRedeemStrategy(strategy: YieldStrategy) {
-  return getGatewayInfo(strategy).capabilities.withdraw;
+  const gateway = getGatewayInfo(strategy);
+  return gateway.availability !== "DISABLED" && gateway.capabilities.withdraw;
 }
 
 export function GatewayDisclosureBadges({
@@ -58,12 +61,12 @@ export function GatewayDisclosureBadges({
   return (
     <div className="flex flex-wrap items-center gap-1.5" aria-label="Дисклеймеры стратегии Solana Devnet">
       <Badge variant="secondary">SOLANA DEVNET</Badge>
-      {gateway.fundingKind === "SIMULATED" ? <Badge variant="outline">SIMULATED FUNDING</Badge> : <Badge variant="outline">FUNDING UNAVAILABLE</Badge>}
-      {gateway.yieldKind === "ILLUSTRATIVE" ? <Badge variant="outline">ILLUSTRATIVE YIELD</Badge> : <Badge variant="outline">YIELD UNAVAILABLE</Badge>}
+      {gateway.fundingKind === "ONCHAIN" ? <Badge variant="outline">USER-SIGNED ON-CHAIN</Badge> : <Badge variant="outline">FUNDING UNAVAILABLE</Badge>}
+      {gateway.yieldKind === "PROTOCOL_VARIABLE" ? <Badge variant="outline">VARIABLE PROTOCOL RATE</Badge> : <Badge variant="outline">RATE UNAVAILABLE</Badge>}
       <Badge variant="outline">NO MONETARY VALUE</Badge>
       {includeAvailability ? (
         <Badge variant={canInvest ? "secondary" : "outline"}>
-          {canInvest ? "DEVNET AVAILABLE" : canRedeem ? "REDEMPTION ONLY" : "RESEARCH / UNSUPPORTED"}
+          {canInvest ? "DEVNET AVAILABLE" : canRedeem ? "EXIT ONLY" : "UNAVAILABLE"}
         </Badge>
       ) : null}
     </div>
@@ -72,19 +75,19 @@ export function GatewayDisclosureBadges({
 
 export function GatewayDisclosureCard({ strategy }: { strategy: YieldStrategy }) {
   const gateway = getGatewayInfo(strategy);
-  const canInvest = canInvestInStrategy(strategy);
   const canRedeem = canRedeemStrategy(strategy);
   return (
     <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5 text-muted-foreground">
       <GatewayDisclosureBadges strategy={strategy} includeAvailability />
-      {canInvest ? (
+      {gateway.provider === "KAMINO" ? (
         <p>
-          Перевод тестового токена и выпуск тестовых долей подтверждаются в Solana Devnet. Показатель APY — только
-          иллюстративный расчёт: он не начисляет доход и не является обещанием доходности.
+          Приложение строит и симулирует транзакцию для закреплённого Kamino Lend Devnet reserve. Подпись, отправка и
+          оплата сетевой комиссии выполняются только подключённым кошельком; завершение показывается после проверки в сети.
         </p>
       ) : canRedeem ? (
         <p>
-          Новые пополнения отключены. Исторические Devnet-доли можно только погасить через TEST-TOKEN REDEMPTION;
+          Новые пополнения отключены. Историческую Devnet-позицию можно только завершить через пользовательскую
+          Devnet-транзакцию;
           это не денежная выплата.
         </p>
       ) : (
@@ -104,7 +107,7 @@ export function GatewayDisclosureCard({ strategy }: { strategy: YieldStrategy })
 }
 
 export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
-  return <Badge variant="secondary">{strategy.id === "kz-bond-demo" ? "Риск: повышенный" : "Риск: средний"}</Badge>;
+  return <Badge variant="secondary">{strategy.id === "kamino-lend" ? "Риск: протокольный" : strategy.id === "kz-bond-demo" ? "Риск: повышенный" : "Риск: средний"}</Badge>;
 }
 
 export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
@@ -113,6 +116,7 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
   const hasIllustrativeApy = gateway.yieldKind === "ILLUSTRATIVE"
     && typeof apyBps === "number"
     && Number.isFinite(apyBps);
+  const hasVariableProtocolRate = gateway.yieldKind === "PROTOCOL_VARIABLE";
   const apy = hasIllustrativeApy ? apyBps / 10_000 : Number.NaN;
   return (
     <section className="space-y-4 pt-1">
@@ -124,15 +128,17 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
       <div>
         <p className="text-sm text-muted-foreground">{displayStrategyName(strategy)}</p>
         <div className="mt-1 flex items-baseline gap-2">
-          <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy ? "text-5xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
-            {hasIllustrativeApy ? formatApy(apy) : "Unavailable"}
+          <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy ? "text-5xl text-emerald-700 dark:text-emerald-400" : hasVariableProtocolRate ? "text-xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
+            {hasIllustrativeApy ? formatApy(apy) : hasVariableProtocolRate ? "Variable" : "Unavailable"}
           </p>
-          <p className="text-sm text-muted-foreground">{hasIllustrativeApy ? "illustrative APY" : "ставка не задана"}</p>
+          <p className="text-sm text-muted-foreground">{hasIllustrativeApy ? "illustrative APY" : hasVariableProtocolRate ? "protocol rate" : "ставка не задана"}</p>
         </div>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          {hasIllustrativeApy
+          {hasVariableProtocolRate
+            ? "VARIABLE PROTOCOL RATE: ставка и ликвидность зависят от текущего состояния резерва. Числовое значение не показывается и не гарантируется."
+            : hasIllustrativeApy
             ? "ILLUSTRATIVE YIELD: оценка для Solana Devnet, не фактическая доходность и не начисляется на баланс."
-            : "ILLUSTRATIVE YIELD: числовая ставка для Solana Devnet не задана, поэтому доходность не рассчитывается и не обещается."}
+            : "Для этого маршрута числовая ставка не показывается и не обещается."}
         </p>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">{presentDevnetCopy(gateway.yield.sourceNote)}</p>
       </div>
@@ -163,15 +169,34 @@ export function ProjectionCalculator({
     && Number.isFinite(apyBps);
   const apy = hasIllustrativeApy ? apyBps / 10_000 : Number.NaN;
 
+  if (gateway.yieldKind === "PROTOCOL_VARIABLE") {
+    return (
+      <Card className="gap-3 rounded-2xl p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Переменная ставка резерва</h2>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Kamino Lend определяет ставку и доступность вывода из текущего состояния резерва. Чтобы не создавать
+              непроверенный прогноз, приложение не строит доходность и не показывает обещанный APY.
+            </p>
+          </div>
+          <Sparkles className="size-5 text-muted-foreground" />
+        </div>
+        <GatewayDisclosureBadges strategy={strategy} />
+        <p className="text-xs leading-5 text-muted-foreground">{presentDevnetCopy(gateway.yield.sourceNote)}</p>
+      </Card>
+    );
+  }
+
   if (!hasIllustrativeApy) {
     return (
       <Card className="gap-3 rounded-2xl p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold">Иллюстративная доходность недоступна</h2>
+            <h2 className="font-semibold">Ставка недоступна</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Для этой Devnet-карточки не задана числовая иллюстративная ставка. Расчёт скрыт, чтобы не создавать
-              непроверенную доходность.
+              Для этой Devnet-карточки не задана числовая ставка. Расчёт скрыт, чтобы не создавать непроверенную
+              доходность.
             </p>
           </div>
           <Sparkles className="size-5 text-muted-foreground" />

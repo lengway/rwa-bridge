@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { AddMoneyDrawer, WithdrawDrawer } from "@/components/app/drawers";
 import { AccountGreeting, BalanceCard } from "@/components/app/home-account";
 import { QuickActions } from "@/components/app/home-actions";
 import { HoldingsSection, PositionSection, PromoCard } from "@/components/app/home-portfolio";
@@ -22,8 +20,6 @@ export function HomeScreen() {
   } = useAppStore();
   const devnet = useDevnet();
   const displayHydrated = hydrated;
-  const [addOpen, setAddOpen] = useState(false);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const positionValues = ALL_YIELD_STRATEGIES.flatMap((strategy) => {
     const position = positions[strategy.id];
     if (!position) return [];
@@ -48,10 +44,7 @@ export function HomeScreen() {
         earnings={unrealizedEarnings}
         hydrated={displayHydrated}
       />
-      <QuickActions
-        onAddMoney={() => setAddOpen(true)}
-        onWithdraw={() => setWithdrawOpen(true)}
-      />
+      <QuickActions />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
@@ -92,16 +85,7 @@ export function HomeScreen() {
           <HoldingsSection holdings={holdingValues} />
         ) : null}
       </section>
-      {hydrated && !positions["ondo-usdy"] ? <PromoCard /> : null}
-      <AddMoneyDrawer open={addOpen} onOpenChange={setAddOpen} />
-      <WithdrawDrawer
-        open={withdrawOpen}
-        onOpenChange={setWithdrawOpen}
-        onAddMoney={() => {
-          setWithdrawOpen(false);
-          setAddOpen(true);
-        }}
-      />
+      {hydrated && !positions["kamino-lend"] ? <PromoCard /> : null}
     </div>
   );
 }

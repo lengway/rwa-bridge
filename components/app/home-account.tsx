@@ -24,7 +24,7 @@ function GreetingContents({ email }: { email?: string }) {
             Привет{name ? `, ${name}` : ""}
           </p>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Ваш капитал в одном месте</p>
+        <p className="mt-1 text-sm text-muted-foreground">Ваши активы в Solana Devnet</p>
       </div>
       <Button
         variant="ghost"
@@ -55,25 +55,25 @@ export function BalanceCard({
     <Card className="gap-5 rounded-2xl border-emerald-600/20 bg-card p-5 ring-1 ring-emerald-600/10 dark:border-emerald-400/20 dark:ring-emerald-400/10">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-muted-foreground">Тестовый баланс портфеля</p>
+          <p className="text-sm text-muted-foreground">Локальная сводка Devnet</p>
           {hydrated ? (
             <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">
-              {formatQuantity(total)} TEST QUOTE
+              {formatQuantity(total)} DEVNET UNITS
             </p>
           ) : <Skeleton className="mt-2 h-10 w-44" />}
         </div>
-        <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">TEST QUOTE</span>
+        <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">SOLANA DEVNET</span>
       </div>
       <div className="flex items-center justify-between gap-4 border-t pt-4 text-sm">
         <span className="text-muted-foreground">Доступно в Solana Devnet</span>
         {hydrated ? (
-          <span className="font-medium tabular-nums">{formatQuantity(cashUsd)} TEST QUOTE</span>
+          <span className="font-medium tabular-nums">{formatQuantity(cashUsd)} DEVNET UNITS</span>
         ) : <Skeleton className="h-4 w-20" />}
       </div>
       <p className="-mt-3 text-xs text-muted-foreground">
-        SOLANA DEVNET · NO MONETARY VALUE. ILLUSTRATIVE YIELD не добавляется к балансу.
+        SOLANA DEVNET · NO MONETARY VALUE. Позиция Kamino Lend использует переменную ставку протокола и отображается в карточке стратегии после подписи транзакции.
       </p>
-      {hydrated && earnings !== 0 ? <p className="text-xs text-muted-foreground">Показатель доходности в Solana Devnet не учитывается.</p> : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
+      {hydrated && earnings !== 0 ? <p className="text-xs text-muted-foreground">Исторический локальный показатель не включён в эту сводку.</p> : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
     </Card>
   );
 }

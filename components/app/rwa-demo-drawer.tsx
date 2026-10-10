@@ -29,7 +29,7 @@ export type RwaDemoDrawerProps = {
   onTradeConfirmed?: () => void;
 };
 
-/** A small self-contained entry point for a demo-asset screen or catalog. */
+/** A small self-contained entry point for the Devnet asset screen or catalog. */
 export function RwaDemoLauncher({
   assetId,
   onTradeConfirmed,
@@ -137,8 +137,8 @@ class DemoApiError extends Error {
   }
 }
 
-const SIMULATED_FUNDING_DISCLOSURE = "SIMULATED FUNDING · тестовое пополнение, реальный платёж не проводится";
-const SIMULATED_PAYOUT_DISCLOSURE = "SIMULATED PAYOUT · банковский перевод не создаётся";
+const SIMULATED_FUNDING_DISCLOSURE = "DEVNET TEST FUNDING · фиатный платёж не проводится";
+const SIMULATED_PAYOUT_DISCLOSURE = "DEVNET TEST PAYOUT · банковский перевод не создаётся";
 const DEVNET_TOKEN_DISCLOSURE = "SOLANA DEVNET · NO MONETARY VALUE · используются тестовые средства, без прав на реальный актив.";
 const DEVNET_SWAP_DISCLOSURE = "Операция Solana Devnet · без реальных средств и прав на актив";
 
@@ -456,11 +456,11 @@ export function RwaDemoDrawer({
       });
       const response = asRecord(payload);
       const nextPayout = normalizePayout(response?.payout);
-      if (!nextPayout) throw new DemoApiError("Не удалось подготовить запись о симулируемой выплате.", 502);
+      if (!nextPayout) throw new DemoApiError("Не удалось подготовить запись о Devnet-выплате.", 502);
       setPayout(nextPayout);
       setNotice(nextPayout.status === "SIMULATED_CONFIRMED"
-        ? "Запись о симулируемой выплате готова. Банковский перевод не отправлялся."
-        : "Запись о симулируемой выплате создана. Банковский перевод не отправлялся.");
+        ? "Запись о Devnet-выплате готова. Банковский перевод не отправлялся."
+        : "Запись о Devnet-выплате создана. Банковский перевод не отправлялся.");
     } catch (requestError) {
       setError({ message: userFacingError(requestError, "Не удалось подготовить запись о выплате."), retryStage: "payout" });
     } finally {
@@ -509,7 +509,7 @@ export function RwaDemoDrawer({
           amount={0}
           amountLabel={`+ ${formatAtomic(completedOrder.actualOutputAmountAtomic ?? quote?.expectedOutputAtomic ?? "0", asset?.quoteDecimals ?? 0)} ${quoteSymbol}`}
           sentence={`Тестовые ${quoteSymbol} после продажи поступили в кошелёк.`}
-          note="Это учебная операция — реальная выплата не создаётся."
+          note="Это операция Solana Devnet; банковская выплата не создаётся."
           explorerUrl={completedOrder.explorerUrl ?? explorerForSignature(completedOrder.signature)}
           onDone={() => changeOpen(false)}
           secondaryHref="/portfolio"
@@ -519,7 +519,7 @@ export function RwaDemoDrawer({
         <DrawerSuccess
           amount={0}
           amountLabel={`${payout.simulatedKztAmount ?? "0"} ₸`}
-          sentence="После продажи создана запись о симулируемой выплате."
+          sentence="После продажи создана запись о Devnet-выплате."
           note={SIMULATED_PAYOUT_DISCLOSURE}
           explorerUrl={completedOrder?.explorerUrl ?? explorerForSignature(completedOrder?.signature ?? null)}
           onDone={() => changeOpen(false)}
@@ -530,7 +530,7 @@ export function RwaDemoDrawer({
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">SOLANA DEVNET</Badge>
-            <Badge variant="outline">SIMULATED FUNDING</Badge>
+            <Badge variant="outline">DEVNET TEST UNITS</Badge>
             <Badge variant="outline">NO MONETARY VALUE</Badge>
           </div>
 
@@ -549,7 +549,7 @@ export function RwaDemoDrawer({
               ) : null}
               {!isDevnet ? (
                 <GuardAlert title="Неподходящая тестовая сеть">
-                  Для учебной покупки нужна тестовая сеть приложения. Операция не будет подготовлена, пока она не выбрана.
+                  Для операции нужна Solana Devnet. Операция не будет подготовлена, пока не выбрана корректная сеть.
                 </GuardAlert>
               ) : null}
               {!asset.tradeEnabled ? (
@@ -559,12 +559,12 @@ export function RwaDemoDrawer({
               ) : null}
               {!wallet ? (
                 <GuardAlert title="Нужно войти в приложение">
-                  Войдите, чтобы приложение могло сохранить результат учебной покупки в вашем кошельке.
+                  Войдите, чтобы приложение могло сохранить результат Devnet-операции в вашем кошельке.
                 </GuardAlert>
               ) : null}
               {walletMismatch ? (
                 <GuardAlert title="Кошелёк нужно обновить">
-                  Закройте и снова откройте приложение — текущий кошелёк не совпадает с учебным портфелем.
+                  Закройте и снова откройте приложение — текущий кошелёк не совпадает с Devnet-портфелем.
                 </GuardAlert>
               ) : null}
 
@@ -694,7 +694,7 @@ export function RwaDemoDrawer({
                 <Card className="gap-3 rounded-2xl p-4">
                   <div>
                     <p className="font-medium">Продажа подтверждена</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Можно создать запись о симулируемой выплате. Банковский перевод не будет отправлен.</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Можно создать запись о Devnet-выплате. Банковский перевод не будет отправлен.</p>
                   </div>
                   <Button className="w-full" onClick={() => void createPayout()} disabled={Boolean(busy)}>
                     {busy === "payout" ? <><LoaderCircle className="animate-spin" />Готовим запись о выплате…</> : "Создать запись о выплате"}
@@ -762,7 +762,7 @@ function FundingPanel({
             <summary className="cursor-pointer font-medium text-foreground">Подробнее</summary>
             <div className="space-y-2 pt-2">
               <p>{funding.disclosure || SIMULATED_FUNDING_DISCLOSURE}.</p>
-              {funding.simulatedRate ? <p>Симулируемый курс: {funding.simulatedRate} KZT за {quoteSymbol}.</p> : null}
+              {funding.simulatedRate ? <p>Настроенный Devnet-курс: {funding.simulatedRate} KZT за {quoteSymbol}.</p> : null}
               {funding.mintExplorerUrl ? <ExplorerLink href={funding.mintExplorerUrl} label="Открыть технические сведения" /> : null}
             </div>
           </details>

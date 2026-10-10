@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   EARN_REQUIRED_DISCLOSURE_LABELS,
+  KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS,
   EARN_STRATEGIES,
   EarnGatewayError,
+  KAMINO_LEND_FUNDING_PROVIDER,
+  KAMINO_LEND_YIELD_PROVIDER,
   assertDevnetEarnCluster,
   assertEarnCatalogInvariants,
   assertEarnOperationTransition,
@@ -47,36 +50,44 @@ test("amount conversion fails closed for floats, ambiguous decimals, and invalid
   assert.throws(() => requirePositiveDecimalToAtomic("0", 6), EarnGatewayError);
 });
 
-test("the catalog has exactly one enabled simulated strategy and disabled provider placeholders", () => {
+test("the catalog has exactly one enabled Kamino Lend route and preserves legacy exits", () => {
   assert.doesNotThrow(() => assertEarnCatalogInvariants());
 
   const enabled = EARN_STRATEGIES.filter((strategy) => strategy.availability === "ENABLED");
   assert.equal(enabled.length, 1);
-  assert.equal(enabled[0]?.mode, "SIMULATED_DEMO");
+  assert.equal(enabled[0]?.id, "kamino-lend-devnet-usdc");
+  assert.equal(enabled[0]?.mode, "KAMINO");
   assert.equal(enabled[0]?.network, "devnet");
 
-  for (const id of ["kamino-devnet-placeholder", "native-sol-stake-placeholder"] as const) {
-    const strategy = getEarnStrategy(id);
-    assert.equal(strategy.availability, "DISABLED");
-    const gate = getEarnStrategyOperationGate(strategy, "deposit");
-    assert.equal(gate.supported, false);
-    if (!gate.supported) assert.match(gate.reason, /verified|epoch|configured/i);
-    assert.throws(() => assertStrategyOperationSupported(strategy, "deposit"), (error: unknown) => {
-      return error instanceof EarnGatewayError && error.code === "OPERATION_NOT_SUPPORTED";
-    });
-  }
+  const kamino = getEarnStrategy("kamino-lend-devnet-usdc");
+  assert.equal(getEarnStrategyOperationGate(kamino, "deposit").supported, true);
+  assert.equal(getEarnStrategyOperationGate(kamino, "withdraw").supported, true);
+  assert.equal(getEarnStrategyOperationGate(kamino, "fund").supported, false);
+  assert.equal(KAMINO_LEND_YIELD_PROVIDER.getStrategy("kamino-lend-devnet-usdc")?.name, "Kamino Lend");
+  assert.equal(KAMINO_LEND_YIELD_PROVIDER.getStrategy("devnet-simulated-demo"), null);
+  assert.equal(KAMINO_LEND_FUNDING_PROVIDER.acceptsFiat, false);
+  assert.equal(KAMINO_LEND_FUNDING_PROVIDER.getOperationGate(kamino).supported, true);
 
-  assert.equal(getEarnStrategyOperationGate("devnet-simulated-demo", "deposit").supported, true);
-  assert.equal(SIMULATED_DEMO_YIELD_PROVIDER.getStrategy("devnet-simulated-demo")?.name, "Devnet Earn Strategy");
-  assert.equal(SIMULATED_DEMO_YIELD_PROVIDER.getStrategy("kamino-devnet-placeholder"), null);
+  const nativeStake = getEarnStrategy("native-sol-stake-placeholder");
+  assert.equal(nativeStake.availability, "DISABLED");
+  const nativeGate = getEarnStrategyOperationGate(nativeStake, "deposit");
+  assert.equal(nativeGate.supported, false);
+  if (!nativeGate.supported) assert.match(nativeGate.reason, /epoch|configured/i);
+  assert.throws(() => assertStrategyOperationSupported(nativeStake, "deposit"), (error: unknown) => {
+    return error instanceof EarnGatewayError && error.code === "OPERATION_NOT_SUPPORTED";
+  });
+
+  assert.equal(getEarnStrategyOperationGate("devnet-simulated-demo", "deposit").supported, false);
+  assert.equal(SIMULATED_DEMO_YIELD_PROVIDER.getStrategy("devnet-simulated-demo")?.name, "Legacy Devnet position");
+  assert.equal(SIMULATED_DEMO_YIELD_PROVIDER.getStrategy("kamino-lend-devnet-usdc"), null);
   assert.equal(SIMULATED_DEMO_FUNDING_PROVIDER.acceptsFiat, false);
-  assert.equal(SIMULATED_DEMO_FUNDING_PROVIDER.getOperationGate("devnet-simulated-demo").supported, true);
+  assert.equal(SIMULATED_DEMO_FUNDING_PROVIDER.getOperationGate("devnet-simulated-demo").supported, false);
   const legacy = getEarnStrategy("legacy-devnet-redemption");
   assert.equal(legacy.availability, "REDEMPTION_ONLY");
   assert.equal(getEarnStrategyOperationGate(legacy, "withdraw").supported, true);
   assert.equal(getEarnStrategyOperationGate(legacy, "deposit").supported, false);
   assert.equal(SIMULATED_DEMO_FUNDING_PROVIDER.getOperationGate(legacy).supported, false);
-  assert.throws(() => getEarnStrategyOperationGate("devnet-simulated-demo", "invent"), EarnGatewayError);
+  assert.throws(() => getEarnStrategyOperationGate("kamino-lend-devnet-usdc", "invent"), EarnGatewayError);
 });
 
 test("stale quotes and unsafe state transitions cannot be used or revived", () => {
@@ -103,26 +114,36 @@ test("stale quotes and unsafe state transitions cannot be used or revived", () =
 });
 
 test("required disclosures are present, explicit, and cannot be silently removed", () => {
-  const demo = getEarnStrategy("devnet-simulated-demo");
-  assert.equal(hasRequiredEarnDisclosures(demo.disclosures), true);
-  assert.doesNotThrow(() => assertRequiredEarnDisclosures(demo.disclosures));
-  for (const label of EARN_REQUIRED_DISCLOSURE_LABELS) {
-    assert.ok(demo.disclosures.some((disclosure) => disclosure.label === label));
+  const kamino = getEarnStrategy("kamino-lend-devnet-usdc");
+  assert.equal(hasRequiredEarnDisclosures(kamino.disclosures, KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS), true);
+  assert.doesNotThrow(() => assertRequiredEarnDisclosures(kamino.disclosures, KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS));
+  for (const label of KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS) {
+    assert.ok(kamino.disclosures.some((disclosure) => disclosure.label === label));
   }
-  assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /SOLANA DEVNET/);
-  assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /SIMULATED FUNDING/);
-  assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /ILLUSTRATIVE YIELD/);
-  assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /NO MONETARY VALUE/);
-  assert.equal(hasRequiredEarnDisclosures(demo.disclosures.slice(1)), false);
-  assert.throws(() => assertRequiredEarnDisclosures(demo.disclosures.slice(1)), EarnGatewayError);
+  assert.match(kamino.disclosures.map((disclosure) => disclosure.label).join(" | "), /SOLANA DEVNET/);
+  assert.match(kamino.disclosures.map((disclosure) => disclosure.label).join(" | "), /KAMINO LEND/);
+  assert.match(kamino.disclosures.map((disclosure) => disclosure.label).join(" | "), /USER-SIGNED ON-CHAIN/);
+  assert.match(kamino.disclosures.map((disclosure) => disclosure.label).join(" | "), /VARIABLE PROTOCOL RATE/);
+  assert.match(kamino.disclosures.map((disclosure) => disclosure.label).join(" | "), /NO MONETARY VALUE/);
+  assert.equal(hasRequiredEarnDisclosures(kamino.disclosures.slice(1), KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS), false);
+  assert.throws(
+    () => assertRequiredEarnDisclosures(kamino.disclosures.slice(1), KAMINO_EARN_REQUIRED_DISCLOSURE_LABELS),
+    EarnGatewayError,
+  );
+
+  const legacy = getEarnStrategy("devnet-simulated-demo");
+  assert.equal(hasRequiredEarnDisclosures(legacy.disclosures), true);
+  for (const label of EARN_REQUIRED_DISCLOSURE_LABELS) {
+    assert.ok(legacy.disclosures.some((disclosure) => disclosure.label === label));
+  }
 });
 
 test("public catalog metadata presents the Devnet product without internal demo identifiers", () => {
   const publicCatalog = EARN_STRATEGIES.map(toPublicEarnStrategy);
   const enabled = publicCatalog.find((strategy) => strategy.availability === "ENABLED");
-  assert.equal(enabled?.id, "devnet-simulated-earn");
-  assert.equal(enabled?.mode, "DEVNET");
-  assert.equal(enabled?.provider, "PLAIN_DEVNET");
+  assert.equal(enabled?.id, "kamino-lend");
+  assert.equal(enabled?.mode, "KAMINO");
+  assert.equal(enabled?.provider, "KAMINO");
   assert.doesNotMatch(JSON.stringify(publicCatalog), /demo/i);
 });
 

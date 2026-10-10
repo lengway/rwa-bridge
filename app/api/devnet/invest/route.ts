@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { YIELD_STRATEGIES } from "@/lib/yields";
+import { APP_CONTROLLED_LEGACY_YIELD_STRATEGIES } from "@/lib/yields";
 import {
   atomicScale,
   assertStrategyOperationSupported,
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
   }
   const strategy = typeof body?.productId === "string"
-    ? YIELD_STRATEGIES.find((item) => item.id === body.productId)
+    ? APP_CONTROLLED_LEGACY_YIELD_STRATEGIES.find((item) => item.id === body.productId)
     : undefined;
   if (!strategy) {
     return NextResponse.json({ error: "Неизвестный продукт дохода." }, { status: 400 });

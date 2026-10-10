@@ -9,23 +9,23 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-type DevnetStatus = {
-  configured?: boolean;
-  usdMint?: string | null;
-  assetMint?: string | null;
-  vaultUsdyMint?: string | null;
-  vaultKzgbMint?: string | null;
-  kzteMint?: string | null;
-  treasury?: string | null;
+type KaminoMarketStatus = {
+  ready?: boolean;
+  network?: string;
+  market?: { address?: string; name?: string };
+  reserve?: { address?: string; mint?: string; symbol?: string };
 };
 
-type VaultQuote = { productId: string; mint: string; ticker: string };
+const KAMINO_DEVNET_MARKET = "8tBETkxcw3RcivkCw7LT8ujBe1qj8xZusoVtqE2sR6oa";
+const KAMINO_DEVNET_USDC_RESERVE = "8w8UVLPfVEVvvwi3QC8GTohUBqqzK6rC1Qg6HfoepsWn";
+const DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 const questions = [
   { question: "Как войти?", answer: "Укажите email. Кошелёк Solana создаётся автоматически." },
-  { question: "Как формируется цена Devnet-доли?", answer: "Одна подтверждённая тестовая единица в Solana Devnet соответствует одной Devnet-доле. Иллюстративная доходность не меняет баланс или цену погашения." },
-  { question: "Где проверить операции?", answer: "После подтверждения подписи Devnet-операции и адреса токенов доступны в Solana Explorer." },
-  { question: "Это реальный инвестиционный продукт?", answer: "Нет. Это среда Solana Devnet: финансирование и выплата симулированы, а токены и записи не имеют денежной стоимости." },
+  { question: "Как пополнить Kamino Lend?", answer: "Выберите сумму Devnet USDC. Приложение готовит и проверяет маршрут, а транзакцию подписывает только ваш кошелёк в Solana Devnet." },
+  { question: "Какая ставка применяется?", answer: "Ставка формируется протоколом Kamino Lend и может меняться. Она не является обещанием доходности и не отображается как фиксированный APR." },
+  { question: "Где проверить операции?", answer: "После подтверждения подписи транзакция, рынок и reserve доступны в Solana Explorer." },
+  { question: "Это денежный продукт?", answer: "Нет. Это среда Solana Devnet: Devnet USDC и позиция не имеют денежной стоимости." },
 ];
 
 export default function LandingPage() {
@@ -41,10 +41,10 @@ export default function LandingPage() {
             <div className="space-y-4">
               <Badge variant="secondary">SOLANA DEVNET · Universal Earn Gateway</Badge>
               <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-6xl">
-                Проверяемый путь Solana Devnet для Earn
+                Kamino Lend в Solana Devnet
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Вход по email, автоматически созданный Solana-кошелёк и подтверждаемые тестовые операции. SIMULATED FUNDING, ILLUSTRATIVE YIELD и NO MONETARY VALUE обозначены явно.
+                Вход по email, автоматически созданный Solana-кошелёк и пользовательская on-chain подпись. Маршрут Kamino Lend строится для Devnet, а ставка остаётся переменной ставкой протокола.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -63,26 +63,26 @@ export default function LandingPage() {
               <ChartNoAxesCombined className="size-4 text-emerald-700 dark:text-emerald-400" />
             </div>
             <div className="grid gap-3">
-              <ProductMetric label="Solana Devnet Strategy" value="ENABLED" />
-              <ProductMetric label="Доходность" value="ILLUSTRATIVE · not accrued" />
-              <ProductMetric label="Финансирование / погашение" value="SIMULATED · test tokens only" />
+              <ProductMetric label="Маршрут" value="KAMINO LEND · USER-SIGNED" />
+              <ProductMetric label="Ставка" value="VARIABLE PROTOCOL RATE" />
+              <ProductMetric label="Среда" value="DEVNET · NO MONETARY VALUE" />
             </div>
           </Card>
         </section>
 
         <section className="space-y-5 py-8">
-          <SectionHeading eyebrow="Как это работает" title="Пройдите точный Devnet-путь" description="Email-вход, автоматически созданный Solana-кошелёк и проверка подтверждённой подписи в сети." />
+          <SectionHeading eyebrow="Как это работает" title="Пройдите путь Kamino Lend" description="Email-вход, автоматически созданный Solana-кошелёк и проверка подтверждённой подписи в сети." />
           <div className="grid gap-3 sm:grid-cols-3">
             <ValueCard icon={<ShieldCheck />} title="Войдите по email" text="Кошелёк Solana создаётся автоматически, без seed-фразы." />
-            <ValueCard icon={<ChartNoAxesCombined />} title="Подготовьте тестовые единицы" text="SIMULATED FUNDING не принимает фиат и не представляет банковский или карточный платёж." />
-            <ValueCard icon={<Building2 />} title="Подтвердите Devnet-операцию" text="Devnet-доли выпускаются или погашаются только после проверки подписи, суммы и сети." />
+            <ValueCard icon={<ChartNoAxesCombined />} title="Подготовьте Devnet USDC" text="Для комиссии также нужен SOL в Solana Devnet. Банковская карта, KZT-перевод и фиатный платёж не используются." />
+            <ValueCard icon={<Building2 />} title="Подпишите операцию" text="Приложение проверяет рынок и reserve, затем ваш кошелёк подписывает пополнение или вывод в Kamino Lend." />
           </div>
         </section>
 
         <section className="space-y-5 py-8">
-          <SectionHeading eyebrow="Стратегия" title="Одна честно реализованная Devnet-стратегия" description="Внешние протоколы, KZT-рельсы и off-ramp не включены без подтверждённой интеграции и доступности." />
+          <SectionHeading eyebrow="Стратегия" title="Один проверяемый маршрут Devnet" description="Kamino Lend использует закреплённые market и reserve. Банковские, KZT и off-ramp операции не входят в этот маршрут." />
           <div className="grid gap-3 sm:grid-cols-1">
-            <ProductCard title="Solana Devnet Strategy" ticker="vUSDY · TEST TOKEN" label="SOLANA DEVNET" detail="Подтверждённый пользовательский перевод тестового токена выпускает Devnet-долю 1:1. ILLUSTRATIVE YIELD не является заработанным или on-chain доходом." href="/earn/ondo-usdy" />
+            <ProductCard title="Kamino Lend" ticker="DEVNET USDC" label="SOLANA DEVNET" detail="Пользовательская on-chain подпись для supply и withdrawal в закреплённом Kamino Lend reserve. Ставка протокола переменная; Devnet USDC не имеет денежной стоимости." href="/earn/kamino-lend" />
           </div>
         </section>
 
@@ -91,8 +91,8 @@ export default function LandingPage() {
         <section className="my-8 grid gap-5 rounded-3xl border bg-card p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:p-8">
           <div className="space-y-2">
             <Badge variant="secondary">Интеграционный статус</Badge>
-            <h2 className="text-2xl font-semibold tracking-tight">Готово для Devnet-оценки</h2>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Здесь нет заявления о банковской, KZT, Kamino, Crossmint или off-ramp интеграции. Эти адаптеры остаются выключенными до отдельной проверки.</p>
+            <h2 className="text-2xl font-semibold tracking-tight">Kamino Lend Devnet подключён</h2>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Приложение строит и предварительно проверяет транзакцию для закреплённого Kamino Lend market. Подпись и отправка всегда происходят только в вашем кошельке. Банковские, KZT и off-ramp операции не входят в маршрут.</p>
           </div>
           <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/earn" />}>Открыть Devnet-стратегию <ArrowRight /></Button>
         </section>
@@ -130,42 +130,37 @@ export default function LandingPage() {
 }
 
 function NetworkAssets() {
-  const [status, setStatus] = useState<DevnetStatus | null>(null);
-  const [quotes, setQuotes] = useState<VaultQuote[]>([]);
+  const [status, setStatus] = useState<KaminoMarketStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      fetch("/api/devnet/status", { cache: "no-store" }).then((response) => response.ok ? response.json() as Promise<DevnetStatus> : null),
-      fetch("/api/devnet/vaults", { cache: "no-store" }).then(async (response) => response.ok ? await response.json() as VaultQuote[] : []),
-    ]).then(([nextStatus, nextQuotes]) => {
-      if (!active) return;
-      setStatus(nextStatus);
-      setQuotes(Array.isArray(nextQuotes) ? nextQuotes : []);
-    }).catch(() => {
-      if (active) {
-        setStatus(null);
-        setQuotes([]);
-      }
-    }).finally(() => { if (active) setLoading(false); });
+    fetch("/api/kamino/market", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<KaminoMarketStatus> : null)
+      .then((nextStatus) => {
+        if (!active) return;
+        setStatus(nextStatus);
+      })
+      .catch(() => {
+        if (active) setStatus(null);
+      })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
-  const vaultMint = (productId: string, fallback: string | null | undefined) => quotes.find((quote) => quote.productId === productId)?.mint || fallback || null;
   const addresses = [
-    { label: "Тестовый quote token", ticker: "QUOTE · TEST TOKEN", address: status?.usdMint },
-    { label: "Доля Earn в Solana Devnet", ticker: "vUSDY · TEST TOKEN", address: vaultMint("ondo-usdy", status?.vaultUsdyMint) },
-    { label: "Казначейство тестового quote token", ticker: "Treasury", address: status?.treasury },
+    { label: "Kamino Lend market", ticker: "SOLANA DEVNET", address: status?.market?.address ?? KAMINO_DEVNET_MARKET },
+    { label: "Kamino Lend reserve", ticker: status?.reserve?.symbol ?? "DEVNET USDC", address: status?.reserve?.address ?? KAMINO_DEVNET_USDC_RESERVE },
+    { label: "Devnet USDC mint", ticker: "DEVNET USDC", address: status?.reserve?.mint ?? DEVNET_USDC_MINT },
   ];
 
   return (
     <section className="space-y-5 py-8">
-      <SectionHeading eyebrow="Проверяемая инфраструктура" title="Только Devnet" description="Mint-адреса стратегии Solana Devnet и казначейства. Откройте запись в Solana Explorer." />
+      <SectionHeading eyebrow="Проверяемая инфраструктура" title="Kamino Lend · Solana Devnet" description="Закреплённые адреса market, reserve и Devnet USDC mint. Откройте запись в Solana Explorer." />
       <Card className="divide-y rounded-2xl p-0">
-        {addresses.map((item) => <NetworkAddressRow key={item.ticker} {...item} loading={loading} />)}
+        {addresses.map((item) => <NetworkAddressRow key={item.label} {...item} loading={loading} />)}
       </Card>
-      {!loading && !status?.configured ? <p className="text-xs text-muted-foreground">Адреса появятся после настройки сети в окружении сервера.</p> : null}
+      {!loading ? <p className="text-xs text-muted-foreground">{status?.ready ? "Маршрут проверен сервером перед подготовкой каждой транзакции." : "Доступность маршрута проверяется сервером перед подготовкой транзакции."}</p> : null}
     </section>
   );
 }

@@ -19,10 +19,10 @@ export function EarnList() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">Стратегии Solana Devnet и исследования.</p>
+        <p className="text-sm text-muted-foreground">Kamino Lend в Solana Devnet.</p>
         <p className="text-xs leading-5 text-muted-foreground">
-          Тестовые токены и выпущенные доли не имеют денежной стоимости. Доходность, если она показана, — только
-          иллюстрация.
+          Операции строятся для закреплённого Devnet reserve и подписываются подключённым кошельком. Тестовые токены
+          и позиции не имеют денежной стоимости.
         </p>
       </div>
       <div className="space-y-3">
@@ -34,7 +34,7 @@ export function EarnList() {
         <ShieldAlert className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <p className="text-xs leading-5 text-muted-foreground">
           SOLANA DEVNET · NO MONETARY VALUE. Не банковский вклад, не застраховано фондом гарантирования депозитов.
-          Доход не гарантирован и не начисляется как фактическая прибыль.
+          Ставка и ликвидность резерва переменны; доход не гарантирован.
         </p>
       </Card>
     </div>
@@ -47,6 +47,7 @@ function YieldCard({ strategy }: { strategy: YieldStrategy }) {
   const hasIllustrativeApy = gateway.yieldKind === "ILLUSTRATIVE"
     && typeof apyBps === "number"
     && Number.isFinite(apyBps);
+  const hasVariableProtocolRate = gateway.yieldKind === "PROTOCOL_VARIABLE";
   const apy = hasIllustrativeApy ? apyBps / 10_000 : Number.NaN;
   const canInvest = canInvestInStrategy(strategy);
   return (
@@ -64,10 +65,10 @@ function YieldCard({ strategy }: { strategy: YieldStrategy }) {
         </div>
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy ? "text-3xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
-              {hasIllustrativeApy ? formatApy(apy) : "Unavailable"}
+            <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy ? "text-3xl text-emerald-700 dark:text-emerald-400" : hasVariableProtocolRate ? "text-xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
+              {hasIllustrativeApy ? formatApy(apy) : hasVariableProtocolRate ? "Variable" : "Unavailable"}
             </p>
-            <p className="text-xs text-muted-foreground">{hasIllustrativeApy ? "ILLUSTRATIVE YIELD · ориентир" : "ILLUSTRATIVE YIELD · ставка не задана"}</p>
+            <p className="text-xs text-muted-foreground">{hasIllustrativeApy ? "ILLUSTRATIVE YIELD · ориентир" : hasVariableProtocolRate ? "VARIABLE PROTOCOL RATE" : "ставка не задана"}</p>
           </div>
           <RiskBadge strategy={strategy} />
         </div>
@@ -77,9 +78,9 @@ function YieldCard({ strategy }: { strategy: YieldStrategy }) {
         <p>Источник / режим: {presentDevnetCopy(gateway.sourceLabel)}.</p>
         <p>{presentDevnetCopy(gateway.yield.sourceNote)}</p>
         {canInvest ? (
-          <p>SIMULATED FUNDING: доступен только тестовый перевод и выпуск тестовых долей в Solana Devnet.</p>
+          <p>USER-SIGNED ON-CHAIN: сервер симулирует точную Devnet-транзакцию, а подключённый кошелёк подписывает и отправляет её.</p>
         ) : (
-          <p>RESEARCH / UNSUPPORTED: новые пополнения отключены; карточка не является предложением вложить средства.</p>
+          <p>Новые пополнения сейчас недоступны.</p>
         )}
       </div>
     </Card>

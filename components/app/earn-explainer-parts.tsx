@@ -10,13 +10,19 @@ import type { YieldStrategy } from "@/lib/yields";
 
 export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
   const gateway = strategy.gateway;
-  const steps = [
-    "SIMULATED FUNDING: выберите сумму тестовых единиц. Банковская карта, KZT-перевод и фиатный платёж не принимаются.",
-    "Подпишите перевод тестового токена в Solana Devnet. Сервер продолжит действие только после проверки подтверждённой подписи и суммы в сети.",
-    gateway.availability === "REDEMPTION_ONLY"
-      ? "Это историческая запись: новые вклады не принимаются, но подтверждённые старые тестовые доли можно погасить по фиксированной Devnet-стоимости."
-      : `После подтверждения выпускаются Devnet-доли ${displayStrategyTicker(strategy)} 1:1. ILLUSTRATIVE YIELD не меняет их баланс или цену погашения.`,
-  ];
+  const steps = gateway.provider === "KAMINO"
+    ? [
+        "Выберите сумму Devnet USDC. Банковская карта, KZT-перевод и фиатный платёж не принимаются.",
+        "Сервер загрузит закреплённый Kamino Lend reserve, проверит состояние маршрута и симулирует точную транзакцию до показа подписи.",
+        "Подпишите и отправьте подготовленную транзакцию подключённым кошельком. Статус завершения появится только после проверки Devnet-подтверждения.",
+      ]
+    : [
+        "Новые пополнения для исторической Devnet-позиции отключены.",
+        "Если для позиции доступен выход, подключённый кошелёк подписывает Devnet-транзакцию.",
+        gateway.availability === "REDEMPTION_ONLY"
+          ? "Это историческая запись: новые вклады не принимаются, а поддерживаемый выход остаётся ограничен Devnet-тестовыми токенами."
+          : `Технический тикер: ${displayStrategyTicker(strategy)}. Числовая ставка не заявлена.`,
+      ];
 
   return (
     <>
@@ -44,6 +50,7 @@ export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
 }
 
 export function RiskSection({ strategy }: { strategy: YieldStrategy }) {
+  const isKamino = strategy.gateway.provider === "KAMINO";
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Ограничения Solana Devnet</h2>
@@ -51,7 +58,11 @@ export function RiskSection({ strategy }: { strategy: YieldStrategy }) {
         <CircleHelp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div className="space-y-2">
           <p className="text-sm leading-5">{presentDevnetCopy(strategy.riskLabel)}</p>
-          <p className="text-sm leading-5">Тестовые токены, записи и симулированные выплаты не имеют денежной стоимости. Это не банковский вклад, не инвестиционный продукт и не оффер.</p>
+          <p className="text-sm leading-5">
+            {isKamino
+              ? "Тестовые токены и позиция в Solana Devnet не имеют денежной стоимости. Ликвидность резерва, комиссии и ставка протокола могут меняться. Это не банковский вклад и не предложение вложить реальные средства."
+              : "Тестовые токены и записи не имеют денежной стоимости. Это не банковский вклад, не инвестиционный продукт и не оффер."}
+          </p>
           <p className="text-xs text-muted-foreground">{presentDevnetCopy(strategy.gateway.yield.sourceNote)}</p>
         </div>
       </Card>
