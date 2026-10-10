@@ -101,10 +101,12 @@ export function KaminoLendDrawer({
     setBusy("loading");
     setError(null);
     try {
-      const marketUrl = walletAddress
-        ? `/api/kamino/market?walletAddress=${encodeURIComponent(walletAddress)}`
-        : "/api/kamino/market";
-      const response = await fetch(marketUrl, { cache: "no-store", signal });
+      // Route readiness is public and must not depend on an optional balance
+      // lookup for the connected wallet. In particular, the Crossmint-wallet
+      // link can still be settling immediately after sign-in; coupling it to
+      // this read made a healthy Kamino route appear unavailable. Wallet-bound
+      // authorization remains enforced by the prepare/confirm endpoints.
+      const response = await fetch("/api/kamino/market", { cache: "no-store", signal });
       const payload = await response.json().catch(() => null);
       const nextMarket = normalizeKaminoLendMarket(payload);
       if (signal?.aborted) return;
@@ -119,7 +121,7 @@ export function KaminoLendDrawer({
     } finally {
       if (!signal?.aborted) setBusy((current) => current === "loading" ? null : current);
     }
-  }, [walletAddress]);
+  }, []);
 
   useEffect(() => {
     if (!open) return;

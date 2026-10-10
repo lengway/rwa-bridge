@@ -445,25 +445,31 @@ export async function getKaminoLendDevnetMarketStatus(walletAddress?: string) {
   try {
     const loaded = await loadVerifiedKaminoLend();
     let wallet: { address: string; liquidityBalanceAtomic: string; collateralBalanceAtomic: string } | undefined;
-    if (walletAddress !== undefined) {
-      const owner = publicKey(walletAddress, "walletAddress");
-      const [liquidityBalance, collateralBalance] = await Promise.all([
-        userTokenBalanceAtomic({
-          connection: loaded.connection,
-          mint: publicKey(KAMINO_LEND_DEVNET.liquidityMint, "liquidity mint"),
-          owner,
-        }),
-        userTokenBalanceAtomic({
-          connection: loaded.connection,
-          mint: publicKey(KAMINO_LEND_DEVNET.collateralMint, "collateral mint"),
-          owner,
-        }),
-      ]);
-      wallet = {
-        address: owner.toBase58(),
-        liquidityBalanceAtomic: liquidityBalance.toString(10),
-        collateralBalanceAtomic: collateralBalance.toString(10),
-      };
+    const owner = walletAddress === undefined ? undefined : publicKey(walletAddress, "walletAddress");
+    if (owner) {
+      try {
+        const [liquidityBalance, collateralBalance] = await Promise.all([
+          userTokenBalanceAtomic({
+            connection: loaded.connection,
+            mint: publicKey(KAMINO_LEND_DEVNET.liquidityMint, "liquidity mint"),
+            owner,
+          }),
+          userTokenBalanceAtomic({
+            connection: loaded.connection,
+            mint: publicKey(KAMINO_LEND_DEVNET.collateralMint, "collateral mint"),
+            owner,
+          }),
+        ]);
+        wallet = {
+          address: owner.toBase58(),
+          liquidityBalanceAtomic: liquidityBalance.toString(10),
+          collateralBalanceAtomic: collateralBalance.toString(10),
+        };
+      } catch {
+        // Wallet balances are supplemental UI data. A transient token-account
+        // RPC failure must not make a separately verified Kamino route look
+        // unavailable or prevent an authenticated user from retrying later.
+      }
     }
     return {
       configured: true,
