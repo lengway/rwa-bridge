@@ -56,6 +56,118 @@ npm run dev
 node scripts/devnet-smoke.mjs   # end-to-end check of every money flow
 ```
 
+## RWA-DEMO: direct Meteora DLMM Devnet flow
+
+`RWA-DEMO` is a separate, Devnet-only test scenario. It is not an asset, a security,
+or a claim on property, KASE, Intebix, KZTE, or any other real-world asset. `QUOTE-DEMO`
+is a test SPL token with no monetary value. The KZT boundary is a UI/ledger simulation
+only: no payment is accepted and no payout is sent.
+
+The only real parts of this specific demo are the Devnet token mint/transfer (when the
+guarded faucet is enabled) and the user-signed, direct Meteora DLMM swaps. Jupiter is
+not used as an execution route in this flow.
+
+### Configure and bootstrap
+
+1. Copy the example configuration and set an explicit Devnet RPC:
+
+   ```bash
+   cp .env.example .env.local
+   # Set SOLANA_CLUSTER=devnet and SOLANA_RPC_URL to a Devnet-only endpoint.
+   ```
+
+2. Create a **test-only** payer outside the tracked source tree, then fund its public
+   address with Devnet SOL. Never place this file in `public/`, commit it, or paste its
+   contents into an environment variable or chat.
+
+   ```bash
+   mkdir -p .secrets
+   solana-keygen new --outfile .secrets/devnet-payer.json
+   chmod 600 .secrets/devnet-payer.json
+   # Fund the printed public address through https://faucet.solana.com/
+   ```
+
+3. Set `DEVNET_PAYER_KEYPAIR_PATH=.secrets/devnet-payer.json`. With
+   `ENABLE_DEVNET_DEMO=false`, opt in to creating missing public Devnet configuration
+   and run the bootstrap (it only accepts Devnet and never writes a secret):
+
+   ```bash
+   WRITE_DEVNET_DEMO_CONFIG=true npm run devnet:bootstrap
+   ```
+
+For the VPS release layout, `.env.local` is intentionally a symlink to the
+shared secret configuration. Keep that guard in place and set
+`DEVNET_PUBLIC_CONFIG_PATH=/home/plain/shared/.env.local` for the bootstrap
+command; the target itself must be a regular, owner-restricted file. The script
+writes only the resulting public mint, pool, and LP position IDs there.
+
+4. Review the printed Devnet Explorer links and public `DEVNET_QUOTE_MINT`,
+   `DEVNET_RWA_MINT`, and `DEVNET_METEORA_POOL` values. Set
+   `ENABLE_DEVNET_DEMO=true`; set `ENABLE_DEVNET_FAUCET=true` only on a guarded local
+   or staging deployment where issuing test tokens is intended. Restart `npm run dev`.
+
+The bootstrap discovers a currently valid Devnet `PresetParameter2`, creates/reuses the
+pair and its LP position idempotently, and confirms the public pool/mint accounts before
+it reports success. It does not fall back to Mainnet or create a replacement pool if the
+configured one is invalid.
+
+### Demo walkthrough
+
+1. Sign in and open **Assets → RWA-DEMO**. Confirm the screen says `DEVNET DEMO` and
+   the network is Devnet.
+2. Create a simulated KZT top-up. The displayed conversion is an illustrative configured
+   rate and the UI must say `SIMULATED — no fiat payment`.
+3. If the guarded faucet is enabled, receive `QUOTE-DEMO` through a real Devnet mint
+   transaction. The UI identifies it as `DEVNET TEST TOKEN — no monetary value`.
+4. Request a fresh direct Meteora quote, review its slippage and minimum output, then
+   approve the swap in the connected wallet. The app confirms the signature on-chain and
+   refreshes balances before marking the order complete.
+5. Sell part or all of `RWA-DEMO` via a fresh reverse quote. Once the sell is confirmed,
+   the app can create an explicitly simulated KZT payout receipt only; it never sends a
+   bank transfer.
+
+### RWA demo configuration
+
+| Variable | Purpose |
+|---|---|
+| `SOLANA_CLUSTER` | Must be exactly `devnet`; a missing/other value is rejected. |
+| `SOLANA_RPC_URL` | Explicit Devnet RPC endpoint, verified against Devnet at runtime. |
+| `ENABLE_DEVNET_DEMO` | Explicitly enables the RWA demo routes/UI. |
+| `ENABLE_DEVNET_FAUCET` | Enables the server-side `QUOTE-DEMO` test-token issuer; keep `false` by default. |
+| `AUTH_SESSION_SECRET` | Existing server-only session secret, also used to hash faucet IP audit data; never expose it to the client. |
+| `DEVNET_PAYER_KEYPAIR_PATH` | Server-only test payer/mint-authority file path. |
+| `WRITE_DEVNET_DEMO_CONFIG` | Must be `true` only when bootstrap is allowed to create missing mints and write their public addresses to `.env.local`. |
+| `DEVNET_PUBLIC_CONFIG_PATH` | Optional regular-file target for bootstrap's public IDs when release `.env.local` is a symlink. |
+| `DEVNET_QUOTE_MINT`, `DEVNET_RWA_MINT`, `DEVNET_METEORA_POOL` | Public addresses emitted by the bootstrap. |
+| `DEVNET_RWA_LP_POSITION` | Public LP position emitted by the bootstrap; used for safe reuse checks. |
+| `DEMO_KZT_PER_QUOTE_TOKEN` | Illustrative demo scenario rate, not market FX. |
+| `DEMO_FUNDING_MAX_KZT`, `DEMO_FAUCET_MAX_QUOTE_TOKENS`, `DEMO_FAUCET_DAILY_MAX_QUOTE_TOKENS` | Server-side funding/faucet caps. |
+| `DEMO_SWAP_SLIPPAGE_BPS` | Maximum allowed direct-DLMM quote slippage. |
+
+### Troubleshooting and limits
+
+- **“Devnet demo is not configured”** — verify every required public mint/pool value,
+  `SOLANA_CLUSTER=devnet`, and an RPC that returns the Devnet genesis hash; restart the
+  server after changing `.env.local`.
+- **Insufficient SOL / pool bootstrap fails** — fund the configured test payer with
+  Devnet SOL, then rerun the bootstrap. Do not substitute a Mainnet key or endpoint.
+- **No quote / stale quote / rejected signature** — request a new quote. A quote is not
+  a price guarantee and an order is never completed from a client success flag alone.
+- **Faucet unavailable** — this is intentional unless the explicit server-side flag,
+  test-only payer, caps, and public mint configuration are present. Enable it only in
+  guarded local or staging infrastructure; never expose an authority key in the browser.
+- **Crossmint signing unavailable** — use a staging Crossmint wallet configured for
+  Solana Devnet. The integration is designed to pass a serialized transaction to the
+  wallet; it never exports or stores a user private key.
+
+Before a production or horizontally scaled deployment, replace the local JSON demo
+ledger/rate limiter with a durable transactional datastore and shared rate limiter.
+The IP limiter assumes your trusted reverse proxy strips and overwrites forwarded-IP
+headers; do not expose the faucet directly to the public internet behind an untrusted
+proxy. Wallet and aggregate caps remain enforced server-side.
+Real KASE/Intebix/KZTE assets, real KZT rails, KYC/AML, custody, Mainnet, and a live
+Jupiter execution route remain out of scope and disabled.
+
 ---
 
 # Приложение (RU)

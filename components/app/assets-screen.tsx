@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { AssetListCard, ExistingHolding } from "@/components/app/asset-parts";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { BRIDGE_ASSETS } from "@/lib/assets";
 import { useAppStore } from "@/lib/store";
 
@@ -27,6 +29,33 @@ export function AssetsScreen() {
         </p>
       </section>
       <AssetListCard asset={asset} />
+
+      <section className="space-y-2 pt-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">Devnet demo</h2>
+          <Badge variant="secondary">DEVNET DEMO</Badge>
+        </div>
+        <p className="text-sm leading-5 text-muted-foreground">
+          A separate direct-Meteora test-token flow. It does not represent a real
+          asset, KZT payment, or payout.
+        </p>
+        <Link href="/assets/rwa-demo" className="block">
+          <Card className="gap-2 rounded-2xl p-4 transition-colors hover:bg-muted/50">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-semibold">RWA-DEMO</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  QUOTE-DEMO ↔ RWA-DEMO via a direct Meteora DLMM Devnet pool.
+                </p>
+              </div>
+              <span className="text-sm text-muted-foreground">Open →</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              DEVNET TEST TOKEN — no monetary value
+            </p>
+          </Card>
+        </Link>
+      </section>
     </div>
   );
 }

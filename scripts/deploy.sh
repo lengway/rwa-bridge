@@ -32,7 +32,7 @@ systemctl enable --now plain-web >/dev/null 2>&1 || true
 systemctl restart plain-web
 sleep 4
 systemctl is-active plain-web
-curl -s -o /dev/null -w "local http %{http_code}\n" http://127.0.0.1:3200/
+curl -fsS -o /dev/null -w "local http %{http_code}\n" http://127.0.0.1:3200/
 # keep the 5 newest releases
 ls -1dt /home/plain/releases/* | tail -n +6 | xargs -r rm -rf
 EOF

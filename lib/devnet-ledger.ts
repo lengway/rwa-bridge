@@ -3,6 +3,13 @@ import "server-only";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash, timingSafeEqual } from "node:crypto";
+import {
+  assertOrderTransition,
+  type RwaDemoFundingStatus,
+  type RwaDemoOrderStatus,
+  type RwaDemoPayoutStatus,
+  type RwaDemoSide,
+} from "@/lib/rwa-demo";
 
 export type LedgerDeposit = {
   productId: string;
@@ -66,6 +73,82 @@ export type WalletLedger = {
   kzteOperations: LedgerKzteOperation[];
 };
 
+export type RwaDemoQuoteRecord = {
+  id: string;
+  walletAddress: string;
+  assetId: "rwa-demo";
+  side: RwaDemoSide;
+  inputMint: string;
+  outputMint: string;
+  inputAmountAtomic: string;
+  expectedOutputAtomic: string;
+  minimumOutputAtomic: string;
+  feeAmountAtomic: string;
+  protocolFeeAtomic: string;
+  slippageBps: number;
+  priceImpact: string | null;
+  poolAddress: string;
+  route: "meteora-dlmm-devnet";
+  network: "devnet";
+  expiresAt: number;
+  createdAt: number;
+  orderId?: string;
+};
+
+export type RwaDemoOrderRecord = Omit<RwaDemoQuoteRecord, "id" | "createdAt" | "orderId"> & {
+  id: string;
+  quoteId: string;
+  status: RwaDemoOrderStatus;
+  createdAt: number;
+  updatedAt: number;
+  transactionSignature?: string;
+  // SHA-256 of the exact unsigned message built by the server. A submitted
+  // signature is accepted only when its on-chain message matches this digest.
+  transactionMessageDigest?: string;
+  transactionLastValidBlockHeight?: number;
+  actualInputAmountAtomic?: string;
+  actualOutputAmountAtomic?: string;
+  inputBalanceAfterAtomic?: string;
+  outputBalanceAfterAtomic?: string;
+  errorCode?: string;
+  errorMessage?: string;
+};
+
+export type RwaDemoFundingEvent = {
+  id: string;
+  walletAddress: string;
+  ipHash: string;
+  idempotencyKey: string | null;
+  requestedKztAmount: string;
+  demoRateKztPerQuoteToken: string;
+  quoteTokenAmountAtomic: string;
+  status: RwaDemoFundingStatus;
+  mintSignature?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type RwaDemoPayoutEvent = {
+  id: string;
+  orderId: string;
+  walletAddress: string;
+  quoteTokenAmountAtomic: string;
+  simulatedKztAmount: string;
+  status: RwaDemoPayoutStatus;
+  disclosure: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type RwaDemoLedger = {
+  quotes: Record<string, RwaDemoQuoteRecord>;
+  orders: Record<string, RwaDemoOrderRecord>;
+  fundingEvents: Record<string, RwaDemoFundingEvent>;
+  payoutEvents: Record<string, RwaDemoPayoutEvent>;
+};
+
 type Ledger = {
   wallets: Record<string, WalletLedger>;
   vaultCheckpoints: Record<string, VaultCheckpoint>;
@@ -73,6 +156,7 @@ type Ledger = {
   authChallenges: Record<string, AuthChallengeRecord>;
   authEmailRequests: Record<string, number[]>;
   authIpRequests: Record<string, number[]>;
+  rwaDemo: RwaDemoLedger;
 };
 
 type AuthChallengeRecord = {
@@ -132,9 +216,19 @@ function emptyWallet(): WalletLedger {
   return { deposits: [], withdrawals: [], purchases: [], migrations: [], kzteOperations: [] };
 }
 
+function emptyRwaDemoLedger(): RwaDemoLedger {
+  return { quotes: {}, orders: {}, fundingEvents: {}, payoutEvents: {} };
+}
+
+function objectRecord<T>(value: unknown): Record<string, T> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, T> : {};
+}
+
 async function readLedgerFile(): Promise<Ledger> {
   try {
-    const parsed = JSON.parse(await readFile(LEDGER_PATH, "utf8")) as Partial<Ledger>;
+    // This local, runtime-selected ledger is intentional for the demo. It is
+    // not a deploy-time asset and must not make Turbopack trace the workspace.
+    const parsed = JSON.parse(await readFile(/* turbopackIgnore: true */ LEDGER_PATH, "utf8")) as Partial<Ledger>;
     const wallets = parsed.wallets && typeof parsed.wallets === "object" ? parsed.wallets : {};
     const vaultCheckpoints = parsed.vaultCheckpoints && typeof parsed.vaultCheckpoints === "object"
       ? parsed.vaultCheckpoints
@@ -143,12 +237,19 @@ async function readLedgerFile(): Promise<Ledger> {
     const authChallenges = parsed.authChallenges && typeof parsed.authChallenges === "object" ? parsed.authChallenges : {};
     const authEmailRequests = parsed.authEmailRequests && typeof parsed.authEmailRequests === "object" ? parsed.authEmailRequests : {};
     const authIpRequests = parsed.authIpRequests && typeof parsed.authIpRequests === "object" ? parsed.authIpRequests : {};
+    const rwaDemo = parsed.rwaDemo && typeof parsed.rwaDemo === "object" ? parsed.rwaDemo : emptyRwaDemoLedger();
     return {
       vaultCheckpoints,
       emails,
       authChallenges,
       authEmailRequests,
       authIpRequests,
+      rwaDemo: {
+        quotes: objectRecord<RwaDemoQuoteRecord>(rwaDemo.quotes),
+        orders: objectRecord<RwaDemoOrderRecord>(rwaDemo.orders),
+        fundingEvents: objectRecord<RwaDemoFundingEvent>(rwaDemo.fundingEvents),
+        payoutEvents: objectRecord<RwaDemoPayoutEvent>(rwaDemo.payoutEvents),
+      },
       wallets: Object.fromEntries(Object.entries(wallets).map(([wallet, value]) => {
         const record = value as Partial<WalletLedger>;
         return [wallet, {
@@ -162,7 +263,15 @@ async function readLedgerFile(): Promise<Ledger> {
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { wallets: {}, vaultCheckpoints: {}, emails: {}, authChallenges: {}, authEmailRequests: {}, authIpRequests: {} };
+      return {
+        wallets: {},
+        vaultCheckpoints: {},
+        emails: {},
+        authChallenges: {},
+        authEmailRequests: {},
+        authIpRequests: {},
+        rwaDemo: emptyRwaDemoLedger(),
+      };
     }
     throw error;
   }
@@ -538,5 +647,475 @@ export async function appendDeposits(walletAddress: string, deposits: LedgerDepo
     ledger.wallets[walletAddress] = wallet;
     await writeLedgerFile(ledger);
     return wallet;
+  });
+}
+
+export class RwaDemoLedgerConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RwaDemoLedgerConflictError";
+  }
+}
+
+export class RwaDemoLedgerRateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RwaDemoLedgerRateLimitError";
+  }
+}
+
+function rwaDemoOf(ledger: Ledger) {
+  return ledger.rwaDemo;
+}
+
+export function getRwaDemoQuote(quoteId: string) {
+  return exclusive(async () => rwaDemoOf(await readLedgerFile()).quotes[quoteId] ?? null);
+}
+
+export function getRwaDemoQuoteForWallet(quoteId: string, walletAddress: string) {
+  return exclusive(async () => {
+    const quote = rwaDemoOf(await readLedgerFile()).quotes[quoteId] ?? null;
+    return quote?.walletAddress === walletAddress ? quote : null;
+  });
+}
+
+export async function createRwaDemoQuote(quote: RwaDemoQuoteRecord) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const demo = rwaDemoOf(ledger);
+    if (demo.quotes[quote.id]) throw new RwaDemoLedgerConflictError("RWA demo quote ID already exists.");
+    demo.quotes[quote.id] = quote;
+    await writeLedgerFile(ledger);
+    return quote;
+  });
+}
+
+export function getRwaDemoOrder(orderId: string) {
+  return exclusive(async () => rwaDemoOf(await readLedgerFile()).orders[orderId] ?? null);
+}
+
+export function getRwaDemoOrderForWallet(orderId: string, walletAddress: string) {
+  return exclusive(async () => {
+    const order = rwaDemoOf(await readLedgerFile()).orders[orderId] ?? null;
+    return order?.walletAddress === walletAddress ? order : null;
+  });
+}
+
+export async function createRwaDemoOrderFromQuote({
+  orderId,
+  quoteId,
+  walletAddress,
+  now = Date.now(),
+}: {
+  orderId: string;
+  quoteId: string;
+  walletAddress: string;
+  now?: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const demo = rwaDemoOf(ledger);
+    const quote = demo.quotes[quoteId];
+    if (!quote || quote.walletAddress !== walletAddress) {
+      throw new RwaDemoLedgerConflictError("RWA demo quote was not found for this wallet.");
+    }
+    if (quote.orderId) {
+      const existing = demo.orders[quote.orderId];
+      if (existing) return { order: existing, reused: true };
+      throw new RwaDemoLedgerConflictError("RWA demo quote is already attached to an invalid order.");
+    }
+    if (quote.expiresAt <= now) {
+      throw new RwaDemoLedgerConflictError("RWA demo quote has expired. Request a fresh quote.");
+    }
+    if (demo.orders[orderId]) throw new RwaDemoLedgerConflictError("RWA demo order ID already exists.");
+    const order: RwaDemoOrderRecord = {
+      id: orderId,
+      quoteId,
+      walletAddress: quote.walletAddress,
+      assetId: quote.assetId,
+      side: quote.side,
+      inputMint: quote.inputMint,
+      outputMint: quote.outputMint,
+      inputAmountAtomic: quote.inputAmountAtomic,
+      expectedOutputAtomic: quote.expectedOutputAtomic,
+      minimumOutputAtomic: quote.minimumOutputAtomic,
+      feeAmountAtomic: quote.feeAmountAtomic,
+      protocolFeeAtomic: quote.protocolFeeAtomic,
+      slippageBps: quote.slippageBps,
+      priceImpact: quote.priceImpact,
+      poolAddress: quote.poolAddress,
+      route: quote.route,
+      network: quote.network,
+      expiresAt: quote.expiresAt,
+      status: "ORDER_CREATED",
+      createdAt: now,
+      updatedAt: now,
+    };
+    quote.orderId = order.id;
+    demo.orders[order.id] = order;
+    await writeLedgerFile(ledger);
+    return { order, reused: false };
+  });
+}
+
+export async function refreshRwaDemoOrderQuote({
+  orderId,
+  walletAddress,
+  quote,
+  transactionMessageDigest,
+  transactionLastValidBlockHeight,
+  now = Date.now(),
+}: {
+  orderId: string;
+  walletAddress: string;
+  quote: RwaDemoQuoteRecord;
+  transactionMessageDigest: string;
+  transactionLastValidBlockHeight: number;
+  now?: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const demo = rwaDemoOf(ledger);
+    const order = demo.orders[orderId];
+    if (!order || order.walletAddress !== walletAddress) {
+      throw new RwaDemoLedgerConflictError("RWA demo order was not found for this wallet.");
+    }
+    if (!["ORDER_CREATED", "WALLET_APPROVAL_PENDING", "QUOTE_EXPIRED", "USER_REJECTED", "CONFIRMATION_TIMEOUT"].includes(order.status)) {
+      throw new RwaDemoLedgerConflictError("RWA demo order can no longer be rebuilt.");
+    }
+    if (quote.walletAddress !== walletAddress || quote.side !== order.side || quote.inputAmountAtomic !== order.inputAmountAtomic) {
+      throw new RwaDemoLedgerConflictError("Fresh RWA demo quote does not match the original order intent.");
+    }
+    if (!/^[a-f0-9]{64}$/.test(transactionMessageDigest)) {
+      throw new RwaDemoLedgerConflictError("RWA demo transaction message digest is invalid.");
+    }
+    if (!Number.isSafeInteger(transactionLastValidBlockHeight) || transactionLastValidBlockHeight < 0) {
+      throw new RwaDemoLedgerConflictError("RWA demo transaction validity height is invalid.");
+    }
+    if (demo.quotes[quote.id]) throw new RwaDemoLedgerConflictError("Fresh RWA demo quote ID already exists.");
+    if (quote.expiresAt <= now) throw new RwaDemoLedgerConflictError("Fresh RWA demo quote has already expired.");
+    assertOrderTransition(order.status, "WALLET_APPROVAL_PENDING");
+    quote.orderId = order.id;
+    demo.quotes[quote.id] = quote;
+    Object.assign(order, {
+      quoteId: quote.id,
+      inputMint: quote.inputMint,
+      outputMint: quote.outputMint,
+      expectedOutputAtomic: quote.expectedOutputAtomic,
+      minimumOutputAtomic: quote.minimumOutputAtomic,
+      feeAmountAtomic: quote.feeAmountAtomic,
+      protocolFeeAtomic: quote.protocolFeeAtomic,
+      slippageBps: quote.slippageBps,
+      priceImpact: quote.priceImpact,
+      poolAddress: quote.poolAddress,
+      expiresAt: quote.expiresAt,
+      transactionMessageDigest,
+      transactionLastValidBlockHeight,
+      transactionSignature: undefined,
+      status: "WALLET_APPROVAL_PENDING" satisfies RwaDemoOrderStatus,
+      updatedAt: now,
+      errorCode: undefined,
+      errorMessage: undefined,
+    });
+    await writeLedgerFile(ledger);
+    return order;
+  });
+}
+
+export async function recordRwaDemoOrderSubmission({
+  orderId,
+  walletAddress,
+  signature,
+  now = Date.now(),
+}: {
+  orderId: string;
+  walletAddress: string;
+  signature: string;
+  now?: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const demo = rwaDemoOf(ledger);
+    const order = demo.orders[orderId];
+    if (!order || order.walletAddress !== walletAddress) {
+      throw new RwaDemoLedgerConflictError("RWA demo order was not found for this wallet.");
+    }
+    const otherOrder = Object.values(demo.orders).find((item) => item.transactionSignature === signature && item.id !== order.id);
+    if (otherOrder) throw new RwaDemoLedgerConflictError("This Solana signature is already linked to another RWA demo order.");
+    if (order.transactionSignature && order.transactionSignature !== signature) {
+      throw new RwaDemoLedgerConflictError("RWA demo order is already linked to a different transaction signature.");
+    }
+    if (!order.transactionMessageDigest) {
+      throw new RwaDemoLedgerConflictError("RWA demo order has no prepared transaction message.");
+    }
+    if (order.transactionLastValidBlockHeight === undefined) {
+      throw new RwaDemoLedgerConflictError("RWA demo order has no prepared transaction validity height.");
+    }
+    if (!order.transactionSignature) {
+      assertOrderTransition(order.status, "TRANSACTION_SUBMITTED");
+      order.transactionSignature = signature;
+      order.status = "TRANSACTION_SUBMITTED";
+      order.updatedAt = now;
+      await writeLedgerFile(ledger);
+    }
+    return order;
+  });
+}
+
+export async function markRwaDemoOrderConfirmationTimeout({
+  orderId,
+  walletAddress,
+  errorCode,
+  now = Date.now(),
+}: {
+  orderId: string;
+  walletAddress: string;
+  errorCode: string;
+  now?: number;
+}) {
+  return updateRwaDemoOrderStatus({ orderId, walletAddress, status: "CONFIRMATION_TIMEOUT", errorCode, now });
+}
+
+export async function markRwaDemoOrderFailed({
+  orderId,
+  walletAddress,
+  status,
+  errorCode,
+  now = Date.now(),
+}: {
+  orderId: string;
+  walletAddress: string;
+  status: "TRANSACTION_FAILED" | "NEEDS_REVIEW";
+  errorCode: string;
+  now?: number;
+}) {
+  return updateRwaDemoOrderStatus({ orderId, walletAddress, status, errorCode, now });
+}
+
+export async function markRwaDemoOrderConfirmed({
+  orderId,
+  walletAddress,
+  actualInputAmountAtomic,
+  actualOutputAmountAtomic,
+  inputBalanceAfterAtomic,
+  outputBalanceAfterAtomic,
+  now = Date.now(),
+}: {
+  orderId: string;
+  walletAddress: string;
+  actualInputAmountAtomic: string;
+  actualOutputAmountAtomic: string;
+  inputBalanceAfterAtomic: string;
+  outputBalanceAfterAtomic: string;
+  now?: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const demo = rwaDemoOf(ledger);
+    const order = demo.orders[orderId];
+    if (!order || order.walletAddress !== walletAddress) {
+      throw new RwaDemoLedgerConflictError("RWA demo order was not found for this wallet.");
+    }
+    if (order.status === "COMPLETED") return order;
+    assertOrderTransition(order.status, "ONCHAIN_CONFIRMED");
+    Object.assign(order, {
+      status: "ONCHAIN_CONFIRMED" satisfies RwaDemoOrderStatus,
+      actualInputAmountAtomic,
+      actualOutputAmountAtomic,
+      inputBalanceAfterAtomic,
+      outputBalanceAfterAtomic,
+      errorCode: undefined,
+      errorMessage: undefined,
+      updatedAt: now,
+    });
+    await writeLedgerFile(ledger);
+    return order;
+  });
+}
+
+export async function completeRwaDemoOrder({
+  orderId,
+  walletAddress,
+  now = Date.now(),
+}: {
+  orderId: string;
+  walletAddress: string;
+  now?: number;
+}) {
+  return updateRwaDemoOrderStatus({ orderId, walletAddress, status: "COMPLETED", now });
+}
+
+async function updateRwaDemoOrderStatus({
+  orderId,
+  walletAddress,
+  status,
+  errorCode,
+  errorMessage,
+  now,
+}: {
+  orderId: string;
+  walletAddress: string;
+  status: RwaDemoOrderStatus;
+  errorCode?: string;
+  errorMessage?: string;
+  now: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const order = rwaDemoOf(ledger).orders[orderId];
+    if (!order || order.walletAddress !== walletAddress) {
+      throw new RwaDemoLedgerConflictError("RWA demo order was not found for this wallet.");
+    }
+    if (order.status !== status) assertOrderTransition(order.status, status);
+    order.status = status;
+    order.errorCode = errorCode;
+    order.errorMessage = errorMessage;
+    order.updatedAt = now;
+    await writeLedgerFile(ledger);
+    return order;
+  });
+}
+
+function countsTowardFaucetCap(status: RwaDemoFundingStatus) {
+  return status !== "FAILED";
+}
+
+export function getRwaDemoFundingEvent(eventId: string) {
+  return exclusive(async () => rwaDemoOf(await readLedgerFile()).fundingEvents[eventId] ?? null);
+}
+
+export async function reserveRwaDemoFunding({
+  event,
+  dailyMaxQuoteAtomic,
+  hourlyWalletLimit = 3,
+  hourlyIpLimit = 8,
+  now = Date.now(),
+}: {
+  event: RwaDemoFundingEvent;
+  dailyMaxQuoteAtomic: string;
+  hourlyWalletLimit?: number;
+  hourlyIpLimit?: number;
+  now?: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const demo = rwaDemoOf(ledger);
+    if (event.idempotencyKey) {
+      const existing = Object.values(demo.fundingEvents).find((item) => item.idempotencyKey === event.idempotencyKey);
+      if (existing) {
+        if (existing.walletAddress !== event.walletAddress
+          || existing.requestedKztAmount !== event.requestedKztAmount
+          || existing.quoteTokenAmountAtomic !== event.quoteTokenAmountAtomic) {
+          throw new RwaDemoLedgerConflictError("Idempotency key is already associated with another funding request.");
+        }
+        return { event: existing, reused: true };
+      }
+    }
+    if (demo.fundingEvents[event.id]) throw new RwaDemoLedgerConflictError("RWA demo funding event ID already exists.");
+    const active = Object.values(demo.fundingEvents).filter((item) => countsTowardFaucetCap(item.status));
+    const hourAgo = now - 60 * 60 * 1_000;
+    if (active.filter((item) => item.walletAddress === event.walletAddress && item.createdAt >= hourAgo).length >= hourlyWalletLimit) {
+      throw new RwaDemoLedgerRateLimitError("Devnet faucet wallet rate limit reached. Try again later.");
+    }
+    if (active.filter((item) => item.ipHash === event.ipHash && item.createdAt >= hourAgo).length >= hourlyIpLimit) {
+      throw new RwaDemoLedgerRateLimitError("Devnet faucet IP rate limit reached. Try again later.");
+    }
+    const dayStart = Math.floor(now / (24 * 60 * 60 * 1_000)) * 24 * 60 * 60 * 1_000;
+    const issuedToday = active
+      .filter((item) => item.createdAt >= dayStart)
+      .reduce((total, item) => total + BigInt(item.quoteTokenAmountAtomic), BigInt(0));
+    const requested = BigInt(event.quoteTokenAmountAtomic);
+    if (issuedToday + requested > BigInt(dailyMaxQuoteAtomic)) {
+      throw new RwaDemoLedgerRateLimitError("Devnet faucet daily aggregate cap reached. Try again tomorrow.");
+    }
+    demo.fundingEvents[event.id] = event;
+    await writeLedgerFile(ledger);
+    return { event, reused: false };
+  });
+}
+
+export async function updateRwaDemoFundingEvent({
+  eventId,
+  walletAddress,
+  status,
+  mintSignature,
+  errorCode,
+  errorMessage,
+  now = Date.now(),
+}: {
+  eventId: string;
+  walletAddress: string;
+  status: RwaDemoFundingStatus;
+  mintSignature?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  now?: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const event = rwaDemoOf(ledger).fundingEvents[eventId];
+    if (!event || event.walletAddress !== walletAddress) {
+      throw new RwaDemoLedgerConflictError("RWA demo funding event was not found for this wallet.");
+    }
+    const allowed: Record<RwaDemoFundingStatus, ReadonlySet<RwaDemoFundingStatus>> = {
+      SIMULATED_CREATED: new Set(["SIMULATED_CONFIRMED", "FAILED", "NEEDS_REVIEW"]),
+      SIMULATED_CONFIRMED: new Set(["TEST_TOKEN_ISSUED", "FAILED", "NEEDS_REVIEW"]),
+      TEST_TOKEN_ISSUED: new Set(),
+      FAILED: new Set(),
+      NEEDS_REVIEW: new Set(),
+    };
+    if (event.status !== status && !allowed[event.status].has(status)) {
+      throw new RwaDemoLedgerConflictError(`Invalid RWA demo funding state transition: ${event.status} -> ${status}.`);
+    }
+    event.status = status;
+    if (mintSignature) event.mintSignature = mintSignature;
+    event.errorCode = errorCode;
+    event.errorMessage = errorMessage;
+    event.updatedAt = now;
+    await writeLedgerFile(ledger);
+    return event;
+  });
+}
+
+export function getRwaDemoPayoutForOrder(orderId: string, walletAddress: string) {
+  return exclusive(async () => Object.values(rwaDemoOf(await readLedgerFile()).payoutEvents)
+    .find((event) => event.orderId === orderId && event.walletAddress === walletAddress) ?? null);
+}
+
+export async function createRwaDemoPayout(event: RwaDemoPayoutEvent) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const demo = rwaDemoOf(ledger);
+    const existing = Object.values(demo.payoutEvents)
+      .find((item) => item.orderId === event.orderId && item.walletAddress === event.walletAddress);
+    if (existing) return { event: existing, reused: true };
+    if (demo.payoutEvents[event.id]) throw new RwaDemoLedgerConflictError("RWA demo payout event ID already exists.");
+    demo.payoutEvents[event.id] = event;
+    await writeLedgerFile(ledger);
+    return { event, reused: false };
+  });
+}
+
+export async function confirmRwaDemoPayout({
+  eventId,
+  walletAddress,
+  now = Date.now(),
+}: {
+  eventId: string;
+  walletAddress: string;
+  now?: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const event = rwaDemoOf(ledger).payoutEvents[eventId];
+    if (!event || event.walletAddress !== walletAddress) {
+      throw new RwaDemoLedgerConflictError("RWA demo payout event was not found for this wallet.");
+    }
+    if (event.status === "SIMULATED_CREATED") {
+      event.status = "SIMULATED_CONFIRMED";
+      event.updatedAt = now;
+      await writeLedgerFile(ledger);
+    }
+    return event;
   });
 }

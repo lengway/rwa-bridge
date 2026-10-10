@@ -43,3 +43,7 @@ next-env.d.ts
 
 # demo devnet mint authority
 .demo-*
+
+# Server-only Devnet demo payer / mint authority material. Keep all keypairs out of
+# the repository; public mints and pools belong in ignored .env.local instead.
+.secrets/
