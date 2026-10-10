@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { appendKzteOperation, getKzteTopupsSince, withLedgerKeyLock } from "@/lib/devnet-ledger";
 import { isConfigured, safeError, unavailableResponse } from "@/lib/devnet-route";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 import { getKztRateForOperation } from "@/lib/market-server";
 import { getSessionWallet } from "@/lib/session-wallet";
 import { explorerUrl, sendKzteFromTreasury } from "@/lib/solana-server";
@@ -13,6 +14,8 @@ const DAILY_KZTE_CAP = 1_000_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("kzte");
+
   if (!isConfigured()) return unavailableResponse();
   const session = await getSessionWallet(request);
   if (!session) return NextResponse.json({ error: "Войдите в аккаунт, чтобы зачислить KZTE на свой кошелёк." }, { status: 401 });

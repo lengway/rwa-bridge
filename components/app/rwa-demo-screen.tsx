@@ -16,7 +16,9 @@ export function RwaDemoScreen() {
     <div className="space-y-6">
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">ДЕМО</Badge>
+          <Badge variant="secondary">DEVNET DEMO</Badge>
+          <Badge variant="outline">SIMULATED FUNDING</Badge>
+          <Badge variant="outline">NO MONETARY VALUE</Badge>
         </div>
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">
@@ -34,7 +36,7 @@ export function RwaDemoScreen() {
         <ol className="grid gap-3 text-xs leading-5 text-muted-foreground sm:grid-cols-3">
           <li>
             <span className="font-medium text-foreground">1. Выберите сумму.</span>{" "}
-            Укажите, сколько USDC использовать для покупки.
+            Укажите, сколько тестового токена расчёта использовать для покупки.
           </li>
           <li>
             <span className="font-medium text-foreground">2. Проверьте условия.</span>{" "}
@@ -49,7 +51,7 @@ export function RwaDemoScreen() {
 
       <p className="text-center text-xs leading-5 text-muted-foreground">
         {devnet.walletAddress
-          ? "Демо-среда: операция использует тестовые средства и не создаёт прав на реальный актив."
+          ? "DEVNET DEMO: операция использует тестовый токен расчёта и не создаёт прав на реальный актив или денежную выплату."
           : "Войдите в приложение, чтобы продолжить в демонстрационном режиме."}
       </p>
 

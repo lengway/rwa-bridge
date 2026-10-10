@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getVerifiedEmailFromRequest } from "@/lib/auth-server";
 import { isValidAmount, isValidWalletAddress } from "@/lib/devnet-route";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 import {
   createWidgetUrl,
   getAllowedIpAddressHash,
@@ -15,6 +16,8 @@ import {
 } from "@/lib/moonpay";
 
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("moonpay");
+
   const body = await request.json().catch(() => null) as {
     flow?: unknown;
     walletAddress?: unknown;

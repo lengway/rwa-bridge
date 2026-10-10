@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ChartNoAxesCombined, CircleUserRound } from "lucide-react";
+import { CircleUserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatEarningsMoney, formatMoney } from "@/lib/format";
-import { useAppStore } from "@/lib/store";
-import { MarketDataNote } from "@/components/app/market-data-note";
+import { formatQuantity } from "@/lib/format";
 import { useAuth } from "@/lib/useAuth";
 
 export function AccountGreeting() {
@@ -46,68 +44,36 @@ export function BalanceCard({
   total,
   cashUsd,
   earnings,
-  currency,
   hydrated,
-  onCurrencyChange,
 }: {
   total: number;
   cashUsd: number;
   earnings: number;
-  currency: "USD" | "KZT";
   hydrated: boolean;
-  onCurrencyChange: (currency: "USD" | "KZT") => void;
 }) {
-  const { marketData } = useAppStore();
   return (
     <Card className="gap-5 rounded-2xl border-emerald-600/20 bg-card p-5 ring-1 ring-emerald-600/10 dark:border-emerald-400/20 dark:ring-emerald-400/10">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-muted-foreground">Общая стоимость</p>
+          <p className="text-sm text-muted-foreground">Тестовый баланс портфеля</p>
           {hydrated ? (
             <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">
-              {formatMoney(total, currency)}
+              {formatQuantity(total)} TEST QUOTE
             </p>
           ) : <Skeleton className="mt-2 h-10 w-44" />}
         </div>
-        <div
-          role="group"
-          aria-label="Валюта отображения"
-          className="flex rounded-full bg-muted p-1"
-        >
-          {(["USD", "KZT"] as const).map((value) => (
-            <Button
-              key={value}
-              size="sm"
-              variant={value === currency ? "default" : "ghost"}
-              className="h-7 rounded-full px-3 text-xs"
-              aria-label={`Показать в ${value}`}
-              aria-pressed={value === currency}
-              onClick={() => onCurrencyChange(value)}
-            >
-              {value}
-            </Button>
-          ))}
-        </div>
+        <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">TEST QUOTE</span>
       </div>
       <div className="flex items-center justify-between gap-4 border-t pt-4 text-sm">
-        <span className="text-muted-foreground">Доступно</span>
+        <span className="text-muted-foreground">Доступно для Devnet-демо</span>
         {hydrated ? (
-          <span className="font-medium tabular-nums">{formatMoney(cashUsd, currency)}</span>
+          <span className="font-medium tabular-nums">{formatQuantity(cashUsd)} TEST QUOTE</span>
         ) : <Skeleton className="h-4 w-20" />}
       </div>
       <p className="-mt-3 text-xs text-muted-foreground">
-        В пересчёте в тенге — по курсу НБ РК.
+        DEVNET DEMO · NO MONETARY VALUE. ILLUSTRATIVE YIELD не добавляется к балансу.
       </p>
-      <MarketDataNote
-        data={marketData.availability.rate ? marketData.rate : null}
-        loadingText="Загружаем курс…"
-      />
-      {hydrated && earnings !== 0 ? (
-        <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
-          <ChartNoAxesCombined className="size-4" />
-          <span>+{formatEarningsMoney(earnings, currency)} доход за всё время</span>
-        </div>
-      ) : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
+      {hydrated && earnings !== 0 ? <p className="text-xs text-muted-foreground">Показатель доходности в этом демо не учитывается.</p> : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
     </Card>
   );
 }

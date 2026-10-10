@@ -14,12 +14,12 @@ export type BridgeAsset = {
 export const OFFICE_ASSET: BridgeAsset = {
   id: "demo-office",
   slug: "office-building",
-  name: "Офисное здание класса A",
+  name: "OFFICE · тестовый актив Devnet",
   ticker: "OFFICE",
-  sourceLabel: "Доля в объекте коммерческой недвижимости",
-  description: "1 OFFICE = $1 доли в объекте.",
+  sourceLabel: "Тестовый актив, контролируемый приложением в Solana Devnet",
+  description: "1 OFFICE выпускается за 1 TEST QUOTE. OFFICE не предоставляет прав на недвижимость или денежную выплату.",
   mintAddress: null,
-  logoEmoji: "🏢",
+  logoEmoji: "🧪",
   buyFlow: "onchain",
   priceUsd: 1,
 };

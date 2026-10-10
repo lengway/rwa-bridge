@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { isValidWalletAddress } from "@/lib/devnet-route";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 import { devnetConfig, explorerUrl, mintTestDollars } from "@/lib/solana-server";
 import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 import { getOrder, type TransakOrder } from "@/lib/transak";
@@ -24,6 +25,8 @@ function isValidOrderId(value: unknown): value is string {
 const failedStatuses = new Set(["FAILED", "CANCELLED", "EXPIRED", "REFUNDED"]);
 
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("transak");
+
   const body = await request.json().catch(() => null) as {
     orderId?: unknown;
     walletAddress?: unknown;

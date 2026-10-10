@@ -30,6 +30,7 @@ export function DevnetProvider({
       } catch {
         if (!cancelled) setStatus((current) => current ?? {
           configured: false,
+          legacyFaucetEnabled: false,
           usdMint: null,
           assetMint: null,
           vaultUsdyMint: null,
@@ -158,6 +159,7 @@ function DevnetRuntime({
   } : null, [portfolio]);
   const value = useMemo<DevnetState>(() => ({
     walletAddress: loggedInAddress,
+    legacyFaucetEnabled: status?.legacyFaucetEnabled === true,
     usdMint: status?.usdMint ?? null,
     assetMint: status?.assetMint ?? null,
     vaultUsdyMint: status?.vaultUsdyMint ?? null,
@@ -171,7 +173,7 @@ function DevnetRuntime({
     portfolio,
     refresh,
     refreshPortfolio,
-  }), [loggedInAddress, onchain, portfolio, refresh, refreshPortfolio, status?.assetMint, status?.kzteMint, status?.kzteReserve, status?.kzteSupply, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
+  }), [loggedInAddress, onchain, portfolio, refresh, refreshPortfolio, status?.assetMint, status?.kzteMint, status?.kzteReserve, status?.kzteSupply, status?.legacyFaucetEnabled, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
 
   return <DevnetContext.Provider value={value}>{children}</DevnetContext.Provider>;
 }

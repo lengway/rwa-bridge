@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { appendKzteOperation, findKzteOperation, hasLedgerSignature, updateKzteOperation, withLedgerKeyLock } from "@/lib/devnet-ledger";
 import { isConfigured, isValidAmount, isValidWalletAddress, safeError, unavailableResponse } from "@/lib/devnet-route";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 import { getKztRateForOperation } from "@/lib/market-server";
 import { getSessionWallet } from "@/lib/session-wallet";
 import { devnetConfig, explorerUrl, mintTestDollars, sendKzteFromTreasury, verifyIncomingPayment } from "@/lib/solana-server";
@@ -28,6 +29,8 @@ function responseFor(operation: NonNullable<Awaited<ReturnType<typeof findKzteOp
 }
 
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("kzte-exchange");
+
   if (!isConfigured()) return unavailableResponse();
   const body = await request.json().catch(() => null) as { signature?: unknown; from?: unknown; amount?: unknown } | null;
   if (!isSignature(body?.signature)) {

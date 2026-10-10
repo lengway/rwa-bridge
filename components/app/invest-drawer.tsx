@@ -10,14 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { formatEarningsMoney, formatMoney, formatQuantity } from "@/lib/format";
+import { formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import { useDevnet } from "@/lib/useDevnet";
 import type { YieldStrategy } from "@/lib/yields";
-import { getStrategyApy } from "@/lib/market-data";
-import { KztEstimate } from "@/components/app/kzt-estimate";
-import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
 import { useAuth } from "@/lib/useAuth";
+import {
+  GatewayDisclosureBadges,
+  canInvestInStrategy,
+  getGatewayInfo,
+} from "@/components/app/earn-detail-parts";
 
 type InvestDrawerProps = {
   open: boolean;
@@ -36,12 +38,14 @@ function InvestDrawerContents({
   strategy,
   wallet,
 }: InvestDrawerProps & { wallet: ReturnType<typeof useAuth>["wallet"] }) {
-  const { cashUsd, displayCurrency, marketData } = useAppStore();
-  const apy = getStrategyApy(strategy.id, marketData.yields);
-  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
-  const apyData = strategy.id === "ondo-usdy"
-    ? marketData.availability.usdy ? marketData.yields.usdy : null
-    : marketData.yields.kaseGov;
+  const { cashUsd } = useAppStore();
+  const gateway = getGatewayInfo(strategy);
+  const canInvest = canInvestInStrategy(strategy);
+  const apyBps = gateway.yield.apyBps;
+  const hasIllustrativeApy = gateway.yieldKind === "ILLUSTRATIVE"
+    && typeof apyBps === "number"
+    && Number.isFinite(apyBps);
+  const apy = hasIllustrativeApy ? apyBps / 10_000 : Number.NaN;
   const devnet = useDevnet();
   const [amount, setAmount] = useState("50");
   const [accepted, setAccepted] = useState(false);
@@ -51,13 +55,16 @@ function InvestDrawerContents({
   const [error, setError] = useState<string | null>(null);
   const [pendingSignature, setPendingSignature] = useState<string | null>(null);
   const amountValue = Number(amount);
-  const valid = Number.isFinite(amountValue)
+  const canonicalAmount = canonicalDecimalAmount(amount);
+  const valid = canInvest
+    && Number.isFinite(amountValue)
     && amountValue > 0
     && amountValue <= cashUsd
     && amountValue >= 1
-    && amountValue <= 1000;
-  const earningsMonth = apyAvailable ? Math.max(0, amountValue) * apy / 12 : Number.NaN;
-  const earningsYear = apyAvailable ? Math.max(0, amountValue) * apy : Number.NaN;
+    && amountValue <= 1000
+    && canonicalAmount !== null;
+  const illustrativeMonth = hasIllustrativeApy ? Math.max(0, amountValue) * apy / 12 : Number.NaN;
+  const illustrativeYear = hasIllustrativeApy ? Math.max(0, amountValue) * apy : Number.NaN;
 
   const changeOpen = (nextOpen: boolean) => {
     setSuccess(null);
@@ -66,10 +73,18 @@ function InvestDrawerContents({
   };
 
   const handleInvest = async () => {
+    if (!canInvest) {
+      setError("Эта стратегия недоступна для нового Devnet-пополнения.");
+      return;
+    }
     if (!accepted || (!valid && !pendingSignature) || processing) return;
+    if (!canonicalAmount) {
+      setError("Укажите сумму тестовых единиц в корректном десятичном формате.");
+      return;
+    }
     setError(null);
     if (!devnet.treasuryOwner) {
-      setError("Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
+      setError("Сеть Solana Devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
       return;
     }
     if (!devnet.walletAddress || !devnet.usdMint || (!wallet && !pendingSignature)) {
@@ -80,17 +95,23 @@ function InvestDrawerContents({
     try {
       let signature = pendingSignature;
       if (!signature) {
-        setProgress("Подписываем перевод…");
-        const transaction = await wallet!.send(devnet.treasuryOwner, devnet.usdMint, String(amountValue));
+        setProgress("Подписываем перевод тестового токена…");
+        const transaction = await wallet!.send(devnet.treasuryOwner, devnet.usdMint, canonicalAmount);
         if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
         signature = transaction.hash;
         setPendingSignature(signature);
       }
-      setProgress("Подтверждаем в сети…");
+      setProgress("Подтверждаем тестовый перевод в Devnet…");
       const response = await fetch("/api/devnet/invest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress: devnet.walletAddress, productId: strategy.id, amountUsd: amountValue, signature }),
+        body: JSON.stringify({
+          walletAddress: devnet.walletAddress,
+          productId: strategy.id,
+          amount: canonicalAmount,
+          amountUsd: amountValue,
+          signature,
+        }),
       });
       const result = await response.json() as {
         ok?: unknown;
@@ -101,15 +122,15 @@ function InvestDrawerContents({
       };
       if (!response.ok || result.ok !== true || typeof result.explorerUrl !== "string"
         || typeof result.sharesMinted !== "number" || typeof result.mintSignature !== "string") {
-        throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить перевод.");
+        throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить тестовый перевод.");
       }
       setSuccess({ amount: amountValue, shares: result.sharesMinted, shareTicker: strategy.ticker, explorerUrl: result.explorerUrl });
       setPendingSignature(null);
       void devnet.refreshPortfolio();
-      toast.success("Доли выпущены в Solana");
+      toast.success("Тестовые доли выпущены в Solana Devnet");
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "";
-      setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить перевод. Проверьте соединение и повторите подтверждение.");
+      setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить тестовый перевод. Проверьте соединение и повторите подтверждение.");
     } finally {
       setProcessing(false);
       setProgress(null);
@@ -120,25 +141,42 @@ function InvestDrawerContents({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      title={`Вложить · ${strategy.name}`}
-      description={`${strategy.ticker} · ${marketApyLabel(apy, apyAvailable)} годовых по указанному ориентиру`}
+      title={`Devnet-демо · ${strategy.name}`}
+      description="SIMULATED FUNDING · тестовые токены и доли не имеют денежной стоимости."
     >
-      {success ? (
+      {!canInvest ? (
+        <Card className="gap-3 rounded-2xl p-4">
+          <GatewayDisclosureBadges strategy={strategy} includeAvailability />
+          <div>
+            <p className="font-medium">Пополнение недоступно</p>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              Эта исследовательская карточка не поддерживает новые действия. Мы не подготовим перевод или выпуск долей,
+              пока совместимая Devnet-стратегия не будет подтверждена.
+            </p>
+          </div>
+        </Card>
+      ) : success ? (
         <DrawerSuccess
           amount={success.amount}
-          sentence={`Вы получили ${formatQuantity(success.shares ?? Number.NaN)} ${success.shareTicker ?? "доли"}. Доли выпущены в кошелёк.`}
+          amountLabel={`${formatQuantity(success.shares ?? Number.NaN)} ${success.shareTicker ?? "тестовых долей"}`}
+          sentence="Подтверждён перевод тестового токена в Solana Devnet; тестовые доли выпущены в кошелёк."
+          note="ILLUSTRATIVE YIELD не начисляется на эту операцию. NO MONETARY VALUE."
           onDone={() => changeOpen(false)}
           secondaryHref="/home"
-          secondaryLabel="Перейти к портфелю"
+          secondaryLabel="Перейти к тестовому портфелю"
           explorerUrl={success.explorerUrl}
         />
       ) : (
         <div className="space-y-5">
+          <GatewayDisclosureBadges strategy={strategy} />
+          <p className="text-xs leading-5 text-muted-foreground">
+            SIMULATED FUNDING: доступный баланс и сумма ниже — только тестовые единицы. NO MONETARY VALUE.
+          </p>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <label htmlFor="invest-amount" className="font-medium">Сумма</label>
+              <label htmlFor="invest-amount" className="font-medium">Сумма тестовых единиц</label>
               <span className="text-muted-foreground">
-                Доступно {formatMoney(cashUsd, displayCurrency)}
+                Доступно {formatQuantity(cashUsd)} TEST QUOTE
               </span>
             </div>
             <div className="relative">
@@ -151,15 +189,13 @@ function InvestDrawerContents({
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
                 disabled={processing || Boolean(pendingSignature)}
-                className="h-12 pr-16 text-xl font-semibold tabular-nums"
+                className="h-12 pr-28 text-xl font-semibold tabular-nums"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                USD
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                TEST QUOTE
               </span>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-start justify-between gap-3">
-              <KztEstimate usd={Number(amount) || 0} />
+            <div className="flex items-start justify-end">
               <Button
                 variant="link"
                 size="sm"
@@ -167,20 +203,26 @@ function InvestDrawerContents({
                 onClick={() => setAmount(String(cashUsd))}
                 disabled={processing || Boolean(pendingSignature)}
               >
-                Вложить всё
+                Использовать все тестовые единицы
               </Button>
-              </div>
-              <MarketDataNote data={apyData} />
             </div>
           </div>
 
           <Card className="gap-3 p-4">
-            <p className="text-sm font-medium">Примерный доход</p>
-            <EarningsLine label="За месяц" amount={earningsMonth} currency={displayCurrency} />
-            <EarningsLine label="За год" amount={earningsYear} currency={displayCurrency} />
+            <p className="text-sm font-medium">Иллюстративный результат</p>
+            {hasIllustrativeApy ? (
+              <>
+                <IllustrativeLine label="Пример за месяц" amount={illustrativeMonth} />
+                <IllustrativeLine label="Пример за год" amount={illustrativeYear} />
+              </>
+            ) : (
+              <p className="text-sm leading-6 text-muted-foreground">Числовая иллюстративная ставка не задана, поэтому пример не рассчитывается.</p>
+            )}
             <p className="text-xs text-muted-foreground">
-              Расчёт по текущему ориентиру. Доход не гарантирован.
+              ILLUSTRATIVE YIELD: он не является фактическим доходом и не начисляется на тестовые доли.
             </p>
+            <p className="text-xs text-muted-foreground">{gateway.yield.sourceNote}</p>
+            <p className="text-xs text-muted-foreground">Источник / режим: {gateway.sourceLabel}.</p>
           </Card>
 
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm leading-5">
@@ -189,23 +231,20 @@ function InvestDrawerContents({
               onCheckedChange={(checked) => setAccepted(checked === true)}
               className="mt-0.5"
             />
-            <span>Понимаю, что доход не гарантирован и это не банковский депозит.</span>
+            <span>Понимаю: это DEVNET DEMO, SIMULATED FUNDING и NO MONETARY VALUE; доходность только иллюстративна.</span>
           </label>
-          <p className="text-xs text-muted-foreground">
-            Не банковский вклад, не застраховано фондом гарантирования депозитов.
-          </p>
           {amountValue > cashUsd ? (
             <p className="text-xs text-destructive">
-              Недостаточно средств. <Link href="/home" className="underline">Пополните баланс на Главной</Link>.
+              Недостаточно тестовых единиц. <Link href="/home" className="underline">Подготовьте демо-баланс на Главной</Link>.
             </p>
           ) : null}
           {!accepted ? (
-            <p className="text-xs text-muted-foreground">Отметьте согласие с условиями, чтобы продолжить.</p>
+            <p className="text-xs text-muted-foreground">Отметьте согласие с условиями демо, чтобы продолжить.</p>
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           {progress ? <p className="text-center text-xs text-muted-foreground">{progress}</p> : null}
           <Button className="w-full" onClick={handleInvest} disabled={!accepted || (!valid && !pendingSignature) || processing}>
-            <ArrowDownToLine />{processing ? (progress ?? "Обрабатываем…") : pendingSignature ? "Повторить подтверждение" : `Вложить ${formatMoney(amountValue || 0)}`}
+            <ArrowDownToLine />{processing ? (progress ?? "Обрабатываем…") : pendingSignature ? "Повторить подтверждение" : "Подтвердить тестовый перевод"}
           </Button>
         </div>
       )}
@@ -213,21 +252,28 @@ function InvestDrawerContents({
   );
 }
 
-function EarningsLine({
+function IllustrativeLine({
   label,
   amount,
-  currency,
 }: {
   label: string;
   amount: number;
-  currency: "USD" | "KZT";
 }) {
   return (
     <div className="flex justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
-        +{formatEarningsMoney(amount, currency)}
+        +{formatQuantity(amount)} TEST QUOTE
       </span>
     </div>
   );
+}
+
+function canonicalDecimalAmount(value: string): string | null {
+  const normalized = value.trim().replace(",", ".");
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(normalized)) return null;
+  const [whole, fraction] = normalized.split(".");
+  if (fraction === undefined) return whole;
+  const trimmedFraction = fraction.replace(/0+$/, "");
+  return trimmedFraction ? `${whole}.${trimmedFraction}` : whole;
 }

@@ -1,35 +1,62 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { devnetConfig, getKzteReserveStatus } from "@/lib/solana-server";
+import {
+  assertLegacyDevnetWriteAllowed,
+  devnetConfig,
+  getKzteReserveStatus,
+} from "@/lib/solana-server";
+
+/**
+ * Crossmint selects a production wallet network from a production key. The
+ * legacy SPL-transfer UI must never offer a transaction unless it can prove
+ * both sides are Devnet: a staging wallet key and a canonical Devnet RPC.
+ */
+function hasStagingCrossmintWalletKey() {
+  return (process.env.NEXT_PUBLIC_CROSSMINT_API_KEY ?? "").startsWith("ck_staging_");
+}
 
 export async function GET() {
   let treasury: string | null = null;
   let kzteReserve: number | null = null;
   let kzteSupply: number | null = null;
-  if (devnetConfig.configured) {
+  let configured = false;
+
+  // Do this read-only check before exposing a mint/treasury to a browser
+  // wallet. Otherwise a production wallet could sign a transfer before the
+  // later server-side signer guard has a chance to reject its follow-up call.
+  if (
+    devnetConfig.configured
+    && process.env.SOLANA_CLUSTER === "devnet"
+    && hasStagingCrossmintWalletKey()
+  ) {
     try {
+      await assertLegacyDevnetWriteAllowed();
       treasury = await devnetConfig.treasury();
+      configured = Boolean(treasury);
     } catch {
       treasury = null;
     }
-    try {
-      ({ kzteReserve, kzteSupply } = await getKzteReserveStatus());
-    } catch {
-      kzteReserve = null;
-      kzteSupply = null;
+    if (configured) {
+      try {
+        ({ kzteReserve, kzteSupply } = await getKzteReserveStatus());
+      } catch {
+        kzteReserve = null;
+        kzteSupply = null;
+      }
     }
   }
   return NextResponse.json({
-    configured: devnetConfig.configured && Boolean(treasury),
-    usdMint: devnetConfig.usdMint || null,
-    assetMint: devnetConfig.assetMint || null,
-    vaultUsdyMint: devnetConfig.vaultUsdyMint || null,
-    vaultKzgbMint: devnetConfig.vaultKzgbMint || null,
-    kzteMint: devnetConfig.kzteMint || null,
+    configured,
+    legacyFaucetEnabled: configured && process.env.ENABLE_LEGACY_DEVNET_FAUCET === "true",
+    usdMint: configured ? devnetConfig.usdMint || null : null,
+    assetMint: configured ? devnetConfig.assetMint || null : null,
+    vaultUsdyMint: configured ? devnetConfig.vaultUsdyMint || null : null,
+    vaultKzgbMint: configured ? devnetConfig.vaultKzgbMint || null : null,
+    kzteMint: configured ? devnetConfig.kzteMint || null : null,
     kzteReserve,
     kzteSupply,
     treasury,
-    treasuryOwner: devnetConfig.authority?.publicKey.toBase58() ?? null,
+    treasuryOwner: configured ? devnetConfig.authority?.publicKey.toBase58() ?? null : null,
   });
 }

@@ -16,16 +16,22 @@ export function AssetsScreen() {
     <div className="space-y-6">
       {holding ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Ваши доли</h2>
+          <h2 className="text-lg font-semibold">Ваш тестовый актив</h2>
           <Link href={`/assets/${asset.slug}`} className="block">
             <ExistingHolding units={holding.units} costUsd={holding.costUsd} />
           </Link>
         </section>
       ) : null}
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Доли в недвижимости</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-semibold">Тестовый актив Devnet</h2>
+          <Badge variant="secondary">DEVNET DEMO</Badge>
+          <Badge variant="outline">NO MONETARY VALUE</Badge>
+        </div>
         <p className="text-sm leading-5 text-muted-foreground">
-          Объект представлен токеном OFFICE. 1 токен = $1 доли объекта.
+          OFFICE — тестовый актив, контролируемый приложением в Solana Devnet. 1 OFFICE
+          выпускается за 1 TEST QUOTE; он не даёт прав на недвижимость и не имеет денежной
+          стоимости.
         </p>
       </section>
       <AssetListCard asset={asset} />

@@ -11,25 +11,75 @@ import {
   type RwaDemoSide,
 } from "@/lib/rwa-demo";
 
+export type EarnDepositStatus = "MINT_PENDING" | "COMPLETED" | "NEEDS_REVIEW";
+export type EarnWithdrawalStatus = "PAYOUT_PENDING" | "BURN_PENDING" | "COMPLETED" | "NEEDS_REVIEW";
+export type LegacyDevnetFaucetActionStatus = "MINT_PENDING" | "COMPLETED" | "NEEDS_REVIEW";
+
+/**
+ * A durable action record for the opt-in legacy test-token faucet. This is
+ * intentionally separate from Earn deposits: no external payment or Earn
+ * position is implied by an issued test token.
+ */
+export type LegacyDevnetFaucetAction = {
+  walletAddress: string;
+  /** Client-generated URL-safe request id, scoped to this wallet. */
+  requestId: string;
+  /** Existing legacy faucet input; it remains display/rate-limit data only. */
+  amountUsd: number;
+  status: LegacyDevnetFaucetActionStatus;
+  mintSignature?: string;
+  errorCode?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export class LegacyDevnetFaucetActionConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LegacyDevnetFaucetActionConflictError";
+  }
+}
+
+const LEGACY_DEVNET_FAUCET_REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** Matches client-generated UUIDs and concise URL-safe idempotency keys only. */
+export function isLegacyDevnetFaucetRequestId(value: unknown): value is string {
+  return typeof value === "string" && LEGACY_DEVNET_FAUCET_REQUEST_ID_PATTERN.test(value);
+}
+
 export type LedgerDeposit = {
   productId: string;
+  /** Display-only compatibility value. Earn source of truth is amountAtomic. */
   amountUsd: number;
+  /** JSON-safe SPL base units for the user-signed inbound test-token transfer. */
+  amountAtomic?: string;
   signature: string;
   at: number;
+  /** Display-only compatibility value. Earn source of truth is sharesAtomic. */
   shares?: number;
+  /** JSON-safe SPL base units for issued demo shares. */
+  sharesAtomic?: string;
   priceUsd?: number;
   mintSignature?: string;
+  status?: EarnDepositStatus;
+  errorCode?: string;
 };
 
 export type LedgerWithdrawal = {
   productId: string;
   signature: string;
   at: number;
+  /** JSON-safe SPL base units received from the user for redemption. */
+  sharesAtomic?: string;
   shares?: number;
+  /** JSON-safe SPL base units sent as test-token redemption. */
+  amountAtomic?: string;
   amountUsd?: number;
   priceUsd?: number;
   payoutSignature?: string;
   burnSignature?: string;
+  status?: EarnWithdrawalStatus;
+  errorCode?: string;
   // Kept for migration from the original principal based ledger.
   principalUsd?: number;
   earnedUsd?: number;
@@ -151,6 +201,7 @@ type RwaDemoLedger = {
 
 type Ledger = {
   wallets: Record<string, WalletLedger>;
+  legacyDevnetFaucetActions: Record<string, LegacyDevnetFaucetAction>;
   vaultCheckpoints: Record<string, VaultCheckpoint>;
   emails: Record<string, EmailLedgerRecord>;
   authChallenges: Record<string, AuthChallengeRecord>;
@@ -230,6 +281,9 @@ async function readLedgerFile(): Promise<Ledger> {
     // not a deploy-time asset and must not make Turbopack trace the workspace.
     const parsed = JSON.parse(await readFile(/* turbopackIgnore: true */ LEDGER_PATH, "utf8")) as Partial<Ledger>;
     const wallets = parsed.wallets && typeof parsed.wallets === "object" ? parsed.wallets : {};
+    const legacyDevnetFaucetActions = parsed.legacyDevnetFaucetActions && typeof parsed.legacyDevnetFaucetActions === "object"
+      ? parsed.legacyDevnetFaucetActions
+      : {};
     const vaultCheckpoints = parsed.vaultCheckpoints && typeof parsed.vaultCheckpoints === "object"
       ? parsed.vaultCheckpoints
       : {};
@@ -240,6 +294,7 @@ async function readLedgerFile(): Promise<Ledger> {
     const rwaDemo = parsed.rwaDemo && typeof parsed.rwaDemo === "object" ? parsed.rwaDemo : emptyRwaDemoLedger();
     return {
       vaultCheckpoints,
+      legacyDevnetFaucetActions: objectRecord<LegacyDevnetFaucetAction>(legacyDevnetFaucetActions),
       emails,
       authChallenges,
       authEmailRequests,
@@ -265,6 +320,7 @@ async function readLedgerFile(): Promise<Ledger> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return {
         wallets: {},
+        legacyDevnetFaucetActions: {},
         vaultCheckpoints: {},
         emails: {},
         authChallenges: {},
@@ -442,6 +498,131 @@ async function writeLedgerFile(ledger: Ledger) {
   }
 }
 
+/**
+ * Keep the public client request id out of the JSON-object key space while
+ * making its scope explicit: the same id may safely be used by another wallet.
+ */
+export function legacyDevnetFaucetActionKey(walletAddress: string, requestId: string) {
+  return createHash("sha256").update(`${walletAddress}\u0000${requestId}`).digest("hex");
+}
+
+function assertMatchingLegacyDevnetFaucetAction(
+  existing: LegacyDevnetFaucetAction,
+  candidate: Pick<LegacyDevnetFaucetAction, "walletAddress" | "requestId" | "amountUsd">,
+) {
+  if (
+    existing.walletAddress !== candidate.walletAddress
+    || existing.requestId !== candidate.requestId
+    || existing.amountUsd !== candidate.amountUsd
+  ) {
+    throw new LegacyDevnetFaucetActionConflictError(
+      "Faucet request id is already associated with a different action.",
+    );
+  }
+}
+
+export function getLegacyDevnetFaucetAction(walletAddress: string, requestId: string) {
+  return exclusive(async () => {
+    const action = (await readLedgerFile()).legacyDevnetFaucetActions[
+      legacyDevnetFaucetActionKey(walletAddress, requestId)
+    ];
+    if (!action) return null;
+    if (action.walletAddress !== walletAddress || action.requestId !== requestId) {
+      throw new LegacyDevnetFaucetActionConflictError("Faucet action key is inconsistent with its stored action.");
+    }
+    return action;
+  });
+}
+
+/**
+ * A new faucet id must not bypass an uncertain earlier signer result for the
+ * same wallet. Completed actions remain replayable and do not block later,
+ * intentional faucet requests.
+ */
+export function findUnresolvedLegacyDevnetFaucetAction(walletAddress: string) {
+  return exclusive(async () => Object.values((await readLedgerFile()).legacyDevnetFaucetActions)
+    .find((action) => (
+      action.walletAddress === walletAddress
+      && (action.status !== "COMPLETED" || !action.mintSignature)
+    )) ?? null);
+}
+
+/**
+ * Persist an action before any server signer is invoked. A repeated client
+ * request can only reuse an identical wallet/requestId/amount tuple.
+ */
+export async function reserveLegacyDevnetFaucetAction(action: LegacyDevnetFaucetAction) {
+  return exclusive(async () => {
+    if (
+      !isLegacyDevnetFaucetRequestId(action.requestId)
+      || !Number.isFinite(action.amountUsd)
+      || action.amountUsd < 1
+      || action.amountUsd > 1_000
+      || action.status !== "MINT_PENDING"
+      || action.mintSignature !== undefined
+      || action.errorCode !== undefined
+      || !Number.isFinite(action.createdAt)
+      || !Number.isFinite(action.updatedAt)
+    ) {
+      throw new LegacyDevnetFaucetActionConflictError("Invalid legacy Devnet faucet action reservation.");
+    }
+    const ledger = await readLedgerFile();
+    const key = legacyDevnetFaucetActionKey(action.walletAddress, action.requestId);
+    const existing = ledger.legacyDevnetFaucetActions[key];
+    if (existing) {
+      assertMatchingLegacyDevnetFaucetAction(existing, action);
+      return { action: existing, reused: true };
+    }
+    ledger.legacyDevnetFaucetActions[key] = action;
+    await writeLedgerFile(ledger);
+    return { action, reused: false };
+  });
+}
+
+/**
+ * Never reopen a faucet action. An unconfirmed signer result stays terminally
+ * review-only so a retry cannot issue a second test-token mint.
+ */
+export async function updateLegacyDevnetFaucetAction({
+  walletAddress,
+  requestId,
+  status,
+  mintSignature,
+  errorCode,
+  now = Date.now(),
+}: {
+  walletAddress: string;
+  requestId: string;
+  status: LegacyDevnetFaucetActionStatus;
+  mintSignature?: string;
+  errorCode?: string;
+  now?: number;
+}) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const key = legacyDevnetFaucetActionKey(walletAddress, requestId);
+    const action = ledger.legacyDevnetFaucetActions[key];
+    if (!action || action.walletAddress !== walletAddress || action.requestId !== requestId) {
+      throw new LegacyDevnetFaucetActionConflictError("Legacy Devnet faucet action was not found for this wallet.");
+    }
+    if (action.status !== "MINT_PENDING" || (status !== "COMPLETED" && status !== "NEEDS_REVIEW")) {
+      throw new LegacyDevnetFaucetActionConflictError(
+        `Invalid legacy Devnet faucet action transition: ${action.status} -> ${status}.`,
+      );
+    }
+    if (status === "COMPLETED" && !mintSignature && !action.mintSignature) {
+      throw new LegacyDevnetFaucetActionConflictError("A completed legacy Devnet faucet action requires its mint signature.");
+    }
+
+    action.status = status;
+    if (mintSignature) action.mintSignature = mintSignature;
+    if (errorCode) action.errorCode = errorCode;
+    action.updatedAt = now;
+    await writeLedgerFile(ledger);
+    return action;
+  });
+}
+
 function walletOf(ledger: Ledger, walletAddress: string) {
   return ledger.wallets[walletAddress] ?? emptyWallet();
 }
@@ -555,7 +736,10 @@ export function getUnmigratedPrincipal(walletAddress: string, productId: string)
     const wallet = walletOf(await readLedgerFile(), walletAddress);
     if (wallet.migrations.some((item) => item.productId === productId)) return 0;
     const legacyDeposits = wallet.deposits
-      .filter((item) => item.productId === productId && !item.mintSignature)
+      // Only records created before the action-state ledger are eligible for
+      // an explicit legacy migration. A current MINT_PENDING action must
+      // never be picked up by a portfolio read and minted a second time.
+      .filter((item) => item.productId === productId && !item.mintSignature && !item.status)
       .reduce((total, item) => total + item.amountUsd, 0);
     const legacyWithdrawals = wallet.withdrawals
       .filter((item) => item.productId === productId && !item.payoutSignature)
@@ -574,6 +758,31 @@ export async function appendDeposit(walletAddress: string, deposit: LedgerDeposi
     wallet.deposits.push(deposit);
     ledger.wallets[walletAddress] = wallet;
     await writeLedgerFile(ledger);
+  });
+}
+
+/**
+ * A pre-write action record is deliberately updated after a signer operation.
+ * If a process dies after submitting a transaction, the record remains
+ * non-complete and retries fail closed instead of minting a second time.
+ */
+export async function updateDeposit(
+  walletAddress: string,
+  signature: string,
+  update: Partial<LedgerDeposit>,
+) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const wallet = walletOf(ledger, walletAddress);
+    const deposit = wallet.deposits.find((item) => item.signature === signature);
+    if (!deposit) throw new Error("Операция вклада не найдена.");
+    if (update.mintSignature && update.mintSignature !== deposit.mintSignature && signatureIsUsed(ledger, update.mintSignature)) {
+      throw new Error("Эта транзакция уже была использована.");
+    }
+    Object.assign(deposit, update);
+    ledger.wallets[walletAddress] = wallet;
+    await writeLedgerFile(ledger);
+    return deposit;
   });
 }
 
@@ -598,6 +807,16 @@ export async function updateWithdrawal(
     const wallet = walletOf(ledger, walletAddress);
     const withdrawal = wallet.withdrawals.find((item) => item.signature === signature);
     if (!withdrawal) throw new Error("Операция вывода не найдена.");
+    for (const candidate of [update.payoutSignature, update.burnSignature]) {
+      if (
+        candidate
+        && candidate !== withdrawal.payoutSignature
+        && candidate !== withdrawal.burnSignature
+        && signatureIsUsed(ledger, candidate)
+      ) {
+        throw new Error("Эта транзакция уже была использована.");
+      }
+    }
     Object.assign(withdrawal, update);
     ledger.wallets[walletAddress] = wallet;
     await writeLedgerFile(ledger);

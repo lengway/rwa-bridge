@@ -11,11 +11,12 @@ import {
 
 const KEY_FILE = ".demo-authority.json";
 const ENV_FILE = ".env.local";
+const SOLANA_DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 const initialEnv = existsSync(ENV_FILE) ? readFileSync(ENV_FILE, "utf8") : "";
 
 function getEnvValue(contents, name) {
   const line = contents.split(/\r?\n/).find((entry) => entry.match(new RegExp(`^\\s*${name}\\s*=`)));
-  if (!line) return "";
+  if (!line) return undefined;
   const value = line.slice(line.indexOf("=") + 1).trim();
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
     return value.slice(1, -1);
@@ -23,7 +24,28 @@ function getEnvValue(contents, name) {
   return value;
 }
 
+function isRequestedDevnetCluster(cluster) {
+  return cluster === undefined || cluster === "devnet";
+}
+
+async function assertDevnetWriteTarget(connection, requestedCluster) {
+  if (!isRequestedDevnetCluster(requestedCluster)) {
+    throw new Error("Refusing setup-devnet: SOLANA_CLUSTER must be devnet; mainnet and all non-Devnet writes are disabled.");
+  }
+  let genesisHash;
+  try {
+    genesisHash = await connection.getGenesisHash();
+  } catch {
+    throw new Error("Refusing setup-devnet: unable to verify the configured Solana RPC as canonical Devnet; mainnet writes are disabled.");
+  }
+  if (genesisHash !== SOLANA_DEVNET_GENESIS_HASH) {
+    throw new Error("Refusing setup-devnet: configured Solana RPC is not canonical Solana Devnet; mainnet writes are disabled.");
+  }
+}
+
+const requestedCluster = process.env.SOLANA_CLUSTER ?? getEnvValue(initialEnv, "SOLANA_CLUSTER");
 const connection = new Connection(process.env.SOLANA_RPC_URL || getEnvValue(initialEnv, "SOLANA_RPC_URL") || clusterApiUrl("devnet"), "confirmed");
+await assertDevnetWriteTarget(connection, requestedCluster);
 
 const authority = existsSync(KEY_FILE)
   ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(KEY_FILE, "utf8"))))

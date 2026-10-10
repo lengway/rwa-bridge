@@ -4,12 +4,12 @@ import { ArrowDownToLine, ArrowUpFromLine, Building2, CreditCard } from "lucide-
 import { Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatActivityDay, formatMoney } from "@/lib/format";
+import { formatActivityDay, formatQuantity } from "@/lib/format";
 import { useAppStore, type ActivityItem } from "@/lib/store";
 import { useNow } from "@/lib/useNow";
 
 export function ActivityScreen() {
-  const { activity, displayCurrency, hydrated } = useAppStore();
+  const { activity, hydrated } = useAppStore();
   const now = useNow();
 
   if (!hydrated || now === null) {
@@ -53,11 +53,7 @@ export function ActivityScreen() {
           <h2 className="px-1 text-sm font-semibold text-muted-foreground">{day}</h2>
           <div className="space-y-2">
             {items.map((item) => (
-              <ActivityRow
-                key={item.id}
-                item={item}
-                currency={displayCurrency}
-              />
+              <ActivityRow key={item.id} item={item} />
             ))}
           </div>
         </section>
@@ -68,12 +64,10 @@ export function ActivityScreen() {
 
 function ActivityRow({
   item,
-  currency,
 }: {
   item: ActivityItem;
-  currency: "USD" | "KZT";
 }) {
-  const isInflow = item.type === "topup" || (item.type === "withdraw" && (item.title.startsWith("Вывод:") || item.title.startsWith("Вывод в тенге")));
+  const isInflow = item.type === "topup" || item.type === "withdraw";
   const Icon = item.type === "topup"
     ? CreditCard
     : item.type === "invest"
@@ -96,7 +90,7 @@ function ActivityRow({
         <p className="mt-1 text-xs text-muted-foreground">
           {time}{item.method ? ` · ${methodLabel(item.method)}` : ""}
         </p>
-        {item.note ? <p className="mt-1 text-xs text-muted-foreground">{item.note}</p> : null}
+        <p className="mt-1 text-xs text-muted-foreground">{item.note ?? "DEVNET DEMO · NO MONETARY VALUE"}</p>
         {item.explorerUrl ? (
           <a
             href={item.explorerUrl}
@@ -109,7 +103,7 @@ function ActivityRow({
         ) : null}
       </div>
       <span className={`shrink-0 text-sm font-medium tabular-nums ${isInflow ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"}`}>
-        {isInflow ? "+" : "−"}{formatMoney(item.amountUsd, currency)}
+        {isInflow ? "+" : "−"}{formatQuantity(item.amountUsd)} TEST UNITS
       </span>
     </Card>
   );
@@ -117,11 +111,11 @@ function ActivityRow({
 
 function methodLabel(method: string) {
   const labels: Record<string, string> = {
-    "devnet-faucet": "Кран",
-    moonpay: "Карта · MoonPay",
-    transak: "Карта · Transak",
-    crossmint: "Карта · Crossmint",
-    "bank-embed": "Со счёта в банке",
+    "devnet-faucet": "Devnet test issuer",
+    moonpay: "Legacy adapter · disabled by default",
+    transak: "Legacy adapter · disabled by default",
+    crossmint: "Legacy adapter · disabled by default",
+    "bank-embed": "Legacy adapter · disabled by default",
   };
   return labels[method] ?? method;
 }

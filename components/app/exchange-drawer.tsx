@@ -21,6 +21,8 @@ type ExchangeResult = {
   targetExplorerUrl: string;
 };
 
+const legacyFiatAdaptersEnabled = process.env.NEXT_PUBLIC_ENABLE_LEGACY_FIAT_ADAPTERS === "true";
+
 export function ExchangeDrawer({
   open,
   onOpenChange,
@@ -129,6 +131,22 @@ export function ExchangeDrawer({
       setProcessing(false);
     }
   };
+
+  if (!legacyFiatAdaptersEnabled) {
+    return (
+      <DrawerFrame
+        open={open}
+        onOpenChange={changeOpen}
+        title="Обмен недоступен"
+        description="Legacy KZT/KZTE adapters are disabled for the Devnet Earn demo."
+      >
+        <p className="rounded-xl bg-muted/50 p-3 text-sm leading-6 text-muted-foreground">
+          Этот маршрут отключён до отдельной проверки провайдера, региональной доступности и серверной конфигурации.
+          Ни KZT, ни банковский или off-ramp перевод не выполняются.
+        </p>
+      </DrawerFrame>
+    );
+  }
 
   return (
     <DrawerFrame open={open} onOpenChange={changeOpen} title="Обменять" description="Обмен по курсу НБ РК.">

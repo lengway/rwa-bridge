@@ -2,14 +2,11 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
-import { Check } from "lucide-react";
 import { AccountSection, WalletSection } from "@/components/app/profile-account";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useAppStore } from "@/lib/store";
 import { isCrossmintConfigured } from "@/lib/config";
-import { MarketDataNote } from "@/components/app/market-data-note";
 import { useAuth } from "@/lib/useAuth";
 
 const subscribeToMountedState = () => () => {};
@@ -17,22 +14,12 @@ const getMountedState = () => true;
 const getServerMountedState = () => false;
 
 export function PortfolioSettings() {
-  const {
-    displayCurrency,
-    setDisplayCurrency,
-    marketData,
-  } = useAppStore();
-
   return (
     <div className="space-y-6">
       <AccountSection />
       <EmailPreferenceSection />
       <InstallAppHint />
-      <PreferenceSection
-        currency={displayCurrency}
-        onCurrencyChange={setDisplayCurrency}
-        rate={marketData.availability.rate ? marketData.rate : null}
-      />
+      <PreferenceSection />
       <ThemeSection />
       <WalletSection />
     </div>
@@ -137,36 +124,14 @@ function InstallAppHint() {
   );
 }
 
-function PreferenceSection({
-  currency,
-  onCurrencyChange,
-  rate,
-}: {
-  currency: "USD" | "KZT";
-  onCurrencyChange: (currency: "USD" | "KZT") => void;
-  rate: ReturnType<typeof useAppStore>["marketData"]["rate"] | null;
-}) {
+function PreferenceSection() {
   return (
     <Card className="gap-4 rounded-2xl p-4">
       <div>
-        <h2 className="font-semibold">Валюта отображения</h2>
+        <h2 className="font-semibold">Отображение Devnet-демо</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Пересчёт в тенге — по курсу НБ РК.
+          Все тестовые активы отображаются в TEST QUOTE. Конвертация в фиат, KZT и рыночный курс не входят в эту Devnet-демо.
         </p>
-        <MarketDataNote data={rate} loadingText="Загружаем курс…" />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {(["USD", "KZT"] as const).map((value) => (
-          <Button
-            key={value}
-            variant={currency === value ? "secondary" : "outline"}
-            aria-pressed={currency === value}
-            onClick={() => onCurrencyChange(value)}
-          >
-            {currency === value ? <Check /> : null}
-            {value === "USD" ? "Доллары · USD" : "Тенге · ₸"}
-          </Button>
-        ))}
       </div>
     </Card>
   );

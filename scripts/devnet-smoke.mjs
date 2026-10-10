@@ -14,7 +14,29 @@ import {
 } from "@solana/spl-token";
 
 const baseUrl = process.env.BASE_URL ?? "http://localhost:3000";
+const SOLANA_DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+
+function isRequestedDevnetCluster(cluster) {
+  return cluster === undefined || cluster === "devnet";
+}
+
+async function assertDevnetWriteTarget(connection, requestedCluster) {
+  if (!isRequestedDevnetCluster(requestedCluster)) {
+    throw new Error("Refusing devnet smoke test: SOLANA_CLUSTER must be devnet; mainnet and all non-Devnet writes are disabled.");
+  }
+  let genesisHash;
+  try {
+    genesisHash = await connection.getGenesisHash();
+  } catch {
+    throw new Error("Refusing devnet smoke test: unable to verify the configured Solana RPC as canonical Devnet; mainnet writes are disabled.");
+  }
+  if (genesisHash !== SOLANA_DEVNET_GENESIS_HASH) {
+    throw new Error("Refusing devnet smoke test: configured Solana RPC is not canonical Solana Devnet; mainnet writes are disabled.");
+  }
+}
+
 const connection = new Connection(process.env.SOLANA_RPC_URL ?? clusterApiUrl("devnet"), "confirmed");
+await assertDevnetWriteTarget(connection, process.env.SOLANA_CLUSTER);
 const user = Keypair.generate();
 
 function sessionSecretFromDotEnv() {

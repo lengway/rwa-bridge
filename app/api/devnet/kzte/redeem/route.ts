@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { appendKzteOperation, findKzteOperation, hasLedgerSignature, withLedgerKeyLock } from "@/lib/devnet-ledger";
 import { isConfigured, safeError, unavailableResponse } from "@/lib/devnet-route";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 import { getKztRateForOperation } from "@/lib/market-server";
 import { getSessionWallet } from "@/lib/session-wallet";
 import { devnetConfig, explorerUrl, verifyIncomingPayment } from "@/lib/solana-server";
@@ -14,6 +15,8 @@ function isSignature(value: unknown): value is string {
 }
 
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("kzte");
+
   if (!isConfigured()) return unavailableResponse();
   const session = await getSessionWallet(request);
   if (!session) return NextResponse.json({ error: "Войдите в аккаунт, чтобы вывести KZTE с кошелька." }, { status: 401 });

@@ -42,9 +42,10 @@ export function RwaDemoLauncher({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-semibold">RWA-DEMO</p>
-              <Badge variant="outline">ДЕМО</Badge>
+              <Badge variant="secondary">DEVNET DEMO</Badge>
+              <Badge variant="outline">NO MONETARY VALUE</Badge>
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">Цифровая доля в демонстрационном портфеле. Начните с небольшой суммы в USDC.</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Цифровая доля в демонстрационном портфеле. Начните с небольшой суммы тестового токена расчёта.</p>
           </div>
           <ShieldCheck className="mt-0.5 size-5 text-muted-foreground" />
         </div>
@@ -136,9 +137,9 @@ class DemoApiError extends Error {
   }
 }
 
-const SIMULATED_FUNDING_DISCLOSURE = "Демо-пополнение · реальный платёж не проводится";
+const SIMULATED_FUNDING_DISCLOSURE = "SIMULATED FUNDING · демо-пополнение, реальный платёж не проводится";
 const SIMULATED_PAYOUT_DISCLOSURE = "Демо-выплата · банковский перевод не создаётся";
-const DEVNET_TOKEN_DISCLOSURE = "Демо-среда · используются тестовые средства, без прав на реальный актив.";
+const DEVNET_TOKEN_DISCLOSURE = "DEVNET DEMO · NO MONETARY VALUE · используются тестовые средства, без прав на реальный актив.";
 const DEVNET_SWAP_DISCLOSURE = "Демо-операция · без реальных средств и прав на актив";
 
 export function RwaDemoDrawer({
@@ -482,7 +483,7 @@ export function RwaDemoDrawer({
       open={open}
       onOpenChange={changeOpen}
       title="RWA-DEMO"
-      description="Цифровая доля в демонстрационном портфеле."
+      description="DEVNET DEMO · тестовый токен расчёта и доли не имеют денежной стоимости."
     >
       {successfulBuy ? (
         <DrawerSuccess
@@ -520,7 +521,9 @@ export function RwaDemoDrawer({
       ) : (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">ДЕМО</Badge>
+            <Badge variant="secondary">DEVNET DEMO</Badge>
+            <Badge variant="outline">SIMULATED FUNDING</Badge>
+            <Badge variant="outline">NO MONETARY VALUE</Badge>
           </div>
 
           {busy === "assets" ? <LoadingLine label="Готовим демо-покупку…" /> : null}

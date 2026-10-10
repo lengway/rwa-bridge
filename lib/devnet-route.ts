@@ -5,6 +5,16 @@ import { NextResponse } from "next/server";
 import { devnetConfig } from "@/lib/solana-server";
 
 export const SOLANA_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+export const LEGACY_DEVNET_CLUSTER = "devnet" as const;
+
+/**
+ * Legacy Devnet endpoints default to Devnet only when the cluster is absent.
+ * Any explicitly supplied value must be exactly `devnet` so a deployment can
+ * never silently enable legacy writes on mainnet or another cluster.
+ */
+export function isRequestedDevnetCluster(cluster: unknown): boolean {
+  return cluster === undefined || cluster === LEGACY_DEVNET_CLUSTER;
+}
 
 export function isValidWalletAddress(value: unknown): value is string {
   if (typeof value !== "string" || !SOLANA_ADDRESS_PATTERN.test(value)) return false;
@@ -33,5 +43,5 @@ export function safeError(error: unknown, fallback: string) {
 }
 
 export function isConfigured() {
-  return devnetConfig.configured;
+  return isRequestedDevnetCluster(process.env.SOLANA_CLUSTER) && devnetConfig.configured;
 }

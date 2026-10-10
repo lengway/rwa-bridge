@@ -6,8 +6,11 @@ import {
   getTransactionByExternalId,
   isMoonPayExternalId,
 } from "@/lib/moonpay";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("moonpay");
+
   const body = await request.json().catch(() => null) as { externalTransactionId?: unknown } | null;
   if (!isMoonPayExternalId(body?.externalTransactionId)) {
     return NextResponse.json({ error: "Укажите корректный идентификатор вывода MoonPay." }, { status: 400 });

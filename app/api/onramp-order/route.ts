@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 
 // Circle devnet USDC, as listed in Crossmint's onramp quickstart.
 const USDC_DEVNET_LOCATOR = "solana:4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
@@ -9,6 +10,8 @@ const USDC_DEVNET_LOCATOR = "solana:4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
  * Staging keys only reach devnet; production needs a signed order form + KYB with Crossmint.
  */
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("crossmint-onramp");
+
   const serverApiKey = process.env.CROSSMINT_SERVER_API_KEY;
   if (!serverApiKey) {
     return NextResponse.json({ error: "добавь CROSSMINT_SERVER_API_KEY в .env.local" }, { status: 501 });

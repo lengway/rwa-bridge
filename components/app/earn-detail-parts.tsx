@@ -2,48 +2,120 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
-import { formatEarningsMoney, formatMoney } from "@/lib/format";
+import { formatApy, formatQuantity } from "@/lib/format";
 import type { YieldStrategy } from "@/lib/yields";
-import { getStrategyApy } from "@/lib/market-data";
-import { useAppStore } from "@/lib/store";
-import { MarketDataNote, marketApyLabel } from "@/components/app/market-data-note";
+
+export type GatewayInfo = YieldStrategy["gateway"];
+
+export function getGatewayInfo(strategy: YieldStrategy): GatewayInfo {
+  return strategy.gateway;
+}
+
+export function canInvestInStrategy(strategy: YieldStrategy) {
+  const gateway = getGatewayInfo(strategy);
+  return gateway.network === "devnet"
+    && gateway.mode === "SIMULATED_DEMO"
+    && gateway.availability === "ENABLED"
+    && gateway.capabilities.deposit;
+}
+
+export function canRedeemStrategy(strategy: YieldStrategy) {
+  return getGatewayInfo(strategy).capabilities.withdraw;
+}
+
+export function GatewayDisclosureBadges({
+  strategy,
+  includeAvailability = false,
+}: {
+  strategy: YieldStrategy;
+  includeAvailability?: boolean;
+}) {
+  const gateway = getGatewayInfo(strategy);
+  const canInvest = canInvestInStrategy(strategy);
+  const canRedeem = canRedeemStrategy(strategy);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-label="Дисклеймеры демо-стратегии">
+      <Badge variant="secondary">DEVNET DEMO</Badge>
+      {gateway.fundingKind === "SIMULATED" ? <Badge variant="outline">SIMULATED FUNDING</Badge> : <Badge variant="outline">FUNDING UNAVAILABLE</Badge>}
+      {gateway.yieldKind === "ILLUSTRATIVE" ? <Badge variant="outline">ILLUSTRATIVE YIELD</Badge> : <Badge variant="outline">YIELD UNAVAILABLE</Badge>}
+      <Badge variant="outline">NO MONETARY VALUE</Badge>
+      {includeAvailability ? (
+        <Badge variant={canInvest ? "secondary" : "outline"}>
+          {canInvest ? "DEMO AVAILABLE" : canRedeem ? "REDEMPTION ONLY" : "RESEARCH / UNSUPPORTED"}
+        </Badge>
+      ) : null}
+    </div>
+  );
+}
+
+export function GatewayDisclosureCard({ strategy }: { strategy: YieldStrategy }) {
+  const gateway = getGatewayInfo(strategy);
+  const canInvest = canInvestInStrategy(strategy);
+  const canRedeem = canRedeemStrategy(strategy);
+  return (
+    <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5 text-muted-foreground">
+      <GatewayDisclosureBadges strategy={strategy} includeAvailability />
+      {canInvest ? (
+        <p>
+          Перевод тестового токена и выпуск тестовых долей подтверждаются в Solana Devnet. Показатель APY — только
+          иллюстративный расчёт: он не начисляет доход и не является обещанием доходности.
+        </p>
+      ) : canRedeem ? (
+        <p>
+          Новые пополнения отключены. Исторические Devnet-доли можно только погасить через TEST-TOKEN REDEMPTION;
+          это не денежная выплата.
+        </p>
+      ) : (
+        <p>
+          Эта карточка доступна только для исследования. Новые пополнения отключены, пока совместимая Devnet-стратегия
+          и её условия не подтверждены.
+        </p>
+      )}
+      <p>Источник / режим: {gateway.sourceLabel}.</p>
+      {gateway.disclosures.length > 0 ? (
+        <ul className="list-disc space-y-1 pl-4">
+          {gateway.disclosures.map((disclosure) => <li key={disclosure.label}>{disclosure.text}</li>)}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
 
 export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
   return <Badge variant="secondary">{strategy.id === "kz-bond-demo" ? "Риск: повышенный" : "Риск: средний"}</Badge>;
 }
 
 export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
-  const { marketData } = useAppStore();
-  const apy = getStrategyApy(strategy.id, marketData.yields);
-  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
-  const apyData = strategy.id === "ondo-usdy"
-    ? marketData.availability.usdy ? marketData.yields.usdy : null
-    : marketData.yields.kaseGov;
+  const gateway = getGatewayInfo(strategy);
+  const apyBps = gateway.yield.apyBps;
+  const hasIllustrativeApy = gateway.yieldKind === "ILLUSTRATIVE"
+    && typeof apyBps === "number"
+    && Number.isFinite(apyBps);
+  const apy = hasIllustrativeApy ? apyBps / 10_000 : Number.NaN;
   return (
     <section className="space-y-4 pt-1">
       <div className="flex flex-wrap items-center gap-2">
         <RiskBadge strategy={strategy} />
         <Badge variant="outline">{strategy.ticker}</Badge>
       </div>
+      <GatewayDisclosureBadges strategy={strategy} includeAvailability />
       <div>
         <p className="text-sm text-muted-foreground">{strategy.name}</p>
         <div className="mt-1 flex items-baseline gap-2">
-          <p className={`font-semibold tracking-tight tabular-nums ${apyAvailable ? "text-5xl text-emerald-700 dark:text-emerald-400" : "text-sm font-normal text-muted-foreground"}`}>
-            {marketApyLabel(apy, apyAvailable)}
+          <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy ? "text-5xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
+            {hasIllustrativeApy ? formatApy(apy) : "Unavailable"}
           </p>
-          <p className="text-sm text-muted-foreground">годовых</p>
+          <p className="text-sm text-muted-foreground">{hasIllustrativeApy ? "illustrative APY" : "ставка не задана"}</p>
         </div>
-        <div className="mt-2 space-y-1">
-          <MarketDataNote data={apyData} />
-        </div>
-      </div>
-      {strategy.id === "ondo-usdy" ? (
-        <p className="text-xs leading-5 text-muted-foreground">
-          Доходность 3-мес. казначейских векселей США: {marketApyLabel(marketData.yields.tbill3m.apy, marketData.availability.tbill3m)}.{" "}
-          <MarketDataNote data={marketData.availability.tbill3m ? marketData.yields.tbill3m : null} />
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          {hasIllustrativeApy
+            ? "ILLUSTRATIVE YIELD: оценка для демо, не фактическая доходность и не начисляется на баланс."
+            : "ILLUSTRATIVE YIELD: числовая ставка для демо не задана, поэтому доходность не рассчитывается и не обещается."}
         </p>
-      ) : null}
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{gateway.yield.sourceNote}</p>
+      </div>
       <p className="text-sm leading-6">{strategy.description}</p>
+      <GatewayDisclosureCard strategy={strategy} />
       <p className="rounded-xl border bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
         Не банковский вклад, не застраховано фондом гарантирования депозитов. Доход не гарантирован.
       </p>
@@ -56,20 +128,38 @@ export function ProjectionCalculator({
   amount,
   onAmountChange,
   currentPosition,
-  currency,
 }: {
   strategy: YieldStrategy;
   amount: number;
   onAmountChange: (amount: number) => void;
   currentPosition?: { value: number; earned: number };
-  currency: "USD" | "KZT";
 }) {
-  const { marketData } = useAppStore();
-  const apy = getStrategyApy(strategy.id, marketData.yields);
-  const apyAvailable = strategy.id !== "ondo-usdy" || marketData.availability.usdy;
-  const apyData = strategy.id === "ondo-usdy"
-    ? marketData.availability.usdy ? marketData.yields.usdy : null
-    : marketData.yields.kaseGov;
+  const gateway = getGatewayInfo(strategy);
+  const apyBps = gateway.yield.apyBps;
+  const hasIllustrativeApy = gateway.yieldKind === "ILLUSTRATIVE"
+    && typeof apyBps === "number"
+    && Number.isFinite(apyBps);
+  const apy = hasIllustrativeApy ? apyBps / 10_000 : Number.NaN;
+
+  if (!hasIllustrativeApy) {
+    return (
+      <Card className="gap-3 rounded-2xl p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Иллюстративная доходность недоступна</h2>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Для этой Devnet-карточки не задана числовая иллюстративная ставка. Расчёт скрыт, чтобы не создавать
+              непроверенную доходность.
+            </p>
+          </div>
+          <Sparkles className="size-5 text-muted-foreground" />
+        </div>
+        <GatewayDisclosureBadges strategy={strategy} />
+        <p className="text-xs leading-5 text-muted-foreground">{gateway.yield.sourceNote}</p>
+      </Card>
+    );
+  }
+
   const years = [0, 1, 2, 3, 4, 5];
   const projection = (year: number) => amount * (1 + apy * year);
   const points = years.map((year, index) => {
@@ -82,20 +172,20 @@ export function ProjectionCalculator({
     <Card className="gap-4 rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold">Калькулятор дохода</h2>
+          <h2 className="font-semibold">Иллюстративный расчёт доходности</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Оценка по текущему ориентиру, без учёта комиссий и изменения цены.
+            ILLUSTRATIVE YIELD: расчёт для Devnet-демо, без учёта комиссий и изменения цены.
           </p>
-          <MarketDataNote data={apyData} />
+          <p className="mt-1 text-xs text-muted-foreground">Источник / режим: {gateway.sourceLabel}.</p>
         </div>
         <Sparkles className="size-5 text-emerald-700 dark:text-emerald-400" />
       </div>
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm text-muted-foreground">Сумма</p>
-        <p className="text-lg font-semibold tabular-nums">{formatMoney(amount, currency)}</p>
+        <p className="text-sm text-muted-foreground">Сумма для примера</p>
+        <p className="text-lg font-semibold tabular-nums">{formatQuantity(amount)} TEST QUOTE</p>
       </div>
       <Slider
-        aria-label="Сумма для расчёта"
+        aria-label="Сумма для иллюстративного расчёта"
         value={[amount]}
         min={100}
         max={10000}
@@ -106,21 +196,21 @@ export function ProjectionCalculator({
         }}
       />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>$100</span>
-        <span>$10 000</span>
+        <span>100 TEST QUOTE</span>
+        <span>10 000 TEST QUOTE</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <ProjectedReturn label="За месяц" amount={apyAvailable ? amount * apy / 12 : Number.NaN} currency={currency} />
-        <ProjectedReturn label="За год" amount={apyAvailable ? amount * apy : Number.NaN} currency={currency} />
+        <ProjectedReturn label="Иллюстрация за месяц" amount={amount * apy / 12} />
+        <ProjectedReturn label="Иллюстрация за год" amount={amount * apy} />
       </div>
       <ProjectionChart amount={amount} projection={projection} points={points} years={years} />
       {currentPosition ? (
         <p className="text-xs text-muted-foreground">
-          Сейчас в этом вкладе {formatMoney(currentPosition.value, currency)}, изменение стоимости +{formatEarningsMoney(currentPosition.earned, currency)}.
+          Тестовые доли в позиции: {formatQuantity(currentPosition.value)} TEST QUOTE; отображаемое изменение: {formatQuantity(currentPosition.earned)} TEST QUOTE. Это не выплаченный доход.
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Расчёт ориентировочный и использует текущую ставку.
+          Этот пример не означает начисление или гарантированную выплату.
         </p>
       )}
     </Card>
@@ -130,17 +220,15 @@ export function ProjectionCalculator({
 function ProjectedReturn({
   label,
   amount,
-  currency,
 }: {
   label: string;
   amount: number;
-  currency: "USD" | "KZT";
 }) {
   return (
     <div className="rounded-xl bg-muted/60 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-        +{formatEarningsMoney(amount, currency)}
+        +{formatQuantity(amount)} TEST QUOTE
       </p>
     </div>
   );
@@ -159,12 +247,12 @@ function ProjectionChart({
 }) {
   return (
     <div className="rounded-xl border bg-background p-3">
-      <p className="mb-2 text-xs font-medium">Стоимость при неизменном ориентире</p>
+      <p className="mb-2 text-xs font-medium">Иллюстративная стоимость при неизменной ставке</p>
       <svg
         viewBox="0 0 400 150"
         className="h-32 w-full"
         role="img"
-        aria-label={`Проекция от ${formatMoney(amount)} до ${formatMoney(projection(5))} за пять лет`}
+        aria-label={`Иллюстративная проекция от ${formatQuantity(amount)} до ${formatQuantity(projection(5))} TEST QUOTE за пять лет`}
       >
         {[30, 60, 90, 120].map((y) => (
           <line key={y} x1="28" y1={y} x2="390" y2={y} className="stroke-border" strokeWidth="1" />

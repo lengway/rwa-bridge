@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import { NextResponse } from "next/server";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 import { TRANSAK_MIN_USD } from "@/lib/onramps";
 import { createWidgetUrl, transakConfig } from "@/lib/transak";
 
@@ -138,6 +139,8 @@ async function getMachinePublicEgressIp(): Promise<string | null> {
 }
 
 export async function GET() {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("transak");
+
   if (!transakConfig.apiKeyConfigured) {
     return NextResponse.json({ configured: false, message: MISSING_API_KEY_MESSAGE });
   }
@@ -148,6 +151,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("transak");
+
   if (!transakConfig.secretConfigured) {
     return NextResponse.json({ error: MISSING_SECRET_MESSAGE }, { status: 501 });
   }

@@ -1,12 +1,12 @@
 import "server-only";
 
-import { FALLBACK_YIELD_DATA, getStrategyApy } from "@/lib/market-data";
-import { readYieldData } from "@/lib/market-server";
-import { getVaultCheckpoint, setVaultCheckpoint, withLedgerKeyLock } from "@/lib/devnet-ledger";
 import { devnetConfig } from "@/lib/solana-server";
-import { YIELD_STRATEGIES } from "@/lib/yields";
+import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
 
-const YEAR_MS = 365 * 24 * 60 * 60 * 1_000;
+// Demo shares settle one-for-one with the Devnet test token. A reference APY
+// is useful for an illustrative calculator, but it must never reprice a share
+// or be counted as money earned by a position.
+export const DEMO_SHARE_PRICE_USD = 1;
 
 export type VaultProduct = {
   productId: string;
@@ -18,45 +18,31 @@ export const VAULT_PRODUCTS: Record<string, VaultProduct> = {
   "ondo-usdy": {
     productId: "ondo-usdy",
     mint: devnetConfig.vaultUsdyMint,
-    ticker: "vUSDY",
+    ticker: "vUSDY-DEMO",
   },
   "kz-bond-demo": {
     productId: "kz-bond-demo",
     mint: devnetConfig.vaultKzgbMint,
-    ticker: "vKZGB",
+    ticker: "vKZGB-DEMO",
   },
 };
 
 export async function getVaultQuote(productId: string, now = Date.now()) {
-  const strategy = YIELD_STRATEGIES.find((item) => item.id === productId);
+  const strategy = ALL_YIELD_STRATEGIES.find((item) => item.id === productId);
   const vault = VAULT_PRODUCTS[productId];
   if (!strategy || !vault || !vault.mint) throw new Error("Неизвестный продукт дохода.");
 
-  return withLedgerKeyLock(`vault-checkpoint:${productId}`, async () => {
-    const yields = await readYieldData() ?? FALLBACK_YIELD_DATA;
-    const apy = Math.max(0, getStrategyApy(productId, yields));
-    let checkpoint = await getVaultCheckpoint(productId);
-    if (!checkpoint) {
-      checkpoint = { price: 1, at: now, apy };
-      await setVaultCheckpoint(productId, checkpoint);
-    }
-
-    const elapsed = Math.max(0, now - checkpoint.at);
-    const priceUsd = checkpoint.price * Math.pow(1 + checkpoint.apy, elapsed / YEAR_MS);
-    if (apy !== checkpoint.apy) {
-      checkpoint = { price: priceUsd, at: now, apy };
-      await setVaultCheckpoint(productId, checkpoint);
-    }
-
-    return {
-      productId,
-      mint: vault.mint,
-      ticker: vault.ticker,
-      priceUsd,
-      apy,
-      asOf: new Date(now).toISOString(),
-    };
-  });
+  return {
+    productId,
+    mint: vault.mint,
+    ticker: vault.ticker,
+    priceUsd: DEMO_SHARE_PRICE_USD,
+    // A numeric rate would be mistaken for earned or provider-derived yield.
+    // The first strategy deliberately has no such metric.
+    apy: null,
+    yieldKind: "illustrative" as const,
+    asOf: new Date(now).toISOString(),
+  };
 }
 
 export async function getVaultQuotes(now = Date.now()) {

@@ -20,8 +20,12 @@ import {
   transfer,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import { formatAtomicToDecimal, parseDecimalToAtomic } from "@/lib/earn-gateway";
+import { SOLANA_DEVNET_GENESIS_HASH } from "@/lib/rwa-demo";
 
-const TOKEN_DECIMALS = 6;
+/** The app-controlled Devnet demo mints all use this explicit SPL precision. */
+export const DEVNET_DEMO_TOKEN_DECIMALS = 6;
+const TOKEN_DECIMALS = DEVNET_DEMO_TOKEN_DECIMALS;
 const TOKEN_SCALE = 10 ** TOKEN_DECIMALS;
 
 function decodeBase58(value: string) {
@@ -68,6 +72,28 @@ export const connection = new Connection(
   process.env.SOLANA_RPC_URL ?? clusterApiUrl("devnet"),
   "confirmed",
 );
+
+/**
+ * The legacy mint and treasury helpers are demo-only. Check both the declared
+ * target and the RPC's canonical genesis hash immediately before each
+ * write-capable operation so a misconfigured endpoint cannot reach another
+ * Solana cluster.
+ */
+export async function assertLegacyDevnetWriteAllowed() {
+  if (process.env.SOLANA_CLUSTER !== undefined && process.env.SOLANA_CLUSTER !== "devnet") {
+    throw new Error("Legacy Solana writes require SOLANA_CLUSTER=devnet; mainnet and all non-Devnet clusters are disabled.");
+  }
+
+  let genesisHash: string;
+  try {
+    genesisHash = await connection.getGenesisHash();
+  } catch {
+    throw new Error("Unable to verify the configured Solana RPC as canonical Devnet; refusing legacy writes because mainnet writes are disabled.");
+  }
+  if (genesisHash !== SOLANA_DEVNET_GENESIS_HASH) {
+    throw new Error("Configured Solana RPC is not canonical Solana Devnet; refusing legacy writes because mainnet writes are disabled.");
+  }
+}
 
 export const devnetConfig = {
   get configured() {
@@ -118,7 +144,21 @@ function toTokenAmount(amountUi: number) {
   return BigInt(Math.round((amountUi + Number.EPSILON) * TOKEN_SCALE));
 }
 
+/**
+ * Exact decimal-string -> SPL base-unit conversion for the Earn Gateway.
+ * New Earn paths must use this rather than `toTokenAmount`, which remains for
+ * unrelated legacy demo endpoints that still accept a numeric UI amount.
+ */
+export function earnDecimalToTokenAmount(amount: string, label = "amount") {
+  return parseDecimalToAtomic(amount, DEVNET_DEMO_TOKEN_DECIMALS, label);
+}
+
+export function earnTokenAmountToDecimal(amount: bigint) {
+  return formatAtomicToDecimal(amount, DEVNET_DEMO_TOKEN_DECIMALS);
+}
+
 export async function mintTestDollars(ownerAddress: string, amountUi: number) {
+  await assertLegacyDevnetWriteAllowed();
   const { authority: mintAuthority, usdMint } = requiredConfig();
   const owner = new PublicKey(ownerAddress);
   const tokenAccount = await getOrCreateAssociatedTokenAccount(
@@ -139,6 +179,7 @@ export async function mintTestDollars(ownerAddress: string, amountUi: number) {
 }
 
 export async function treasuryKzteTokenAccount() {
+  await assertLegacyDevnetWriteAllowed();
   const { authority: mintAuthority } = requiredConfig();
   if (!kzteMintAddress) throw new Error("Mint KZTE не настроен.");
   return getOrCreateAssociatedTokenAccount(
@@ -151,6 +192,7 @@ export async function treasuryKzteTokenAccount() {
 }
 
 export async function sendKzteFromTreasury(ownerAddress: string, amountUi: number) {
+  await assertLegacyDevnetWriteAllowed();
   const { authority: mintAuthority } = requiredConfig();
   if (!kzteMintAddress) throw new Error("Mint KZTE не настроен.");
   const mint = new PublicKey(kzteMintAddress);
@@ -192,6 +234,7 @@ export async function getKzteReserveStatus() {
 }
 
 export async function mintAsset(ownerAddress: string, units: number) {
+  await assertLegacyDevnetWriteAllowed();
   const { authority: mintAuthority, assetMint } = requiredConfig();
   const owner = new PublicKey(ownerAddress);
   const tokenAccount = await getOrCreateAssociatedTokenAccount(
@@ -212,6 +255,12 @@ export async function mintAsset(ownerAddress: string, units: number) {
 }
 
 export async function mintVaultShares(ownerAddress: string, productId: string, shares: number) {
+  return mintVaultSharesAtomic(ownerAddress, productId, toTokenAmount(shares));
+}
+
+export async function mintVaultSharesAtomic(ownerAddress: string, productId: string, sharesAtomic: bigint) {
+  await assertLegacyDevnetWriteAllowed();
+  if (sharesAtomic <= BigInt(0)) throw new Error("Количество долей должно быть положительным.");
   const { authority: mintAuthority } = requiredConfig();
   const mint = vaultMintAddress(productId);
   const owner = new PublicKey(ownerAddress);
@@ -228,11 +277,12 @@ export async function mintVaultShares(ownerAddress: string, productId: string, s
     mint,
     tokenAccount.address,
     mintAuthority,
-    toTokenAmount(shares),
+    sharesAtomic,
   );
 }
 
 export async function treasuryVaultTokenAccount(productId: string) {
+  await assertLegacyDevnetWriteAllowed();
   const { authority: mintAuthority } = requiredConfig();
   const mint = vaultMintAddress(productId);
   return getOrCreateAssociatedTokenAccount(
@@ -245,6 +295,12 @@ export async function treasuryVaultTokenAccount(productId: string) {
 }
 
 export async function burnTreasuryVaultShares(productId: string, shares: number) {
+  return burnTreasuryVaultSharesAtomic(productId, toTokenAmount(shares));
+}
+
+export async function burnTreasuryVaultSharesAtomic(productId: string, sharesAtomic: bigint) {
+  await assertLegacyDevnetWriteAllowed();
+  if (sharesAtomic <= BigInt(0)) throw new Error("Количество долей должно быть положительным.");
   const { authority: mintAuthority } = requiredConfig();
   const mint = vaultMintAddress(productId);
   const treasury = await treasuryVaultTokenAccount(productId);
@@ -254,11 +310,17 @@ export async function burnTreasuryVaultShares(productId: string, shares: number)
     treasury.address,
     mint,
     mintAuthority,
-    toTokenAmount(shares),
+    sharesAtomic,
   );
 }
 
 export async function sendFromTreasury(ownerAddress: string, amountUi: number, mintAddress = usdMintAddress) {
+  return sendFromTreasuryAtomic(ownerAddress, toTokenAmount(amountUi), mintAddress);
+}
+
+export async function sendFromTreasuryAtomic(ownerAddress: string, amountAtomic: bigint, mintAddress = usdMintAddress) {
+  await assertLegacyDevnetWriteAllowed();
+  if (amountAtomic <= BigInt(0)) throw new Error("Сумма должна быть положительной.");
   const { authority: mintAuthority } = requiredConfig();
   const mint = new PublicKey(mintAddress);
   const destinationOwner = new PublicKey(ownerAddress);
@@ -276,16 +338,15 @@ export async function sendFromTreasury(ownerAddress: string, amountUi: number, m
     destinationOwner,
     true,
   );
-  const amount = toTokenAmount(amountUi);
   const balance = await getAccount(connection, treasury.address);
-  if (balance.amount < amount) {
+  if (balance.amount < amountAtomic) {
     await mintTo(
       connection,
       mintAuthority,
       mint,
       treasury.address,
       mintAuthority,
-      amount - balance.amount,
+      amountAtomic - balance.amount,
     );
   }
   return transfer(
@@ -294,11 +355,12 @@ export async function sendFromTreasury(ownerAddress: string, amountUi: number, m
     treasury.address,
     destination.address,
     mintAuthority,
-    amount,
+    amountAtomic,
   );
 }
 
 export async function ensureFeeSol(ownerAddress: string) {
+  await assertLegacyDevnetWriteAllowed();
   const { authority: feePayer } = requiredConfig();
   const owner = new PublicKey(ownerAddress);
   const balance = await connection.getBalance(owner, "confirmed");
@@ -338,6 +400,27 @@ export async function verifyIncomingPayment({
   minAmountUi: number;
   mintAddress?: string;
 }) {
+  const received = await verifyIncomingPaymentAtomic({
+    signature,
+    fromOwner,
+    minAmountAtomic: toTokenAmount(minAmountUi),
+    mintAddress,
+  });
+  return Number(received) / TOKEN_SCALE;
+}
+
+export async function verifyIncomingPaymentAtomic({
+  signature,
+  fromOwner,
+  minAmountAtomic,
+  mintAddress,
+}: {
+  signature: string;
+  fromOwner: string;
+  minAmountAtomic: bigint;
+  mintAddress?: string;
+}) {
+  if (minAmountAtomic <= BigInt(0)) throw new Error("Сумма должна быть положительной.");
   const { authority: mintAuthority, usdMint } = requiredConfig();
   const mint = mintAddress ? new PublicKey(mintAddress) : usdMint;
   if (pendingSignatures.has(signature)) {
@@ -346,7 +429,6 @@ export async function verifyIncomingPayment({
   pendingSignatures.add(signature);
   try {
     const treasuryAta = await getAssociatedTokenAddress(mint, mintAuthority.publicKey, true);
-    const minimum = toTokenAmount(minAmountUi);
     let transaction = null;
     for (let attempt = 0; attempt < 9; attempt += 1) {
       transaction = await connection.getParsedTransaction(signature, {
@@ -373,11 +455,11 @@ export async function verifyIncomingPayment({
 
     const treasuryIncrease = treasuryAfter - treasuryBefore;
     const userDecrease = userBefore - userAfter;
-    if (treasuryIncrease < minimum || userDecrease < minimum) {
+    if (treasuryIncrease < minAmountAtomic || userDecrease < minAmountAtomic) {
       throw new Error("В сети не найден перевод нужной суммы от вашего кошелька в казначейство.");
     }
     const received = treasuryIncrease < userDecrease ? treasuryIncrease : userDecrease;
-    return Number(received) / TOKEN_SCALE;
+    return received;
   } finally {
     pendingSignatures.delete(signature);
   }

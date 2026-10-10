@@ -14,7 +14,7 @@ import { cacheDevnetPortfolio, readCachedDevnetPortfolio } from "@/lib/devnet-po
 import { explorerAddressUrl, getUnassignedIncomingPayments, getWalletSolBalance, getWalletTokenAccounts, getWalletTransactionHistory, mintVaultShares } from "@/lib/solana-server";
 import { devnetConfig } from "@/lib/solana-server";
 import { VAULT_PRODUCTS, getVaultQuote } from "@/lib/vaults";
-import { YIELD_STRATEGIES } from "@/lib/yields";
+import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
 import { getKztRateForOperation, readKztRate } from "@/lib/market-server";
 
 type Holding = {
@@ -70,23 +70,28 @@ type PortfolioResponse = {
 };
 
 async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse> {
-  for (const productId of Object.keys(VAULT_PRODUCTS)) {
-    await withLedgerKeyLock(`legacy-migration:${walletAddress}:${productId}`, async () => {
-      const principalUsd = await getUnmigratedPrincipal(walletAddress, productId);
-      if (principalUsd <= 0.000001) return;
-      const quote = await getVaultQuote(productId);
-      const shares = Math.floor((principalUsd / quote.priceUsd) * 1_000_000) / 1_000_000;
-      if (shares <= 0) return;
-      const mintSignature = await mintVaultShares(walletAddress, productId, shares);
-      await appendMigration(walletAddress, {
-        productId,
-        principalUsd,
-        shares,
-        priceUsd: quote.priceUsd,
-        mintSignature,
-        at: Date.now(),
+  // A read endpoint must not create a token transfer by default. The old
+  // numeric migration is retained only for a controlled, explicitly enabled
+  // Devnet reconciliation and is never part of the universal Earn flow.
+  if (process.env.ENABLE_LEGACY_EARN_IMPORT === "true") {
+    for (const productId of Object.keys(VAULT_PRODUCTS)) {
+      await withLedgerKeyLock(`legacy-migration:${walletAddress}:${productId}`, async () => {
+        const principalUsd = await getUnmigratedPrincipal(walletAddress, productId);
+        if (principalUsd <= 0.000001) return;
+        const quote = await getVaultQuote(productId);
+        const shares = Math.floor((principalUsd / quote.priceUsd) * 1_000_000) / 1_000_000;
+        if (shares <= 0) return;
+        const mintSignature = await mintVaultShares(walletAddress, productId, shares);
+        await appendMigration(walletAddress, {
+          productId,
+          principalUsd,
+          shares,
+          priceUsd: quote.priceUsd,
+          mintSignature,
+          at: Date.now(),
+        });
       });
-    });
+    }
   }
 
   const [ledger, tokenAccounts, solBalance, quotes, kztRate] = await Promise.all([
@@ -100,22 +105,22 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
   const knownMints = new Map<string, Omit<Holding, "tokenAccount" | "balance" | "valueUsd" | "costUsd" | "pnlUsd" | "mintExplorerUrl" | "tokenAccountExplorerUrl">>();
   knownMints.set(devnetConfig.usdMint, {
     kind: "cash",
-    name: "Доллары",
-    ticker: "USD",
+    name: "TEST QUOTE",
+    ticker: "QUOTE-DEMO",
     mint: devnetConfig.usdMint,
     priceUsd: 1,
   });
   if (devnetConfig.kzteMint) {
     knownMints.set(devnetConfig.kzteMint, {
       kind: "kzte",
-      name: "KZTE · тенге",
+      name: "Legacy KZTE · Devnet only",
       ticker: "KZTE",
       mint: devnetConfig.kzteMint,
       priceUsd: 1 / (kztRate?.usdKzt ?? 480),
     });
   }
   for (const quote of quotes) {
-    const strategy = YIELD_STRATEGIES.find((item) => item.id === quote.productId)!;
+    const strategy = ALL_YIELD_STRATEGIES.find((item) => item.id === quote.productId)!;
     knownMints.set(quote.mint, {
       kind: "vault",
       productId: quote.productId,
@@ -196,7 +201,6 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
 
   const vaultHoldings = holdings.filter((holding) => holding.kind === "vault");
   const positions = vaultHoldings.map((holding) => {
-    const strategy = YIELD_STRATEGIES.find((item) => item.id === holding.productId);
     const lastAt = ledger.deposits
       .filter((item) => item.productId === holding.productId)
       .reduce((latest, item) => Math.min(latest, item.at), Number.POSITIVE_INFINITY);
@@ -212,7 +216,8 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
       shares: holding.balance,
       priceUsd: holding.priceUsd,
       valueUsd: holding.valueUsd,
-      apy: quoteByProduct.get(holding.productId!)?.apy ?? strategy?.fallbackApy ?? 0,
+      // The selected demo never reports accrued or provider-derived APY.
+      apy: null,
     };
   });
 
@@ -239,7 +244,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!mintRow) continue;
     recordMerged(deposit.signature, deposit.mintSignature, {
       id: deposit.mintSignature,
-      title: `Вклад · −${deposit.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долларов, +${deposit.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}`,
+      title: `Devnet demo · −${deposit.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE, +${deposit.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}`,
       type: "invest",
       amountUsd: deposit.amountUsd,
       at: Math.max(deposit.at, mintRow.at),
@@ -254,7 +259,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!quote || !payoutRow) continue;
     recordMerged(withdrawal.signature, withdrawal.payoutSignature, {
       id: withdrawal.payoutSignature,
-      title: `Вывод · −${withdrawal.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}, +${(withdrawal.amountUsd ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долларов`,
+      title: `Devnet test-token redemption · −${withdrawal.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}, +${(withdrawal.amountUsd ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE`,
       type: "withdraw",
       amountUsd: withdrawal.amountUsd ?? 0,
       at: Math.max(withdrawal.at, payoutRow.at),
@@ -267,7 +272,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!mintRow) continue;
     recordMerged(purchase.paymentSignature, purchase.mintSignature, {
       id: purchase.mintSignature,
-      title: `Покупка · −${purchase.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долларов, +${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} OFFICE`,
+      title: `App test asset · −${purchase.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE, +${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} OFFICE-DEMO`,
       type: "buy",
       amountUsd: purchase.amountUsd,
       at: Math.max(purchase.at, mintRow.at),
@@ -317,10 +322,9 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
       unassignedDepositsUsd += item.amountUsd;
     }
   }
-  const changeTodayUsd = vaultHoldings.reduce((total, holding) => {
-    const apy = quoteByProduct.get(holding.productId!)?.apy ?? 0;
-    return total + holding.valueUsd * (Math.pow(1 + apy, 1 / 365) - 1);
-  }, 0);
+  // Reference APYs are explicitly illustrative for this demo. They never
+  // change the redemption price or appear as accrued/earned portfolio value.
+  const changeTodayUsd = 0;
   return {
     holdings,
     positions,

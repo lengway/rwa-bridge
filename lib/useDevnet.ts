@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 
 export type DevnetStatus = {
   configured: boolean;
+  legacyFaucetEnabled: boolean;
   usdMint: string | null;
   assetMint: string | null;
   vaultUsdyMint: string | null;
@@ -74,6 +75,7 @@ export type DevnetPortfolio = {
 };
 export type DevnetState = {
   walletAddress: string | null;
+  legacyFaucetEnabled: boolean;
   usdMint: string | null;
   assetMint: string | null;
   vaultUsdyMint: string | null;
@@ -91,6 +93,7 @@ export type DevnetState = {
 
 const defaultState: DevnetState = {
   walletAddress: null,
+  legacyFaucetEnabled: false,
   usdMint: null,
   assetMint: null,
   vaultUsdyMint: null,

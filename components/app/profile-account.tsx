@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { formatMoney } from "@/lib/format";
+import { formatQuantity } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { useDevnet } from "@/lib/useDevnet";
 import { useAuth } from "@/lib/useAuth";
@@ -64,7 +64,7 @@ function WalletSectionReady() {
   const [amount, setAmount] = useState("10");
   const [sending, setSending] = useState(false);
   const [sendProgress, setSendProgress] = useState<string | null>(null);
-  const [pendingTransfer, setPendingTransfer] = useState<{ signature: string; recipient: string; amountUsd: number } | null>(null);
+  const [pendingTransfer, setPendingTransfer] = useState<{ signature: string; recipient: string; amountTestQuote: number } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const address = wallet?.address;
   const amountValue = Number(amount);
@@ -92,7 +92,7 @@ function WalletSectionReady() {
         setSendProgress("Подписываем перевод…");
         const transaction = await wallet.send(recipient.trim(), devnet.usdMint, String(amountValue));
         if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
-        transfer = { signature: transaction.hash, recipient: recipient.trim(), amountUsd: amountValue };
+        transfer = { signature: transaction.hash, recipient: recipient.trim(), amountTestQuote: amountValue };
         setPendingTransfer(transfer);
       }
       setSendProgress("Подтверждаем в сети…");
@@ -102,7 +102,9 @@ function WalletSectionReady() {
         body: JSON.stringify({
           walletAddress: address,
           recipientAddress: transfer.recipient,
-          amountUsd: transfer.amountUsd,
+          // The legacy endpoint retains this field name for compatibility; the
+          // value is an app-controlled Devnet test quantity, never USD.
+          amountUsd: transfer.amountTestQuote,
           signature: transfer.signature,
         }),
       });
@@ -114,7 +116,7 @@ function WalletSectionReady() {
       setPendingTransfer(null);
       setRecipient("");
       setAmount("10");
-      toast.success("Тестовые доллары отправлены");
+      toast.success("Тестовые единицы отправлены");
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       setSendError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить перевод. Повторите проверку через несколько секунд.");
@@ -162,7 +164,7 @@ function WalletSectionReady() {
                   <div>
                     <h3 className="font-medium">Отправить на другой кошелёк</h3>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Переведите тестовые доллары на любой адрес Solana.
+                      Переведите app-controlled TEST QUOTE на любой адрес Solana. Перевод имеет значение только в Devnet-демо.
                     </p>
                   </div>
                   <label className="space-y-1.5 text-sm">
@@ -180,7 +182,7 @@ function WalletSectionReady() {
                     <p className="text-xs text-destructive">Проверьте адрес Solana.</p>
                   ) : null}
                   <label className="space-y-1.5 text-sm">
-                    <span>Сумма в USD</span>
+                    <span>Сумма в TEST QUOTE</span>
                     <Input
                       type="number"
                       min="0.01"
@@ -199,8 +201,9 @@ function WalletSectionReady() {
                   ) : null}
                   {sendError ? <p className="text-xs text-destructive">{sendError}</p> : null}
                   <Button className="w-full" onClick={sendTokens} disabled={sending || (!pendingTransfer && (!recipientValid || !amountValid))}>
-                    <Send />{sending ? (sendProgress ?? "Отправляем…") : pendingTransfer ? "Повторить подтверждение" : `Отправить ${formatMoney(amountValue || 0)}`}
+                    <Send />{sending ? (sendProgress ?? "Отправляем…") : pendingTransfer ? "Повторить подтверждение" : `Отправить ${formatQuantity(amountValue || 0)} TEST QUOTE`}
                   </Button>
+                  <p className="text-xs text-muted-foreground">DEVNET DEMO · NO MONETARY VALUE. Подтверждённая подпись появляется только после реального перевода в Solana Devnet.</p>
               </Card>
             </>
           ) : (

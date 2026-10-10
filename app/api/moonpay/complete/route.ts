@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { getVerifiedEmailFromRequest } from "@/lib/auth-server";
 import { isValidWalletAddress, unavailableResponse } from "@/lib/devnet-route";
+import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from "@/lib/legacy-fiat-adapters";
 import { invalidateDevnetPortfolio } from "@/lib/devnet-portfolio-cache";
 import { getMoonPayNumericField, getTransactionByExternalId, isMoonPayExternalId, moonpayConfig } from "@/lib/moonpay";
 import { devnetConfig, explorerUrl, mintTestDollars } from "@/lib/solana-server";
@@ -16,6 +17,8 @@ const creditInFlightIds = new Set<string>();
 const creditedTransactions = new Map<string, BuyCredit>();
 
 export async function POST(request: Request) {
+  if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("moonpay");
+
   if (!await getVerifiedEmailFromRequest(request)) {
     return NextResponse.json({ error: "Войдите, чтобы подтвердить покупку MoonPay." }, { status: 401 });
   }
