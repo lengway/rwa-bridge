@@ -482,7 +482,7 @@ export function RwaDemoDrawer({
       open={open}
       onOpenChange={changeOpen}
       title="RWA-DEMO"
-      description="Цифровая доля в учебном портфеле."
+      description="Цифровая доля в демонстрационном портфеле."
     >
       {successfulBuy ? (
         <DrawerSuccess
