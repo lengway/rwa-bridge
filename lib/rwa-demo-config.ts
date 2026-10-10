@@ -34,6 +34,13 @@ export class RwaDemoConfigError extends Error {
 type PublicDemoConfig = {
   enabled: boolean;
   faucetEnabled: boolean;
+  /**
+   * True when the configured quote mint is owned and funded outside this
+   * service (for example, Devnet USDC). In this mode this application must
+   * never present, record, or execute a fiat-style top-up/faucet flow.
+   */
+  externalQuoteMint: boolean;
+  quoteSymbol: string;
   cluster: string | null;
   rpcUrl: string | null;
   quoteMint: PublicKey | null;
@@ -60,6 +67,25 @@ export type ConfiguredRwaDemoConfig = Omit<PublicDemoConfig, "quoteMint" | "rwaM
 function nonEmptyEnv(name: string) {
   const value = process.env[name]?.trim();
   return value || null;
+}
+
+function readBooleanEnv(name: string, fallback = false) {
+  const raw = nonEmptyEnv(name);
+  if (!raw) return fallback;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  throw new RwaDemoConfigError(`${name} must be either true or false.`);
+}
+
+function readQuoteSymbol(externalQuoteMint: boolean) {
+  const fallback = externalQuoteMint ? "USDC" : "QUOTE-DEMO";
+  const raw = nonEmptyEnv("DEVNET_QUOTE_SYMBOL") ?? fallback;
+  // Keep this value safe to surface in responses and UI copy. It is a label,
+  // not token metadata, and must not be used as an on-chain identifier.
+  if (!/^[A-Z][A-Z0-9._-]{0,14}$/.test(raw)) {
+    throw new RwaDemoConfigError("DEVNET_QUOTE_SYMBOL must be an uppercase token symbol up to 15 characters.");
+  }
+  return raw;
 }
 
 function readPositiveBigInt(name: string, fallback: bigint) {
@@ -97,12 +123,21 @@ function readPublicKey(name: string) {
  */
 export function readRwaDemoConfig(): PublicDemoConfig {
   const enabled = process.env.ENABLE_DEVNET_DEMO === "true";
-  const faucetEnabled = enabled && process.env.ENABLE_DEVNET_FAUCET === "true";
+  // Use conservative fallbacks in the invalid-config path so a malformed
+  // external-token configuration can never make the faucet appear available.
+  const externalQuoteMintFallback = process.env.DEVNET_EXTERNAL_QUOTE_MINT === "true";
+  const requestedFaucetEnabled = enabled && process.env.ENABLE_DEVNET_FAUCET === "true";
+  const faucetEnabled = requestedFaucetEnabled && !externalQuoteMintFallback;
   const cluster = nonEmptyEnv("SOLANA_CLUSTER");
   const rpcUrl = nonEmptyEnv("SOLANA_RPC_URL");
   const payerKeypairPath = nonEmptyEnv("DEVNET_PAYER_KEYPAIR_PATH");
 
   try {
+    const externalQuoteMint = readBooleanEnv("DEVNET_EXTERNAL_QUOTE_MINT");
+    const quoteSymbol = readQuoteSymbol(externalQuoteMint);
+    if (externalQuoteMint && requestedFaucetEnabled) {
+      throw new RwaDemoConfigError("ENABLE_DEVNET_FAUCET cannot be enabled when DEVNET_EXTERNAL_QUOTE_MINT=true.");
+    }
     const quoteDecimals = readInteger("DEVNET_QUOTE_DECIMALS", 6, 0, 18);
     const faucetMaxQuoteTokens = readPositiveBigInt(
       "DEMO_FAUCET_MAX_QUOTE_TOKENS",
@@ -120,6 +155,8 @@ export function readRwaDemoConfig(): PublicDemoConfig {
     return {
       enabled,
       faucetEnabled,
+      externalQuoteMint,
+      quoteSymbol,
       cluster,
       rpcUrl,
       quoteMint: readPublicKey("DEVNET_QUOTE_MINT"),
@@ -138,6 +175,8 @@ export function readRwaDemoConfig(): PublicDemoConfig {
     return {
       enabled,
       faucetEnabled,
+      externalQuoteMint: externalQuoteMintFallback,
+      quoteSymbol: externalQuoteMintFallback ? "USDC" : "QUOTE-DEMO",
       cluster,
       rpcUrl,
       quoteMint: null,
@@ -254,6 +293,9 @@ export async function mintConfiguredQuoteDemo({
   amountAtomic: bigint;
 }) {
   const { config, connection } = await getVerifiedRwaDemoConnection();
+  if (config.externalQuoteMint) {
+    throw new RwaDemoConfigError("Externally issued quote tokens cannot be minted by this service.");
+  }
   if (!config.faucetEnabled) {
     throw new RwaDemoConfigError("ENABLE_DEVNET_FAUCET=true is required for the Devnet test-token faucet.");
   }

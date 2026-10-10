@@ -45,7 +45,7 @@ export function AssetsScreen() {
               <div>
                 <p className="font-semibold">RWA-DEMO</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  QUOTE-DEMO ↔ RWA-DEMO via a direct Meteora DLMM Devnet pool.
+                  Configured Devnet quote token ↔ RWA-DEMO via a direct Meteora DLMM Devnet pool.
                 </p>
               </div>
               <span className="text-sm text-muted-foreground">Open →</span>

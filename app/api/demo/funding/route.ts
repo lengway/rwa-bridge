@@ -35,6 +35,12 @@ export async function POST(request: Request) {
     const body = await readDemoJson(request);
     const session = await requireDemoSession(request, body.walletAddress);
     const config = requireRwaDemoConfig();
+    // An external quote mint (such as Devnet USDC) must arrive in the user's
+    // wallet independently. Reject before parsing, reserving, or recording a
+    // simulated KZT event so this endpoint can never be mistaken for a faucet.
+    if (config.externalQuoteMint) {
+      throw new RwaDemoValidationError(`Simulated KZT funding is disabled for externally supplied ${config.quoteSymbol}. Acquire ${config.quoteSymbol} on Devnet and use it directly for the swap.`);
+    }
     const requestedKztAmount = parseKztAmount(body.requestedKztAmount, config.fundingMaxKzt);
     const quoteTokenAmount = quoteAtomicFromKzt({
       requestedKzt: requestedKztAmount,
@@ -42,7 +48,7 @@ export async function POST(request: Request) {
       quoteDecimals: config.quoteDecimals,
     });
     if (quoteTokenAmount <= BigInt(0)) {
-      throw new RwaDemoValidationError("requestedKztAmount is too small to produce a QUOTE-DEMO atomic amount.");
+      throw new RwaDemoValidationError(`requestedKztAmount is too small to produce a ${config.quoteSymbol} atomic amount.`);
     }
     // A top-up that would exceed an enabled faucet's per-request policy is
     // rejected before it reaches the ledger or payer key.

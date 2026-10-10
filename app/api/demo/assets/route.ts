@@ -8,10 +8,24 @@ import { RWA_DEMO_ASSET_ID, RWA_DEMO_NETWORK, RWA_DEMO_SWAP_DISCLOSURE } from "@
 export const runtime = "nodejs";
 
 const ASSET_DESCRIPTION = "Devnet test token used only for the RWA-DEMO Meteora DLMM demonstration.";
-const ASSET_DISCLOSURE = "RWA-DEMO and QUOTE-DEMO are Devnet test tokens only. They have no monetary value, real-asset backing, or legal rights.";
+
+function assetDisclosure({
+  externalQuoteMint,
+  quoteSymbol,
+}: {
+  externalQuoteMint: boolean;
+  quoteSymbol: string;
+}) {
+  if (externalQuoteMint) {
+    return `RWA-DEMO is a Devnet test token with no real-asset backing or legal rights. ${quoteSymbol} is supplied externally on Devnet; this app does not sell, issue, redeem, or pay out fiat.`;
+  }
+  return `RWA-DEMO and ${quoteSymbol} are Devnet test tokens only. They have no monetary value, real-asset backing, or legal rights.`;
+}
 
 function assetResponse({
   configured,
+  externalQuoteMint,
+  quoteSymbol,
   quoteDecimals,
   rwaDecimals,
   quoteMint,
@@ -19,6 +33,8 @@ function assetResponse({
   poolAddress,
 }: {
   configured: boolean;
+  externalQuoteMint: boolean;
+  quoteSymbol: string;
   quoteDecimals: number;
   rwaDecimals: number;
   quoteMint: string | null;
@@ -33,6 +49,8 @@ function assetResponse({
     network: RWA_DEMO_NETWORK,
     mintAddress: rwaMint,
     quoteMintAddress: quoteMint,
+    quoteSymbol,
+    externalQuoteMint,
     poolAddress,
     decimals: rwaDecimals,
     quoteDecimals,
@@ -50,6 +68,8 @@ export async function GET() {
   const config = readRwaDemoConfig();
   const fallback = assetResponse({
     configured: false,
+    externalQuoteMint: config.externalQuoteMint,
+    quoteSymbol: config.quoteSymbol,
     quoteDecimals: config.quoteDecimals,
     rwaDecimals: 0,
     quoteMint: null,
@@ -59,7 +79,11 @@ export async function GET() {
   // Never perform an RPC call for a disabled or incomplete configuration.
   if (!config.enabled || config.configurationError || config.cluster !== RWA_DEMO_NETWORK
     || !config.rpcUrl || !config.quoteMint || !config.rwaMint || !config.pool) {
-    return NextResponse.json({ configured: false, assets: [fallback], disclosure: ASSET_DISCLOSURE });
+    return NextResponse.json({
+      configured: false,
+      assets: [fallback],
+      disclosure: assetDisclosure(config),
+    });
   }
 
   try {
@@ -68,17 +92,23 @@ export async function GET() {
       configured: true,
       assets: [assetResponse({
         configured: true,
+        externalQuoteMint: config.externalQuoteMint,
+        quoteSymbol: config.quoteSymbol,
         quoteDecimals: metadata.quoteDecimals,
         rwaDecimals: metadata.rwaDecimals,
         quoteMint: metadata.quoteMint,
         rwaMint: metadata.rwaMint,
         poolAddress: metadata.poolAddress,
       })],
-      disclosure: ASSET_DISCLOSURE,
+      disclosure: assetDisclosure(config),
     });
   } catch {
     // The endpoint deliberately fails closed without exposing configuration or
     // RPC details to unauthenticated callers.
-    return NextResponse.json({ configured: false, assets: [fallback], disclosure: ASSET_DISCLOSURE });
+    return NextResponse.json({
+      configured: false,
+      assets: [fallback],
+      disclosure: assetDisclosure(config),
+    });
   }
 }

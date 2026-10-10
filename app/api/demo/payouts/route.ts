@@ -8,7 +8,7 @@ import {
   getRwaDemoOrderForWallet,
   type RwaDemoPayoutEvent,
 } from "@/lib/devnet-ledger";
-import { getVerifiedRwaDemoConnection } from "@/lib/rwa-demo-config";
+import { getVerifiedRwaDemoConnection, requireRwaDemoConfig } from "@/lib/rwa-demo-config";
 import {
   RwaDemoRequestError,
   demoErrorResponse,
@@ -32,6 +32,10 @@ export async function POST(request: Request) {
     const body = await readDemoJson(request);
     const session = await requireDemoSession(request, body.walletAddress);
     const orderId = requireString(body.orderId, "orderId");
+    const configured = requireRwaDemoConfig();
+    if (configured.externalQuoteMint) {
+      throw new RwaDemoRequestError(409, "EXTERNAL_QUOTE_MODE", `Simulated KZT payouts are disabled when ${configured.quoteSymbol} is supplied externally. A completed sale returns ${configured.quoteSymbol} on Devnet.`);
+    }
     // This call validates the configured RPC's real genesis hash before the
     // simulated receipt is created. No fiat or token transfer is performed.
     const { config } = await getVerifiedRwaDemoConnection();

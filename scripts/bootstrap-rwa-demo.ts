@@ -10,6 +10,7 @@ import {
   getAccount,
   getMint,
   getOrCreateAssociatedTokenAccount,
+  getAssociatedTokenAddress,
   createMint,
   mintTo,
   TOKEN_PROGRAM_ID,
@@ -61,6 +62,7 @@ type BootstrapConfig = {
   rpcUrl: string;
   payerKeypairPath: string;
   publicConfigPath: string;
+  externalQuoteMint: boolean;
   quoteMintAddress: string | null;
   rwaMintAddress: string | null;
   poolAddress: string | null;
@@ -80,6 +82,11 @@ type MintSetup = {
   address: PublicKey;
   mint: Mint;
   created: boolean;
+  /**
+   * A deliberately configured third-party Devnet quote mint. It is never
+   * created or minted by this bootstrap script.
+   */
+  externalQuoteMint: boolean;
 };
 
 type SeededPosition = {
@@ -294,8 +301,18 @@ function parseConfig(environment: Environment): BootstrapConfig {
   }
 
   const writePublicConfig = parseBoolean(environmentValue(environment, "WRITE_DEVNET_DEMO_CONFIG"), "WRITE_DEVNET_DEMO_CONFIG");
+  const externalQuoteMint = parseBoolean(
+    environmentValue(environment, "DEVNET_EXTERNAL_QUOTE_MINT"),
+    "DEVNET_EXTERNAL_QUOTE_MINT",
+  );
   const quoteMintAddress = environmentValue(environment, "DEVNET_QUOTE_MINT");
   const rwaMintAddress = environmentValue(environment, "DEVNET_RWA_MINT");
+  if (externalQuoteMint && !quoteMintAddress) {
+    throw new BootstrapError(
+      "MISSING_CONFIG",
+      "DEVNET_EXTERNAL_QUOTE_MINT=true requires DEVNET_QUOTE_MINT to be an existing Devnet SPL Token mint. The bootstrap never creates or mints an external quote token.",
+    );
+  }
   if ((!quoteMintAddress || !rwaMintAddress) && !writePublicConfig) {
     throw new BootstrapError(
       "MISSING_CONFIG",
@@ -321,6 +338,7 @@ function parseConfig(environment: Environment): BootstrapConfig {
     rpcUrl,
     payerKeypairPath: requiredEnvironmentValue(environment, "DEVNET_PAYER_KEYPAIR_PATH"),
     publicConfigPath: resolvePublicConfigPath(environmentValue(environment, "DEVNET_PUBLIC_CONFIG_PATH")),
+    externalQuoteMint,
     quoteMintAddress,
     rwaMintAddress,
     poolAddress: environmentValue(environment, "DEVNET_METEORA_POOL"),
@@ -380,9 +398,16 @@ async function ensureMint(
   label: MintSetup["label"],
   configuredAddress: string | null,
   decimals: number,
+  externalQuoteMint = false,
 ): Promise<MintSetup> {
   const configuredMint = optionalPublicKey(configuredAddress, `DEVNET_${label === "QUOTE-DEMO" ? "QUOTE" : "RWA"}_MINT`);
   if (!configuredMint) {
+    if (externalQuoteMint) {
+      throw new BootstrapError(
+        "MISSING_CONFIG",
+        "DEVNET_EXTERNAL_QUOTE_MINT=true requires DEVNET_QUOTE_MINT. The bootstrap will not create an external quote mint.",
+      );
+    }
     try {
       const address = await createMint(
         connection,
@@ -395,7 +420,7 @@ async function ensureMint(
         TOKEN_PROGRAM_ID,
       );
       const mint = await getMint(connection, address, "confirmed", TOKEN_PROGRAM_ID);
-      return { label, address, mint, created: true };
+      return { label, address, mint, created: true, externalQuoteMint: false };
     } catch (error) {
       throw new BootstrapError("RPC_BLOCKER", `Could not create the ${label} devnet mint.`, error);
     }
@@ -403,7 +428,13 @@ async function ensureMint(
 
   try {
     const mint = await getMint(connection, configuredMint, "confirmed", TOKEN_PROGRAM_ID);
-    return { label, address: configuredMint, mint, created: false };
+    return {
+      label,
+      address: configuredMint,
+      mint,
+      created: false,
+      externalQuoteMint,
+    };
   } catch (error) {
     throw new BootstrapError(
       "MISSING_CONFIG",
@@ -414,6 +445,12 @@ async function ensureMint(
 }
 
 function requireMintAuthority(mint: MintSetup, payer: Keypair) {
+  if (mint.externalQuoteMint) {
+    throw new BootstrapError(
+      "REPO_BLOCKER",
+      "Invariant failed: the bootstrap must never mint an external quote token.",
+    );
+  }
   if (!mint.mint.mintAuthority?.equals(payer.publicKey)) {
     throw new BootstrapError(
       "MISSING_CONFIG",
@@ -424,9 +461,10 @@ function requireMintAuthority(mint: MintSetup, payer: Keypair) {
 
 function assertQuoteDecimals(quoteMint: MintSetup, expectedDecimals: number) {
   if (quoteMint.mint.decimals !== expectedDecimals) {
+    const label = quoteMint.externalQuoteMint ? "external quote" : "QUOTE-DEMO";
     throw new BootstrapError(
       "MISSING_CONFIG",
-      `Configured QUOTE-DEMO mint uses ${quoteMint.mint.decimals} decimals, but DEVNET_QUOTE_DECIMALS is ${expectedDecimals}. Align the public configuration before bootstrapping.`,
+      `Configured ${label} mint uses ${quoteMint.mint.decimals} decimals, but DEVNET_QUOTE_DECIMALS is ${expectedDecimals}. Align the public configuration before bootstrapping.`,
     );
   }
 }
@@ -437,12 +475,79 @@ function assertDistinctMints(quoteMint: MintSetup, rwaMint: MintSetup) {
   }
 }
 
+/**
+ * External quote mode is intentionally read-only: a bootstrap must not create
+ * an ATA or mint a third-party Devnet token. Keep this helper separate so it
+ * can be called before *any* RWA mint/pool transaction and called again just
+ * before liquidity is added, in case the balance changed meanwhile.
+ */
+async function requireExistingExternalQuoteLiquidity(
+  connection: Connection,
+  payer: Keypair,
+  mint: MintSetup,
+  targetAmount: bigint,
+) {
+  if (!mint.externalQuoteMint) {
+    throw new BootstrapError(
+      "REPO_BLOCKER",
+      "Invariant failed: external quote liquidity checks require an external quote mint.",
+    );
+  }
+
+  const associatedTokenAddress = await getAssociatedTokenAddress(
+    mint.address,
+    payer.publicKey,
+    false,
+    TOKEN_PROGRAM_ID,
+  );
+  let tokenAccount: Account;
+  try {
+    // Do not use getOrCreateAssociatedTokenAccount here. In external-quote
+    // mode this account must already exist and be funded independently.
+    tokenAccount = await getAccount(
+      connection,
+      associatedTokenAddress,
+      "confirmed",
+      TOKEN_PROGRAM_ID,
+    );
+  } catch (error) {
+    throw new BootstrapError(
+      "MISSING_CONFIG",
+      `External quote mint ${mint.address.toBase58()} requires the payer's existing ATA ${associatedTokenAddress.toBase58()} to hold at least ${formatAtomic(targetAmount, mint.mint.decimals)} tokens. Fund that ATA outside this bootstrap; it never creates an ATA or mints external quote tokens.`,
+      error,
+    );
+  }
+
+  if (!tokenAccount.owner.equals(payer.publicKey) || !tokenAccount.mint.equals(mint.address)) {
+    throw new BootstrapError(
+      "REPO_BLOCKER",
+      "Derived external quote ATA did not match the configured payer and mint.",
+    );
+  }
+  if (tokenAccount.amount < targetAmount) {
+    throw new BootstrapError(
+      "MISSING_CONFIG",
+      `External quote ATA ${associatedTokenAddress.toBase58()} has ${formatAtomic(tokenAccount.amount, mint.mint.decimals)} tokens, but DEVNET_INITIAL_QUOTE_LIQUIDITY requires ${formatAtomic(targetAmount, mint.mint.decimals)}. Fund the payer ATA with the external Devnet token and rerun; the bootstrap never mints external quote tokens.`,
+    );
+  }
+  return tokenAccount;
+}
+
 async function ensureTokenBalance(
   connection: Connection,
   payer: Keypair,
   mint: MintSetup,
   targetAmount: bigint,
 ): Promise<{ account: Account; signature: string | null }> {
+  if (mint.externalQuoteMint) {
+    return {
+      // Recheck immediately before a liquidity transaction to fail safely if
+      // a separate process has spent the preflighted balance.
+      account: await requireExistingExternalQuoteLiquidity(connection, payer, mint, targetAmount),
+      signature: null,
+    };
+  }
+
   let tokenAccount: Account;
   try {
     tokenAccount = await getOrCreateAssociatedTokenAccount(
@@ -872,7 +977,8 @@ function printBootstrapSummary({
     network: "devnet",
     payer: payer.publicKey.toBase58(),
     payerSol: formatAtomic(payerBalance, 9),
-    quoteDemo: {
+    quoteToken: {
+      mode: quoteMint.externalQuoteMint ? "external-prefunded" : "quote-demo",
       mint: quoteMint.address.toBase58(),
       decimals: quoteMint.mint.decimals,
       created: quoteMint.created,
@@ -914,6 +1020,9 @@ function printBootstrapSummary({
     console.log("Public addresses were not written. Persist them manually, or rerun with WRITE_DEVNET_DEMO_CONFIG=true.");
   }
   console.log("Next step: use DEVNET_QUOTE_MINT, DEVNET_RWA_MINT, DEVNET_METEORA_POOL, and DEVNET_RWA_LP_POSITION in the Devnet demo configuration. Never expose the payer keypair in client code.");
+  if (quoteMint.externalQuoteMint) {
+    console.log("External quote mode never creates an ATA or mints the quote token; replenish the payer ATA outside this bootstrap before adding more liquidity.");
+  }
 }
 
 async function main() {
@@ -924,8 +1033,31 @@ async function main() {
   await verifyDevnet(connection);
   const payer = await loadPayer(config.payerKeypairPath);
   const payerBalance = await ensureMinimumSol(connection, payer, config.minPayerLamports);
-  const quoteMint = await ensureMint(connection, payer, "QUOTE-DEMO", config.quoteMintAddress, config.quoteDecimals);
+  const quoteMint = await ensureMint(
+    connection,
+    payer,
+    "QUOTE-DEMO",
+    config.quoteMintAddress,
+    config.quoteDecimals,
+    config.externalQuoteMint,
+  );
   assertQuoteDecimals(quoteMint, config.quoteDecimals);
+  if (config.externalQuoteMint) {
+    const quoteLiquidityTarget = toAtomicAmount(
+      config.quoteLiquidityUi,
+      quoteMint.mint.decimals,
+      "DEVNET_INITIAL_QUOTE_LIQUIDITY",
+    );
+    // This is deliberately before RWA mint creation, config persistence, pool
+    // creation, or LP seeding. A missing external USDC/quote balance must not
+    // leave behind partial Devnet bootstrap state.
+    await requireExistingExternalQuoteLiquidity(
+      connection,
+      payer,
+      quoteMint,
+      quoteLiquidityTarget,
+    );
+  }
   const rwaMint = await ensureMint(connection, payer, "RWA-DEMO", config.rwaMintAddress, config.quoteDecimals);
   assertDistinctMints(quoteMint, rwaMint);
 

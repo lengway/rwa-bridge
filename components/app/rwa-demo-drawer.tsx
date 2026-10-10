@@ -67,6 +67,8 @@ type DemoAsset = {
   network: string;
   mintAddress: string | null;
   quoteMintAddress: string | null;
+  quoteSymbol: string;
+  externalQuoteMint: boolean;
   poolAddress: string | null;
   decimals: number;
   quoteDecimals: number;
@@ -152,6 +154,7 @@ export function RwaDemoDrawer({
   const [assetsDisclosure, setAssetsDisclosure] = useState<string | null>(null);
   const [side, setSide] = useState<Side>("BUY");
   const [kztInput, setKztInput] = useState("25000");
+  const [buyInput, setBuyInput] = useState("10");
   const [fundingRequestId, setFundingRequestId] = useState<string | null>(null);
   const [sellInput, setSellInput] = useState("");
   const [funding, setFunding] = useState<Funding | null>(null);
@@ -167,13 +170,24 @@ export function RwaDemoDrawer({
   const walletAddress = wallet?.address ?? devnet.walletAddress;
   const walletMismatch = Boolean(wallet?.address && devnet.walletAddress && wallet.address !== devnet.walletAddress);
   const isDevnet = asset?.network.toLowerCase() === "devnet";
+  const externalQuoteMint = asset?.externalQuoteMint === true;
+  const quoteSymbol = asset?.quoteSymbol ?? "QUOTE-DEMO";
   const demoReady = Boolean(asset && configured && isDevnet && asset.tradeEnabled && wallet && walletAddress && !walletMismatch);
+  const buyInputAtomic = useMemo(
+    () => asset ? decimalToAtomic(buyInput, asset.quoteDecimals) : null,
+    [asset, buyInput],
+  );
   const sellInputAtomic = useMemo(
     () => asset ? decimalToAtomic(sellInput, asset.decimals) : null,
     [asset, sellInput],
   );
   const isFundingIssued = funding?.status === "TEST_TOKEN_ISSUED";
-  const quoteInputAtomic = side === "BUY" ? funding?.quoteTokenAmountAtomic ?? null : sellInputAtomic;
+  const canRequestBuyQuote = externalQuoteMint
+    ? isPositiveAtomic(buyInputAtomic)
+    : isFundingIssued;
+  const quoteInputAtomic = side === "BUY"
+    ? externalQuoteMint ? buyInputAtomic : funding?.quoteTokenAmountAtomic ?? null
+    : sellInputAtomic;
   const quoteExpired = quote ? isExpired(quote.expiresAt) : false;
 
   const clearTrade = useCallback(() => {
@@ -188,6 +202,7 @@ export function RwaDemoDrawer({
   const resetForClose = useCallback(() => {
     setFunding(null);
     setFundingRequestId(null);
+    setBuyInput("10");
     setSellInput("");
     clearTrade();
     setError(null);
@@ -238,7 +253,7 @@ export function RwaDemoDrawer({
   };
 
   const createFunding = async () => {
-    if (!demoReady || busy || !walletAddress || funding) return;
+    if (!demoReady || busy || !walletAddress || funding || externalQuoteMint) return;
     const requestedKztAmount = parseKztInput(kztInput);
     if (requestedKztAmount === null) {
       setError({ message: "Enter a whole illustrative KZT amount within the demo limits.", retryStage: null });
@@ -264,8 +279,8 @@ export function RwaDemoDrawer({
       setFunding(nextFunding);
       clearTrade();
       setNotice(nextFunding.status === "TEST_TOKEN_ISSUED"
-        ? "QUOTE-DEMO issuance was confirmed on Solana Devnet. Request a fresh Meteora quote before trading."
-        : "The simulated top-up was recorded. QUOTE-DEMO has not been issued yet, so trading remains disabled.");
+        ? `${quoteSymbol} issuance was confirmed on Solana Devnet. Request a fresh Meteora quote before trading.`
+        : `The simulated top-up was recorded. ${quoteSymbol} has not been issued yet, so trading remains disabled.`);
     } catch (requestError) {
       setError({ message: userFacingError(requestError, "Could not create the simulated funding event."), retryStage: "funding" });
     } finally {
@@ -275,12 +290,19 @@ export function RwaDemoDrawer({
 
   const requestQuote = async () => {
     if (!demoReady || busy || !asset || !walletAddress) return;
-    if (side === "BUY" && !isFundingIssued) {
-      setError({ message: "Issue QUOTE-DEMO first. A simulated funding record alone is not spendable.", retryStage: null });
+    if (side === "BUY" && !externalQuoteMint && !isFundingIssued) {
+      setError({ message: `Issue ${quoteSymbol} first. A simulated funding record alone is not spendable.`, retryStage: null });
       return;
     }
     if (!quoteInputAtomic || !isPositiveAtomic(quoteInputAtomic)) {
-      setError({ message: side === "BUY" ? "No issued QUOTE-DEMO amount is available for this buy." : "Enter a valid RWA-DEMO amount to sell.", retryStage: null });
+      setError({
+        message: side === "BUY"
+          ? externalQuoteMint
+            ? `Enter a valid ${quoteSymbol} amount to spend.`
+            : `No issued ${quoteSymbol} amount is available for this buy.`
+          : "Enter a valid RWA-DEMO amount to sell.",
+        retryStage: null,
+      });
       return;
     }
     setBusy("quoting");
@@ -452,6 +474,7 @@ export function RwaDemoDrawer({
   };
 
   const successfulBuy = completedOrder && side === "BUY";
+  const successfulExternalSell = completedOrder && side === "SELL" && externalQuoteMint;
   const successfulPayout = payout?.status === "SIMULATED_CONFIRMED";
 
   return (
@@ -467,6 +490,17 @@ export function RwaDemoDrawer({
           amountLabel={`+ ${formatAtomic(completedOrder.actualOutputAmountAtomic ?? quote?.expectedOutputAtomic ?? "0", asset?.decimals ?? 0)} ${asset?.symbol ?? "RWA-DEMO"}`}
           sentence="RWA-DEMO buy confirmed on Solana Devnet via Meteora DLMM."
           note={DEVNET_SWAP_DISCLOSURE}
+          explorerUrl={completedOrder.explorerUrl ?? explorerForSignature(completedOrder.signature)}
+          onDone={() => changeOpen(false)}
+          secondaryHref="/portfolio"
+          secondaryLabel="Open portfolio"
+        />
+      ) : successfulExternalSell ? (
+        <DrawerSuccess
+          amount={0}
+          amountLabel={`+ ${formatAtomic(completedOrder.actualOutputAmountAtomic ?? quote?.expectedOutputAtomic ?? "0", asset?.quoteDecimals ?? 0)} ${quoteSymbol}`}
+          sentence={`${quoteSymbol} sale proceeds confirmed on Solana Devnet via Meteora DLMM.`}
+          note="No KZT payout is created in the external quote-token flow."
           explorerUrl={completedOrder.explorerUrl ?? explorerForSignature(completedOrder.signature)}
           onDone={() => changeOpen(false)}
           secondaryHref="/portfolio"
@@ -550,20 +584,36 @@ export function RwaDemoDrawer({
               </div>
 
               {side === "BUY" ? (
-                <FundingPanel
-                  value={kztInput}
-                  disabled={!demoReady || Boolean(busy)}
-                  funding={funding}
-                  quoteDecimals={asset.quoteDecimals}
-                  onValueChange={(value) => {
-                    setKztInput(value);
-                    setFunding(null);
-                    setFundingRequestId(null);
-                    clearTrade();
-                    setError(null);
-                  }}
-                  onFunding={() => void createFunding()}
-                />
+                externalQuoteMint ? (
+                  <ExternalQuotePanel
+                    value={buyInput}
+                    symbol={quoteSymbol}
+                    disabled={!demoReady || Boolean(busy)}
+                    atomic={buyInputAtomic}
+                    decimals={asset.quoteDecimals}
+                    onValueChange={(value) => {
+                      setBuyInput(value);
+                      clearTrade();
+                      setError(null);
+                    }}
+                  />
+                ) : (
+                  <FundingPanel
+                    value={kztInput}
+                    disabled={!demoReady || Boolean(busy)}
+                    funding={funding}
+                    quoteDecimals={asset.quoteDecimals}
+                    quoteSymbol={quoteSymbol}
+                    onValueChange={(value) => {
+                      setKztInput(value);
+                      setFunding(null);
+                      setFundingRequestId(null);
+                      clearTrade();
+                      setError(null);
+                    }}
+                    onFunding={() => void createFunding()}
+                  />
+                )
               ) : (
                 <SellPanel
                   value={sellInput}
@@ -609,8 +659,8 @@ export function RwaDemoDrawer({
                 </Alert>
               ) : null}
 
-              {side === "BUY" && funding && !isFundingIssued ? (
-                <GuardAlert title="QUOTE-DEMO has not been issued">
+              {side === "BUY" && !externalQuoteMint && funding && !isFundingIssued ? (
+                <GuardAlert title={`${quoteSymbol} has not been issued`}>
                   {funding.disclosure || SIMULATED_FUNDING_DISCLOSURE}. Follow the documented Devnet funding step or enable the guarded faucet; do not treat this as a fiat payment.
                 </GuardAlert>
               ) : null}
@@ -633,7 +683,7 @@ export function RwaDemoDrawer({
                     className="w-full"
                     variant="outline"
                     onClick={() => void requestQuote()}
-                    disabled={!demoReady || Boolean(busy) || (side === "BUY" && !isFundingIssued) || (side === "SELL" && !isPositiveAtomic(sellInputAtomic))}
+                    disabled={!demoReady || Boolean(busy) || (side === "BUY" && !canRequestBuyQuote) || (side === "SELL" && !isPositiveAtomic(sellInputAtomic))}
                   >
                     {busy === "quoting" ? <><LoaderCircle className="animate-spin" />Requesting fresh quote…</> : <><RefreshCw />Get fresh Meteora quote</>}
                   </Button>
@@ -664,6 +714,7 @@ function FundingPanel({
   disabled,
   funding,
   quoteDecimals,
+  quoteSymbol,
   onValueChange,
   onFunding,
 }: {
@@ -671,6 +722,7 @@ function FundingPanel({
   disabled: boolean;
   funding: Funding | null;
   quoteDecimals: number;
+  quoteSymbol: string;
   onValueChange: (value: string) => void;
   onFunding: () => void;
 }) {
@@ -697,7 +749,7 @@ function FundingPanel({
         </div>
       </label>
       <Button className="w-full" variant="outline" onClick={onFunding} disabled={disabled || Boolean(funding) || parseKztInput(value) === null}>
-        Create simulated top-up and issue QUOTE-DEMO
+        Create simulated top-up and issue {quoteSymbol}
       </Button>
       {funding ? (
         <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5">
@@ -706,11 +758,59 @@ function FundingPanel({
             <Badge variant={funding.status === "TEST_TOKEN_ISSUED" ? "secondary" : "outline"}>{funding.status}</Badge>
           </div>
           <p>{SIMULATED_FUNDING_DISCLOSURE}</p>
-          {funding.demoRate ? <p>Illustrative demo rate: {funding.demoRate} KZT per QUOTE-DEMO.</p> : null}
-          <p>QUOTE-DEMO: {formatAtomic(funding.quoteTokenAmountAtomic, quoteDecimals)} (atomic: {funding.quoteTokenAmountAtomic})</p>
-          {funding.mintExplorerUrl ? <ExplorerLink href={funding.mintExplorerUrl} label="View QUOTE-DEMO issue transaction" /> : null}
+          {funding.demoRate ? <p>Illustrative demo rate: {funding.demoRate} KZT per {quoteSymbol}.</p> : null}
+          <p>{quoteSymbol}: {formatAtomic(funding.quoteTokenAmountAtomic, quoteDecimals)} (atomic: {funding.quoteTokenAmountAtomic})</p>
+          {funding.mintExplorerUrl ? <ExplorerLink href={funding.mintExplorerUrl} label={`View ${quoteSymbol} issue transaction`} /> : null}
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+function ExternalQuotePanel({
+  value,
+  symbol,
+  disabled,
+  atomic,
+  decimals,
+  onValueChange,
+}: {
+  value: string;
+  symbol: string;
+  disabled: boolean;
+  atomic: string | null;
+  decimals: number;
+  onValueChange: (value: string) => void;
+}) {
+  return (
+    <Card className="gap-3 rounded-2xl p-4">
+      <div className="space-y-1">
+        <p className="font-medium">1. Use externally supplied Devnet {symbol}</p>
+        <p className="text-xs leading-5 text-muted-foreground">
+          Get {symbol} from a Devnet source outside this app, then ensure this wallet also has Devnet SOL for network fees. This app does not process KZT, issue {symbol}, or create a payout receipt.
+        </p>
+      </div>
+      <label className="space-y-1.5 text-sm">
+        <span className="font-medium">{symbol} amount to spend</span>
+        <div className="flex items-center gap-2">
+          <Input
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={value}
+            onChange={(event) => onValueChange(sanitizeDecimalInput(event.target.value))}
+            disabled={disabled}
+            className="h-11 text-lg tabular-nums"
+            aria-label={`${symbol} amount to spend`}
+          />
+          <span className="text-sm font-medium">{symbol}</span>
+        </div>
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {atomic && isPositiveAtomic(atomic)
+          ? `Atomic input: ${atomic} (${formatAtomic(atomic, decimals)} ${symbol})`
+          : `Enter a positive ${symbol} amount; raw token units are calculated without floating-point arithmetic.`}
+      </p>
     </Card>
   );
 }
@@ -760,8 +860,8 @@ function SellPanel({
 }
 
 function QuoteCard({ quote, asset }: { quote: DemoQuote; asset: DemoAsset }) {
-  const inputSymbol = quote.side === "BUY" ? "QUOTE-DEMO" : asset.symbol;
-  const outputSymbol = quote.side === "BUY" ? asset.symbol : "QUOTE-DEMO";
+  const inputSymbol = quote.side === "BUY" ? asset.quoteSymbol : asset.symbol;
+  const outputSymbol = quote.side === "BUY" ? asset.symbol : asset.quoteSymbol;
   const inputDecimals = quote.side === "BUY" ? asset.quoteDecimals : asset.decimals;
   const outputDecimals = quote.side === "BUY" ? asset.decimals : asset.quoteDecimals;
   return (
@@ -800,12 +900,13 @@ function AssetCard({ asset, configured }: { asset: DemoAsset; configured: boolea
       </div>
       <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs">
         <QuoteRow label="Network" value={asset.network || "unknown"} />
+        <QuoteRow label="Quote token" value={asset.quoteSymbol} />
         <QuoteRow label="Pool" value={asset.poolAddress ? shortenAddress(asset.poolAddress) : "Not configured"} />
         <QuoteRow label="Route" value="Direct Meteora DLMM Devnet" />
       </div>
       <div className="flex flex-wrap gap-2">
         {asset.explorerUrl ? <ExplorerLink href={asset.explorerUrl} label="RWA mint" /> : null}
-        {asset.quoteMintExplorerUrl ? <ExplorerLink href={asset.quoteMintExplorerUrl} label="QUOTE mint" /> : null}
+        {asset.quoteMintExplorerUrl ? <ExplorerLink href={asset.quoteMintExplorerUrl} label={`${asset.quoteSymbol} mint`} /> : null}
         {asset.poolExplorerUrl ? <ExplorerLink href={asset.poolExplorerUrl} label="Pool" /> : null}
       </div>
       <p className="text-xs leading-5 text-muted-foreground">{asset.rightsDisclosure}</p>
@@ -886,6 +987,8 @@ function normalizeAsset(value: unknown): DemoAsset | null {
     network,
     mintAddress: readString(source?.mintAddress),
     quoteMintAddress: readString(source?.quoteMintAddress),
+    quoteSymbol: readString(source?.quoteSymbol) ?? "QUOTE-DEMO",
+    externalQuoteMint: source?.externalQuoteMint === true,
     poolAddress: readString(source?.poolAddress),
     decimals,
     quoteDecimals,

@@ -31,9 +31,10 @@ export function RwaDemoScreen() {
       <Card className="gap-2 rounded-2xl border-amber-500/25 bg-amber-500/5 p-4">
         <p className="text-sm font-medium">Demo truth model</p>
         <p className="text-xs leading-5 text-muted-foreground">
-          `QUOTE-DEMO` and `RWA-DEMO` have no monetary value. A simulated KZT
-          top-up or payout records a demo scenario only; the direct Devnet swap
-          is the only trading transaction in this journey.
+          `RWA-DEMO` and the configured Devnet quote token have no real-asset
+          backing or legal rights. Depending on the server configuration, the
+          quote token may be supplied externally; the direct Devnet swap is the
+          only trading transaction in this journey.
         </p>
       </Card>
 

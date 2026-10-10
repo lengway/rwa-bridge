@@ -74,9 +74,11 @@ outside Git in `/home/plain/shared/.env.local`.
 ## RWA-DEMO: direct Meteora DLMM Devnet flow
 
 `RWA-DEMO` is a separate, Devnet-only test scenario. It is not an asset, a security,
-or a claim on property, KASE, Intebix, KZTE, or any other real-world asset. `QUOTE-DEMO`
-is a test SPL token with no monetary value. The KZT boundary is a UI/ledger simulation
-only: no payment is accepted and no payout is sent.
+or a claim on property, KASE, Intebix, KZTE, or any other real-world asset. By default,
+`QUOTE-DEMO` is a test SPL token with no monetary value. An operator can explicitly opt
+into an existing externally minted **Devnet-only** quote token (for example, Devnet USDC)
+instead. In that external-quote mode, the journey is only an on-chain Devnet quote-token
+↔ `RWA-DEMO` swap: the app offers no KZT top-up, faucet, payout, or KZT ledger record.
 
 The only real parts of this specific demo are the Devnet token mint/transfer (when the
 guarded faucet is enabled) and the user-signed, direct Meteora DLMM swaps. Jupiter is
@@ -110,6 +112,27 @@ not used as an execution route in this flow.
    WRITE_DEVNET_DEMO_CONFIG=true npm run devnet:bootstrap
    ```
 
+   To use an externally minted Devnet quote token instead of creating `QUOTE-DEMO`, set
+   all of the following before running the same command:
+
+   ```bash
+   DEVNET_EXTERNAL_QUOTE_MINT=true
+   DEVNET_QUOTE_MINT=<existing-devnet-spl-token-mint>
+   DEVNET_QUOTE_SYMBOL=USDC
+   DEVNET_QUOTE_DECIMALS=6
+   ENABLE_DEVNET_FAUCET=false
+   # Keep the Devnet seed intentionally small; adjust both sides together.
+   DEVNET_INITIAL_QUOTE_PER_RWA=100
+   DEVNET_INITIAL_QUOTE_LIQUIDITY=100
+   DEVNET_INITIAL_RWA_LIQUIDITY=1
+   ```
+
+   The payer's associated token account for that mint must already exist and contain at
+   least `DEVNET_INITIAL_QUOTE_LIQUIDITY`. The bootstrap neither creates that ATA nor
+   mints or faucets the external quote token; obtain its Devnet liquidity independently.
+   It performs this read-only balance check before creating an RWA mint, pool, LP
+   position, or writing public configuration.
+
 For the VPS release layout, `.env.local` is intentionally a symlink to the
 shared secret configuration. Keep that guard in place and set
 `DEVNET_PUBLIC_CONFIG_PATH=/home/plain/shared/.env.local` for the bootstrap
@@ -130,16 +153,17 @@ configured one is invalid.
 
 1. Sign in and open **Assets → RWA-DEMO**. Confirm the screen says `DEVNET DEMO` and
    the network is Devnet.
-2. Create a simulated KZT top-up. The displayed conversion is an illustrative configured
-   rate and the UI must say `SIMULATED — no fiat payment`.
-3. If the guarded faucet is enabled, receive `QUOTE-DEMO` through a real Devnet mint
-   transaction. The UI identifies it as `DEVNET TEST TOKEN — no monetary value`.
-4. Request a fresh direct Meteora quote, review its slippage and minimum output, then
+2. With the default `QUOTE-DEMO`, create a simulated KZT top-up. The displayed conversion
+   is illustrative; if the guarded faucet is enabled it can issue a Devnet test token.
+   With `DEVNET_EXTERNAL_QUOTE_MINT=true`, acquire the external Devnet quote token outside
+   the app instead—there is no KZT top-up or payout path in this mode.
+3. Request a fresh direct Meteora quote, review its slippage and minimum output, then
    approve the swap in the connected wallet. The app confirms the signature on-chain and
    refreshes balances before marking the order complete.
-5. Sell part or all of `RWA-DEMO` via a fresh reverse quote. Once the sell is confirmed,
-   the app can create an explicitly simulated KZT payout receipt only; it never sends a
-   bank transfer.
+4. Sell part or all of `RWA-DEMO` via a fresh reverse quote. In external-quote mode, the
+   confirmed output is returned to the wallet as the external Devnet quote token. In the
+   default mode, the app may create an explicitly simulated KZT payout receipt only; it
+   never sends a bank transfer.
 
 ### RWA demo configuration
 
@@ -153,6 +177,8 @@ configured one is invalid.
 | `DEVNET_PAYER_KEYPAIR_PATH` | Server-only test payer/mint-authority file path. |
 | `WRITE_DEVNET_DEMO_CONFIG` | Must be `true` only when bootstrap is allowed to create missing mints and write their public addresses to `.env.local`. |
 | `DEVNET_PUBLIC_CONFIG_PATH` | Optional regular-file target for bootstrap's public IDs when release `.env.local` is a symlink. |
+| `DEVNET_EXTERNAL_QUOTE_MINT` | Explicit opt-in for an existing third-party Devnet quote mint. Requires `DEVNET_QUOTE_MINT`; the bootstrap never creates its ATA or mints it. |
+| `DEVNET_QUOTE_SYMBOL` | Safe uppercase display label; defaults to `USDC` in external-quote mode and `QUOTE-DEMO` otherwise. |
 | `DEVNET_QUOTE_MINT`, `DEVNET_RWA_MINT`, `DEVNET_METEORA_POOL` | Public addresses emitted by the bootstrap. |
 | `DEVNET_RWA_LP_POSITION` | Public LP position emitted by the bootstrap; used for safe reuse checks. |
 | `DEMO_KZT_PER_QUOTE_TOKEN` | Illustrative demo scenario rate, not market FX. |
@@ -166,6 +192,9 @@ configured one is invalid.
   server after changing `.env.local`.
 - **Insufficient SOL / pool bootstrap fails** — fund the configured test payer with
   Devnet SOL, then rerun the bootstrap. Do not substitute a Mainnet key or endpoint.
+- **External quote liquidity missing** — create and fund the configured payer's ATA for
+  `DEVNET_QUOTE_MINT` outside this app with at least
+  `DEVNET_INITIAL_QUOTE_LIQUIDITY`; external quote mode intentionally never mints it.
 - **No quote / stale quote / rejected signature** — request a new quote. A quote is not
   a price guarantee and an order is never completed from a client success flag alone.
 - **Faucet unavailable** — this is intentional unless the explicit server-side flag,
