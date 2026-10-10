@@ -138,7 +138,7 @@ export function ExchangeDrawer({
         open={open}
         onOpenChange={changeOpen}
         title="Обмен недоступен"
-        description="Legacy KZT/KZTE adapters are disabled for the Devnet Earn demo."
+        description="Legacy KZT/KZTE adapters are disabled for Universal Earn on Solana Devnet."
       >
         <p className="rounded-xl bg-muted/50 p-3 text-sm leading-6 text-muted-foreground">
           Этот маршрут отключён до отдельной проверки провайдера, региональной доступности и серверной конфигурации.

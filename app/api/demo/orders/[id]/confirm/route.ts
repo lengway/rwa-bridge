@@ -42,20 +42,20 @@ async function confirmOrder({
 }) {
   return withLedgerKeyLock(`rwa-demo-confirm:${orderId}`, async () => {
     const existing = await getRwaDemoOrderForWallet(orderId, walletAddress);
-    if (!existing) throw new RwaDemoRequestError(404, "ORDER_NOT_FOUND", "The requested demo order was not found.");
+    if (!existing) throw new RwaDemoRequestError(404, "ORDER_NOT_FOUND", "The requested Devnet order was not found.");
     if (existing.status === "COMPLETED") {
       if (existing.transactionSignature !== signature) {
-        throw new RwaDemoRequestError(409, "ORDER_COMPLETED", "This demo order is already completed with another transaction.");
+        throw new RwaDemoRequestError(409, "ORDER_COMPLETED", "This Devnet order is already completed with another transaction.");
       }
       return { kind: "completed" as const, order: existing };
     }
     if (existing.status === "TRANSACTION_FAILED" || existing.status === "NEEDS_REVIEW") {
-      throw new RwaDemoRequestError(409, "ORDER_FINAL", "This demo order is in a final state and cannot be confirmed again.");
+      throw new RwaDemoRequestError(409, "ORDER_FINAL", "This Devnet order is in a final state and cannot be confirmed again.");
     }
 
     const order = await recordRwaDemoOrderSubmission({ orderId, walletAddress, signature });
     if (!order.transactionMessageDigest) {
-      throw new RwaDemoRequestError(409, "ORDER_NOT_PREPARED", "This demo order has no prepared transaction.");
+      throw new RwaDemoRequestError(409, "ORDER_NOT_PREPARED", "This Devnet order has no prepared transaction.");
     }
     try {
       const verification = await verifyMeteoraDemoSwap({

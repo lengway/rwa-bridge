@@ -128,9 +128,9 @@ function PreferenceSection() {
   return (
     <Card className="gap-4 rounded-2xl p-4">
       <div>
-        <h2 className="font-semibold">Отображение Devnet-демо</h2>
+        <h2 className="font-semibold">Отображение Solana Devnet</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Все тестовые активы отображаются в TEST QUOTE. Конвертация в фиат, KZT и рыночный курс не входят в эту Devnet-демо.
+          Все тестовые активы отображаются в TEST QUOTE. Конвертация в фиат, KZT и рыночный курс не входят в среду Solana Devnet.
         </p>
       </div>
     </Card>

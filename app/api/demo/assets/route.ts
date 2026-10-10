@@ -7,7 +7,7 @@ import { RWA_DEMO_ASSET_ID, RWA_DEMO_NETWORK, RWA_DEMO_SWAP_DISCLOSURE } from "@
 
 export const runtime = "nodejs";
 
-const ASSET_DESCRIPTION = "Devnet test token used only for the RWA-DEMO Meteora DLMM demonstration.";
+const ASSET_DESCRIPTION = "Solana Devnet test token for a Meteora DLMM swap. It has no monetary value, real-asset backing, or legal rights.";
 
 function assetDisclosure({
   externalQuoteMint,
@@ -17,9 +17,9 @@ function assetDisclosure({
   quoteSymbol: string;
 }) {
   if (externalQuoteMint) {
-    return `RWA-DEMO is a Devnet test token with no real-asset backing or legal rights. ${quoteSymbol} is supplied externally on Devnet; this app does not sell, issue, redeem, or pay out fiat.`;
+    return `The RWA Devnet test asset has no real-asset backing or legal rights. ${quoteSymbol} is supplied externally on Solana Devnet; this app does not sell, issue, redeem, or pay out fiat.`;
   }
-  return `RWA-DEMO and ${quoteSymbol} are Devnet test tokens only. They have no monetary value, real-asset backing, or legal rights.`;
+  return `The RWA Devnet test asset and ${quoteSymbol} are Solana Devnet test tokens only. They have no monetary value, real-asset backing, or legal rights.`;
 }
 
 function assetResponse({
@@ -43,8 +43,8 @@ function assetResponse({
 }) {
   return {
     id: RWA_DEMO_ASSET_ID,
-    name: "RWA-DEMO",
-    symbol: "RWA-DEMO",
+    name: "RWA Devnet Test Asset",
+    symbol: "RWA-DEVNET",
     description: ASSET_DESCRIPTION,
     network: RWA_DEMO_NETWORK,
     mintAddress: rwaMint,
@@ -55,7 +55,7 @@ function assetResponse({
     decimals: rwaDecimals,
     quoteDecimals,
     tokenProgram: "spl-token",
-    demo: true,
+    isDevnetTest: true,
     tradeEnabled: configured,
     rightsDisclosure: RWA_DEMO_SWAP_DISCLOSURE,
     explorerUrl: rwaMint ? `https://explorer.solana.com/address/${rwaMint}?cluster=devnet` : null,

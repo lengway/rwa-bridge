@@ -19,6 +19,8 @@ import { useAuth } from "@/lib/useAuth";
 import {
   GatewayDisclosureBadges,
   canRedeemStrategy,
+  displayStrategyName,
+  displayStrategyTicker,
   getGatewayInfo,
 } from "@/components/app/earn-detail-parts";
 
@@ -189,11 +191,11 @@ function WithdrawDrawerContents({
       }
       setCompleted({
         amount: result.amountUsd,
-        amountLabel: `${formatQuantity(result.sharesRedeemed)} ${strategy.ticker}`,
+        amountLabel: `${formatQuantity(result.sharesRedeemed)} ${displayStrategyTicker(strategy)}`,
         shares: result.sharesRedeemed,
-        shareTicker: strategy.ticker,
+        shareTicker: displayStrategyTicker(strategy),
         explorerUrl: result.explorerUrl,
-        note: "DEVNET DEMO · TEST-TOKEN REDEMPTION · NO MONETARY VALUE. Это не денежная выплата.",
+        note: "SOLANA DEVNET · TEST-TOKEN REDEMPTION · NO MONETARY VALUE. Это не денежная выплата.",
       });
       setPendingRedemption(null);
       void devnet.refreshPortfolio();
@@ -264,7 +266,7 @@ function WithdrawDrawerContents({
       open={open}
       onOpenChange={changeOpen}
       title="Вывести средства"
-      description={method === "card" ? "Внешний адаптер недоступен в Universal Earn Devnet demo." : method === "tenge" ? "Внешний адаптер недоступен в Universal Earn Devnet demo." : "DEVNET TEST-TOKEN REDEMPTION: отправьте тестовые доли на погашение; тестовые токены вернутся в кошелёк."}
+      description={method === "card" ? "Внешний адаптер недоступен в Universal Earn Solana Devnet." : method === "tenge" ? "Внешний адаптер недоступен в Universal Earn Solana Devnet." : "DEVNET TEST-TOKEN REDEMPTION: отправьте тестовые доли на погашение; тестовые токены вернутся в кошелёк."}
     >
       {completed ? (
         <DrawerSuccess
@@ -321,7 +323,7 @@ function WithdrawDrawerContents({
             </button>
           </div>
           <Card className="gap-2 border-amber-500/30 bg-amber-500/5 p-3">
-            <p className="text-xs font-medium">DEVNET DEMO · NO MONETARY VALUE</p>
+            <p className="text-xs font-medium">SOLANA DEVNET · NO MONETARY VALUE</p>
             <p className="text-xs leading-5 text-muted-foreground">
               Внешние адаптеры карты, KZTE и Intebix — необязательные будущие интеграции и не входят в эту
               Devnet-стратегию. Они не создают денежную выплату или банковский перевод.
@@ -465,8 +467,8 @@ function WithdrawPosition({
     <Card className="gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">{strategy.name}</p>
-          <p className="text-xs text-muted-foreground">{formatQuantity(availableShares)} {strategy.ticker} · {formatQuantity(position.valueUsd ?? position.principal + earned)} TEST QUOTE</p>
+          <p className="font-medium">{displayStrategyName(strategy)}</p>
+          <p className="text-xs text-muted-foreground">{formatQuantity(availableShares)} {displayStrategyTicker(strategy)} · {formatQuantity(position.valueUsd ?? position.principal + earned)} TEST QUOTE</p>
         </div>
         <span className="text-right text-xs tabular-nums text-muted-foreground">
           Illustrative change: {formatQuantity(earned)} TEST QUOTE

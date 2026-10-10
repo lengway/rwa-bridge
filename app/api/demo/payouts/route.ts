@@ -40,9 +40,9 @@ export async function POST(request: Request) {
     // simulated receipt is created. No fiat or token transfer is performed.
     const { config } = await getVerifiedRwaDemoConnection();
     const order = await getRwaDemoOrderForWallet(orderId, session.walletAddress);
-    if (!order) throw new RwaDemoRequestError(404, "ORDER_NOT_FOUND", "The requested demo order was not found.");
+    if (!order) throw new RwaDemoRequestError(404, "ORDER_NOT_FOUND", "The requested Devnet order was not found.");
     if (!isCompletedSell(order)) {
-      throw new RwaDemoRequestError(409, "SELL_NOT_CONFIRMED", "A simulated payout is available only after a verified completed RWA-DEMO sell.");
+      throw new RwaDemoRequestError(409, "SELL_NOT_CONFIRMED", "A simulated payout is available only after a verified completed Solana Devnet test-asset sale.");
     }
     const quoteTokenAmount = requirePositiveAtomicAmount(
       order.actualOutputAmountAtomic,

@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const body = await readDemoJson(request);
     const session = await requireDemoSession(request, body.walletAddress);
     if (body.assetId !== RWA_DEMO_ASSET_ID) {
-      throw new RwaDemoValidationError("Only the server-configured RWA-DEMO asset can be quoted.");
+      throw new RwaDemoValidationError("Only the server-configured Solana Devnet test asset can be quoted.");
     }
     const side = demoSide(body.side);
     const inputAmountAtomic = serializeAtomic(requirePositiveAtomicAmount(

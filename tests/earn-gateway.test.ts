@@ -22,6 +22,7 @@ import {
   requirePositiveDecimalToAtomic,
   SIMULATED_DEMO_FUNDING_PROVIDER,
   SIMULATED_DEMO_YIELD_PROVIDER,
+  toPublicEarnStrategy,
 } from "../lib/earn-gateway";
 
 test("decimal conversion is exact at ordinary and large integer boundaries", () => {
@@ -66,7 +67,7 @@ test("the catalog has exactly one enabled simulated strategy and disabled provid
   }
 
   assert.equal(getEarnStrategyOperationGate("devnet-simulated-demo", "deposit").supported, true);
-  assert.equal(SIMULATED_DEMO_YIELD_PROVIDER.getStrategy("devnet-simulated-demo")?.name, "Devnet Demo Strategy");
+  assert.equal(SIMULATED_DEMO_YIELD_PROVIDER.getStrategy("devnet-simulated-demo")?.name, "Devnet Earn Strategy");
   assert.equal(SIMULATED_DEMO_YIELD_PROVIDER.getStrategy("kamino-devnet-placeholder"), null);
   assert.equal(SIMULATED_DEMO_FUNDING_PROVIDER.acceptsFiat, false);
   assert.equal(SIMULATED_DEMO_FUNDING_PROVIDER.getOperationGate("devnet-simulated-demo").supported, true);
@@ -108,12 +109,21 @@ test("required disclosures are present, explicit, and cannot be silently removed
   for (const label of EARN_REQUIRED_DISCLOSURE_LABELS) {
     assert.ok(demo.disclosures.some((disclosure) => disclosure.label === label));
   }
-  assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /DEVNET DEMO/);
+  assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /SOLANA DEVNET/);
   assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /SIMULATED FUNDING/);
   assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /ILLUSTRATIVE YIELD/);
   assert.match(demo.disclosures.map((disclosure) => disclosure.label).join(" | "), /NO MONETARY VALUE/);
   assert.equal(hasRequiredEarnDisclosures(demo.disclosures.slice(1)), false);
   assert.throws(() => assertRequiredEarnDisclosures(demo.disclosures.slice(1)), EarnGatewayError);
+});
+
+test("public catalog metadata presents the Devnet product without internal demo identifiers", () => {
+  const publicCatalog = EARN_STRATEGIES.map(toPublicEarnStrategy);
+  const enabled = publicCatalog.find((strategy) => strategy.availability === "ENABLED");
+  assert.equal(enabled?.id, "devnet-simulated-earn");
+  assert.equal(enabled?.mode, "DEVNET");
+  assert.equal(enabled?.provider, "PLAIN_DEVNET");
+  assert.doesNotMatch(JSON.stringify(publicCatalog), /demo/i);
 });
 
 test("the requested cluster guard permits only an explicit devnet request", () => {

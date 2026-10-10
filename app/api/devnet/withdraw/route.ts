@@ -8,6 +8,8 @@ import {
   EarnGatewayError,
   formatAtomicToDecimal,
   parseAtomicAmount,
+  toPublicEarnStrategy,
+  type EarnStrategy,
 } from "@/lib/earn-gateway";
 import {
   appendWithdrawal,
@@ -34,6 +36,16 @@ const MAX_REDEMPTION_ATOMIC = atomicScale(DEVNET_DEMO_TOKEN_DECIMALS) * BigInt(1
 
 function displayAmount(amountAtomic: bigint) {
   return Number(formatAtomicToDecimal(amountAtomic, DEVNET_DEMO_TOKEN_DECIMALS));
+}
+
+function publicGatewayMetadata(strategy: EarnStrategy) {
+  const publicStrategy = toPublicEarnStrategy(strategy);
+  return {
+    network: publicStrategy.network,
+    mode: publicStrategy.mode,
+    yieldKind: publicStrategy.yieldKind,
+    disclosures: publicStrategy.disclosures,
+  };
 }
 
 function needsReviewResponse() {
@@ -123,10 +135,7 @@ export async function POST(request: Request) {
           payoutSignature: existing.payoutSignature,
           burnSignature: existing.burnSignature,
           explorerUrl: explorerUrl(existing.payoutSignature),
-          network: strategy.gateway.network,
-          mode: strategy.gateway.mode,
-          yieldKind: strategy.gateway.yieldKind,
-          disclosures: strategy.gateway.disclosures,
+          ...publicGatewayMetadata(strategy.gateway),
         };
         return NextResponse.json(response);
       }
@@ -220,10 +229,7 @@ export async function POST(request: Request) {
         payoutSignature,
         burnSignature,
         explorerUrl: explorerUrl(payoutSignature),
-        network: strategy.gateway.network,
-        mode: strategy.gateway.mode,
-        yieldKind: strategy.gateway.yieldKind,
-        disclosures: strategy.gateway.disclosures,
+        ...publicGatewayMetadata(strategy.gateway),
       };
       notifyReceipt(request, {
         kind: "redemption",

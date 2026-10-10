@@ -18,7 +18,10 @@ import { useAuth } from "@/lib/useAuth";
 import {
   GatewayDisclosureBadges,
   canInvestInStrategy,
+  displayStrategyName,
+  displayStrategyTicker,
   getGatewayInfo,
+  presentDevnetCopy,
 } from "@/components/app/earn-detail-parts";
 
 type InvestDrawerProps = {
@@ -124,7 +127,7 @@ function InvestDrawerContents({
         || typeof result.sharesMinted !== "number" || typeof result.mintSignature !== "string") {
         throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить тестовый перевод.");
       }
-      setSuccess({ amount: amountValue, shares: result.sharesMinted, shareTicker: strategy.ticker, explorerUrl: result.explorerUrl });
+      setSuccess({ amount: amountValue, shares: result.sharesMinted, shareTicker: displayStrategyTicker(strategy), explorerUrl: result.explorerUrl });
       setPendingSignature(null);
       void devnet.refreshPortfolio();
       toast.success("Тестовые доли выпущены в Solana Devnet");
@@ -141,7 +144,7 @@ function InvestDrawerContents({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      title={`Devnet-демо · ${strategy.name}`}
+      title={`Solana Devnet · ${displayStrategyName(strategy)}`}
       description="SIMULATED FUNDING · тестовые токены и доли не имеют денежной стоимости."
     >
       {!canInvest ? (
@@ -221,8 +224,8 @@ function InvestDrawerContents({
             <p className="text-xs text-muted-foreground">
               ILLUSTRATIVE YIELD: он не является фактическим доходом и не начисляется на тестовые доли.
             </p>
-            <p className="text-xs text-muted-foreground">{gateway.yield.sourceNote}</p>
-            <p className="text-xs text-muted-foreground">Источник / режим: {gateway.sourceLabel}.</p>
+            <p className="text-xs text-muted-foreground">{presentDevnetCopy(gateway.yield.sourceNote)}</p>
+            <p className="text-xs text-muted-foreground">Источник / режим: {presentDevnetCopy(gateway.sourceLabel)}.</p>
           </Card>
 
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm leading-5">
@@ -231,15 +234,15 @@ function InvestDrawerContents({
               onCheckedChange={(checked) => setAccepted(checked === true)}
               className="mt-0.5"
             />
-            <span>Понимаю: это DEVNET DEMO, SIMULATED FUNDING и NO MONETARY VALUE; доходность только иллюстративна.</span>
+            <span>Понимаю: это SOLANA DEVNET, SIMULATED FUNDING и NO MONETARY VALUE; доходность только иллюстративна.</span>
           </label>
           {amountValue > cashUsd ? (
             <p className="text-xs text-destructive">
-              Недостаточно тестовых единиц. <Link href="/home" className="underline">Подготовьте демо-баланс на Главной</Link>.
+              Недостаточно тестовых единиц. <Link href="/home" className="underline">Подготовьте баланс Solana Devnet на Главной</Link>.
             </p>
           ) : null}
           {!accepted ? (
-            <p className="text-xs text-muted-foreground">Отметьте согласие с условиями демо, чтобы продолжить.</p>
+            <p className="text-xs text-muted-foreground">Отметьте согласие с условиями Solana Devnet, чтобы продолжить.</p>
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           {progress ? <p className="text-center text-xs text-muted-foreground">{progress}</p> : null}

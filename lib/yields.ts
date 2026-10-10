@@ -26,14 +26,14 @@ export type YieldStrategy = {
  */
 export const ONDO_USDY: YieldStrategy = {
   id: "ondo-usdy",
-  slug: "devnet-yield-demo",
-  name: "Devnet Demo Strategy",
-  ticker: "vUSDY-DEMO",
-  issuer: "Plain · Devnet demo shares",
-  description: "A user-signed Devnet test-token transfer is verified before a demo share is issued. The displayed rate is illustrative only.",
+  slug: "devnet-earn",
+  name: "Devnet Earn Strategy",
+  ticker: "vUSDY",
+  issuer: "Plain · Solana Devnet shares",
+  description: "A user-signed Devnet test-token transfer is verified before a Devnet share is issued. The displayed rate is illustrative only.",
   fallbackApy: 0,
-  riskLabel: "This is an application-controlled Devnet demo, not an external yield protocol, bank deposit, or issuer token.",
-  eligibilityLabel: "Available only as a non-monetary Solana Devnet demonstration. No production or jurisdictional availability is implied.",
+  riskLabel: "This is an application-controlled Solana Devnet strategy, not an external yield protocol, bank deposit, or issuer token.",
+  eligibilityLabel: "Available only as a non-monetary Solana Devnet test environment. No production or jurisdictional availability is implied.",
   mintAddress: null,
   sourceUrl: null,
   depositFlow: "onchain",
@@ -41,19 +41,19 @@ export const ONDO_USDY: YieldStrategy = {
 };
 
 /**
- * Kept only to recognize and let existing Devnet demo-share holders exit a
+ * Kept only to recognize and let existing Devnet-share holders exit a
  * historic position. It is deliberately not offered as a new Earn strategy.
  */
 export const KZ_BOND: YieldStrategy = {
   id: "kz-bond-demo",
   slug: "kz-bond",
-  name: "Legacy KZT demo shares",
-  ticker: "vKZGB-DEMO",
-  issuer: "Legacy Devnet demo",
-  description: "New deposits are unavailable. Historic Devnet demo shares can only be redeemed for their configured test-token value.",
+  name: "Legacy KZT Devnet shares",
+  ticker: "vKZGB",
+  issuer: "Legacy Solana Devnet",
+  description: "New deposits are unavailable. Historic Devnet shares can only be redeemed for their configured test-token value.",
   fallbackApy: 0,
-  riskLabel: "No KASE, KZT rail, issuer token, or production provider is connected by this legacy demo entry.",
-  eligibilityLabel: "Not available for new deposits. It exists only so historic Devnet demo-share holders can exit.",
+  riskLabel: "No KASE, KZT rail, issuer token, or production provider is connected by this legacy Devnet entry.",
+  eligibilityLabel: "Not available for new deposits. It exists only so historic Devnet-share holders can exit.",
   mintAddress: null,
   sourceUrl: null,
   depositFlow: "onchain",

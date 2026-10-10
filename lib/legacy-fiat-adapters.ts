@@ -3,7 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 /**
- * These routes predate the Universal Earn Devnet demo and can invoke a card
+ * These routes predate the Universal Earn Devnet environment and can invoke a card
  * provider, mint KZTE, or model a KZT payout. They must never be enabled by
  * an incidental provider key or a client-side feature flag.
  */
@@ -21,7 +21,7 @@ export type LegacyFiatAdapterUnavailable = {
   status: "unavailable";
   code: "LEGACY_FIAT_ADAPTERS_DISABLED";
   adapter: LegacyFiatAdapter;
-  mode: "SIMULATED_DEMO";
+  mode: "DEVNET";
   error: string;
   requiredEnvironment: "ENABLE_LEGACY_FIAT_ADAPTERS=true";
 };
@@ -40,8 +40,8 @@ export function legacyFiatAdapterUnavailableResponse(adapter: LegacyFiatAdapter)
     status: "unavailable",
     code: "LEGACY_FIAT_ADAPTERS_DISABLED",
     adapter,
-    mode: "SIMULATED_DEMO",
-    error: "Устаревший фиатный/KZT-адаптер отключён: Universal Earn Devnet demo не выполняет внешние платежи, выплаты или конвертацию.",
+    mode: "DEVNET",
+    error: "Устаревший фиатный/KZT-адаптер отключён: Universal Earn в Solana Devnet не выполняет внешние платежи, выплаты или конвертацию.",
     requiredEnvironment: "ENABLE_LEGACY_FIAT_ADAPTERS=true",
   };
 

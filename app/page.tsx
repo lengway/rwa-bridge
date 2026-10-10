@@ -23,9 +23,9 @@ type VaultQuote = { productId: string; mint: string; ticker: string };
 
 const questions = [
   { question: "Как войти?", answer: "Укажите email. Кошелёк Solana создаётся автоматически." },
-  { question: "Как формируется цена демо-доли?", answer: "Одна подтверждённая тестовая единица в Solana Devnet соответствует одной демо-доле. Иллюстративная доходность не меняет баланс или цену погашения." },
+  { question: "Как формируется цена Devnet-доли?", answer: "Одна подтверждённая тестовая единица в Solana Devnet соответствует одной Devnet-доле. Иллюстративная доходность не меняет баланс или цену погашения." },
   { question: "Где проверить операции?", answer: "После подтверждения подписи Devnet-операции и адреса токенов доступны в Solana Explorer." },
-  { question: "Это реальный инвестиционный продукт?", answer: "Нет. Это DEVNET DEMO: финансирование и выплата симулированы, а токены и записи не имеют денежной стоимости." },
+  { question: "Это реальный инвестиционный продукт?", answer: "Нет. Это среда Solana Devnet: финансирование и выплата симулированы, а токены и записи не имеют денежной стоимости." },
 ];
 
 export default function LandingPage() {
@@ -39,9 +39,9 @@ export default function LandingPage() {
         <section className="grid gap-8 py-12 sm:grid-cols-[1.2fr_0.8fr] sm:items-center sm:py-20">
           <div className="space-y-6">
             <div className="space-y-4">
-              <Badge variant="secondary">DEVNET DEMO · Universal Earn Gateway</Badge>
+              <Badge variant="secondary">SOLANA DEVNET · Universal Earn Gateway</Badge>
               <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-6xl">
-                Проверяемый Devnet-демо-путь для Earn
+                Проверяемый путь Solana Devnet для Earn
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
                 Вход по email, автоматически созданный Solana-кошелёк и подтверждаемые тестовые операции. SIMULATED FUNDING, ILLUSTRATIVE YIELD и NO MONETARY VALUE обозначены явно.
@@ -59,11 +59,11 @@ export default function LandingPage() {
 
           <Card className="gap-4 rounded-3xl p-5 sm:p-7">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Статус демо</span>
+              <span className="text-sm text-muted-foreground">Статус Devnet</span>
               <ChartNoAxesCombined className="size-4 text-emerald-700 dark:text-emerald-400" />
             </div>
             <div className="grid gap-3">
-              <ProductMetric label="Devnet Demo Strategy" value="ENABLED" />
+              <ProductMetric label="Solana Devnet Strategy" value="ENABLED" />
               <ProductMetric label="Доходность" value="ILLUSTRATIVE · not accrued" />
               <ProductMetric label="Финансирование / погашение" value="SIMULATED · test tokens only" />
             </div>
@@ -75,14 +75,14 @@ export default function LandingPage() {
           <div className="grid gap-3 sm:grid-cols-3">
             <ValueCard icon={<ShieldCheck />} title="Войдите по email" text="Кошелёк Solana создаётся автоматически, без seed-фразы." />
             <ValueCard icon={<ChartNoAxesCombined />} title="Подготовьте тестовые единицы" text="SIMULATED FUNDING не принимает фиат и не представляет банковский или карточный платёж." />
-            <ValueCard icon={<Building2 />} title="Подтвердите Devnet-операцию" text="Демо-доли выпускаются или погашаются только после проверки подписи, суммы и сети." />
+            <ValueCard icon={<Building2 />} title="Подтвердите Devnet-операцию" text="Devnet-доли выпускаются или погашаются только после проверки подписи, суммы и сети." />
           </div>
         </section>
 
         <section className="space-y-5 py-8">
           <SectionHeading eyebrow="Стратегия" title="Одна честно реализованная Devnet-стратегия" description="Внешние протоколы, KZT-рельсы и off-ramp не включены без подтверждённой интеграции и доступности." />
           <div className="grid gap-3 sm:grid-cols-1">
-            <ProductCard title="Devnet Demo Strategy" ticker="vUSDY-DEMO" label="DEVNET DEMO" detail="Подтверждённый пользовательский перевод тестового токена выпускает демо-долю 1:1. ILLUSTRATIVE YIELD не является заработанным или on-chain доходом." href="/earn/ondo-usdy" />
+            <ProductCard title="Solana Devnet Strategy" ticker="vUSDY · TEST TOKEN" label="SOLANA DEVNET" detail="Подтверждённый пользовательский перевод тестового токена выпускает Devnet-долю 1:1. ILLUSTRATIVE YIELD не является заработанным или on-chain доходом." href="/earn/ondo-usdy" />
           </div>
         </section>
 
@@ -116,7 +116,7 @@ export default function LandingPage() {
         <section className="my-8 flex flex-col gap-4 rounded-3xl border bg-card p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div>
             <h2 className="text-xl font-semibold">Откройте приложение</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Войдите по email и проверьте демо-путь без денежной стоимости.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Войдите по email и проверьте путь Solana Devnet без денежной стоимости.</p>
           </div>
           <Button size="lg" nativeButton={false} render={<Link href="/home" />}>Начать <ArrowRight /></Button>
         </section>
@@ -154,14 +154,14 @@ function NetworkAssets() {
 
   const vaultMint = (productId: string, fallback: string | null | undefined) => quotes.find((quote) => quote.productId === productId)?.mint || fallback || null;
   const addresses = [
-    { label: "Тестовый quote token", ticker: "QUOTE-DEMO", address: status?.usdMint },
-    { label: "Демо-доля Earn", ticker: "vUSDY-DEMO", address: vaultMint("ondo-usdy", status?.vaultUsdyMint) },
+    { label: "Тестовый quote token", ticker: "QUOTE · TEST TOKEN", address: status?.usdMint },
+    { label: "Доля Earn в Solana Devnet", ticker: "vUSDY · TEST TOKEN", address: vaultMint("ondo-usdy", status?.vaultUsdyMint) },
     { label: "Казначейство тестового quote token", ticker: "Treasury", address: status?.treasury },
   ];
 
   return (
     <section className="space-y-5 py-8">
-      <SectionHeading eyebrow="Проверяемая инфраструктура" title="Только Devnet" description="Mint-адреса демо-стратегии и казначейства. Откройте запись в Solana Explorer." />
+      <SectionHeading eyebrow="Проверяемая инфраструктура" title="Только Devnet" description="Mint-адреса стратегии Solana Devnet и казначейства. Откройте запись в Solana Explorer." />
       <Card className="divide-y rounded-2xl p-0">
         {addresses.map((item) => <NetworkAddressRow key={item.ticker} {...item} loading={loading} />)}
       </Card>

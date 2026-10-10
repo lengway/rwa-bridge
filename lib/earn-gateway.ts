@@ -1,7 +1,7 @@
 /**
  * Pure, dependency-free contract for the first Universal Earn catalog.
  *
- * This catalog deliberately models only a Devnet demo. It does not build,
+ * This catalog deliberately models only a controlled Devnet environment. It does not build,
  * sign, submit, or confirm transactions; integrations must apply their own
  * wallet/RPC checks in addition to the guards below.
  */
@@ -22,7 +22,7 @@ export type EarnPayoutKind = "SIMULATED" | "UNAVAILABLE";
 export type EarnYieldKind = "ILLUSTRATIVE" | "UNAVAILABLE";
 
 export const EARN_REQUIRED_DISCLOSURE_LABELS = [
-  "DEVNET DEMO",
+  "SOLANA DEVNET",
   "SIMULATED FUNDING",
   "ILLUSTRATIVE YIELD",
   "NO MONETARY VALUE",
@@ -111,6 +111,22 @@ export type EarnStrategy = Readonly<{
 }>;
 
 /**
+ * Browser-facing catalog values deliberately describe the actual cluster and
+ * product surface without exposing internal implementation identifiers. The
+ * explicit funding, payout, yield, and no-value disclosures remain intact.
+ */
+export type PublicEarnProviderId = "PLAIN_DEVNET" | Exclude<EarnProviderId, "SIMULATED_DEMO">;
+export type PublicEarnStrategyMode = "DEVNET" | Exclude<EarnStrategyMode, "SIMULATED_DEMO">;
+export type PublicEarnStrategy = Readonly<
+  Omit<EarnStrategy, "id" | "provider" | "mode" | "source"> & {
+    id: string;
+    provider: PublicEarnProviderId;
+    mode: PublicEarnStrategyMode;
+    source: Omit<EarnSourceMetadata, "provider"> & { provider: PublicEarnProviderId };
+  }
+>;
+
+/**
  * A normalized, JSON-safe position shape for provider adapters. The current
  * demo keeps its durable action records in the Devnet ledger; this contract
  * keeps later providers from reintroducing floating-point balances or inferred
@@ -181,8 +197,8 @@ export class EarnGatewayError extends Error {
 
 const REQUIRED_DISCLOSURES: readonly EarnDisclosure[] = [
   {
-    label: "DEVNET DEMO",
-    text: "DEVNET DEMO — this strategy is limited to Solana Devnet.",
+    label: "SOLANA DEVNET",
+    text: "SOLANA DEVNET — this strategy is limited to the Solana Devnet cluster.",
   },
   {
     label: "SIMULATED FUNDING",
@@ -239,15 +255,15 @@ const REDEMPTION_ONLY_CAPABILITIES: EarnStrategyCapabilities = {
 export const EARN_STRATEGIES: readonly EarnStrategy[] = [
   {
     id: "devnet-simulated-demo",
-    name: "Devnet Demo Strategy",
+    name: "Devnet Earn Strategy",
     provider: "SIMULATED_DEMO",
     source: {
       provider: "SIMULATED_DEMO",
-      label: "Internal Devnet demo ledger",
-      statusNote: "A demo-only strategy using explicit simulated funding, payout, and illustrative yield metadata.",
+      label: "Internal Solana Devnet ledger",
+      statusNote: "A Devnet strategy with explicit simulated funding, payout, and illustrative yield metadata.",
       referenceUrl: null,
     },
-    sourceLabel: "Internal Devnet demo ledger",
+    sourceLabel: "Internal Solana Devnet ledger",
     network: EARN_DEVNET_CLUSTER,
     mode: "SIMULATED_DEMO",
     availability: "ENABLED",
@@ -257,14 +273,14 @@ export const EARN_STRATEGIES: readonly EarnStrategy[] = [
     funding: {
       kind: "SIMULATED",
       label: "SIMULATED FUNDING",
-      description: "Records a demo funding intent only; no fiat payment is collected.",
+      description: "Records a simulated Devnet funding intent only; no fiat payment is collected.",
       acceptsFiat: false,
     },
     payoutKind: "SIMULATED",
     payout: {
       kind: "SIMULATED",
       label: "SIMULATED PAYOUT",
-      description: "Records a demo payout only; no fiat or off-ramp transfer is sent.",
+      description: "Records a simulated Devnet payout only; no fiat or off-ramp transfer is sent.",
       sendsFiat: false,
     },
     yieldKind: "ILLUSTRATIVE",
@@ -278,32 +294,32 @@ export const EARN_STRATEGIES: readonly EarnStrategy[] = [
   },
   {
     id: "legacy-devnet-redemption",
-    name: "Legacy Devnet demo redemption",
+    name: "Legacy Devnet redemption",
     provider: "SIMULATED_DEMO",
     source: {
       provider: "SIMULATED_DEMO",
-      label: "Legacy Devnet demo ledger",
-      statusNote: "Historic demo shares may be redeemed only; new funding, quotes, and deposits are disabled.",
+      label: "Legacy Solana Devnet ledger",
+      statusNote: "Historic Devnet shares may be redeemed only; new funding, quotes, and deposits are disabled.",
       referenceUrl: null,
     },
-    sourceLabel: "Legacy Devnet demo ledger",
+    sourceLabel: "Legacy Solana Devnet ledger",
     network: EARN_DEVNET_CLUSTER,
     mode: "SIMULATED_DEMO",
     availability: "REDEMPTION_ONLY",
-    availabilityReason: "This historic Devnet demo entry supports exit only and is not offered for new deposits.",
+    availabilityReason: "This historic Devnet entry supports exit only and is not offered for new deposits.",
     capabilities: REDEMPTION_ONLY_CAPABILITIES,
     fundingKind: "UNAVAILABLE",
     funding: {
       kind: "UNAVAILABLE",
       label: "Funding unavailable",
-      description: "Historic demo shares cannot receive new funding.",
+      description: "Historic Devnet shares cannot receive new funding.",
       acceptsFiat: false,
     },
     payoutKind: "SIMULATED",
     payout: {
       kind: "SIMULATED",
       label: "SIMULATED PAYOUT",
-      description: "A legacy demo redemption returns Devnet test tokens only; no fiat or off-ramp transfer is sent.",
+      description: "A legacy redemption returns Devnet test tokens only; no fiat or off-ramp transfer is sent.",
       sendsFiat: false,
     },
     yieldKind: "ILLUSTRATIVE",
@@ -311,7 +327,7 @@ export const EARN_STRATEGIES: readonly EarnStrategy[] = [
       kind: "ILLUSTRATIVE",
       label: "ILLUSTRATIVE YIELD",
       apyBps: null,
-      sourceNote: "Historic demo positions do not accrue real or on-chain yield.",
+      sourceNote: "Historic Devnet positions do not accrue real or on-chain yield.",
     },
     disclosures: REQUIRED_DISCLOSURES,
   },
@@ -394,6 +410,33 @@ export const EARN_STRATEGIES: readonly EarnStrategy[] = [
     disclosures: REQUIRED_DISCLOSURES,
   },
 ];
+
+const PUBLIC_EARN_STRATEGY_IDS: Readonly<Record<EarnStrategyId, string>> = {
+  "devnet-simulated-demo": "devnet-simulated-earn",
+  "legacy-devnet-redemption": "legacy-devnet-redemption",
+  "kamino-devnet-placeholder": "kamino-devnet-placeholder",
+  "native-sol-stake-placeholder": "native-sol-stake-placeholder",
+};
+
+export function toPublicEarnStrategy(strategy: EarnStrategy): PublicEarnStrategy {
+  const provider: PublicEarnProviderId = strategy.provider === "SIMULATED_DEMO"
+    ? "PLAIN_DEVNET"
+    : strategy.provider;
+  const mode: PublicEarnStrategyMode = strategy.mode === "SIMULATED_DEMO"
+    ? "DEVNET"
+    : strategy.mode;
+
+  return {
+    ...strategy,
+    id: PUBLIC_EARN_STRATEGY_IDS[strategy.id],
+    provider,
+    mode,
+    source: {
+      ...strategy.source,
+      provider,
+    },
+  };
+}
 
 export const ENABLED_EARN_STRATEGIES: readonly EarnStrategy[] = EARN_STRATEGIES.filter(
   (strategy) => strategy.availability === "ENABLED",

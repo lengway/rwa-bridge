@@ -3,7 +3,7 @@ import "server-only";
 import { devnetConfig } from "@/lib/solana-server";
 import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
 
-// Demo shares settle one-for-one with the Devnet test token. A reference APY
+// Devnet shares settle one-for-one with the Devnet test token. A reference APY
 // is useful for an illustrative calculator, but it must never reprice a share
 // or be counted as money earned by a position.
 export const DEMO_SHARE_PRICE_USD = 1;
@@ -18,12 +18,12 @@ export const VAULT_PRODUCTS: Record<string, VaultProduct> = {
   "ondo-usdy": {
     productId: "ondo-usdy",
     mint: devnetConfig.vaultUsdyMint,
-    ticker: "vUSDY-DEMO",
+    ticker: "vUSDY",
   },
   "kz-bond-demo": {
     productId: "kz-bond-demo",
     mint: devnetConfig.vaultKzgbMint,
-    ticker: "vKZGB-DEMO",
+    ticker: "vKZGB",
   },
 };
 

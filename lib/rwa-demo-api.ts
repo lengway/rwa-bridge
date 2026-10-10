@@ -63,7 +63,7 @@ export async function readOptionalDemoJson(request: Request) {
 export async function requireDemoSession(request: Request, clientWalletAddress?: unknown): Promise<DemoSession> {
   const session = await getSessionWallet(request);
   if (!session) {
-    throw new RwaDemoRequestError(401, "SESSION_REQUIRED", "Sign in with the app wallet to use the Devnet demo.");
+    throw new RwaDemoRequestError(401, "SESSION_REQUIRED", "Sign in with the app wallet to use Solana Devnet.");
   }
   if (clientWalletAddress !== undefined) {
     if (typeof clientWalletAddress !== "string" || !clientWalletAddress.trim()) {
@@ -109,10 +109,10 @@ export function demoErrorResponse(error: unknown) {
   }
   if (error instanceof RwaDemoConfigError) {
     // Configuration details can reveal deployment topology. The client only
-    // needs to know the demo is intentionally unavailable.
-    return NextResponse.json({ error: "The Devnet demo is not available in this environment.", code: "DEMO_UNAVAILABLE" }, { status: 503 });
+    // needs to know the Devnet service is intentionally unavailable.
+    return NextResponse.json({ error: "The Solana Devnet service is not available in this environment.", code: "DEVNET_UNAVAILABLE" }, { status: 503 });
   }
-  return NextResponse.json({ error: "Unable to process the Devnet demo request.", code: "DEMO_ERROR" }, { status: 500 });
+  return NextResponse.json({ error: "Unable to process the Solana Devnet request.", code: "DEVNET_REQUEST_ERROR" }, { status: 500 });
 }
 
 function priceImpactBps(value: string | null) {
@@ -140,7 +140,7 @@ export function demoQuoteResponse(quote: RwaDemoQuoteRecord) {
     poolAddress: quote.poolAddress,
     route: RWA_DEMO_ROUTE,
     network: RWA_DEMO_NETWORK,
-    isDemo: true,
+    isDevnetTest: true,
     createdAt: quote.createdAt,
     expiresAt: quote.expiresAt,
     disclosure: RWA_DEMO_SWAP_DISCLOSURE,
@@ -170,14 +170,14 @@ export function demoFundingResponse(event: RwaDemoFundingEvent) {
     id: event.id,
     status: event.status,
     requestedKztAmount: event.requestedKztAmount,
-    demoRate: event.demoRateKztPerQuoteToken,
+    simulatedRate: event.demoRateKztPerQuoteToken,
     quoteTokenAmountAtomic: event.quoteTokenAmountAtomic,
     mintSignature: event.mintSignature ?? null,
     mintExplorerUrl: event.mintSignature
       ? `https://explorer.solana.com/tx/${event.mintSignature}?cluster=devnet`
       : null,
     network: RWA_DEMO_NETWORK,
-    isDemo: true,
+    isDevnetTest: true,
     disclosure: RWA_DEMO_FUNDING_DISCLOSURE,
     createdAt: event.createdAt,
     updatedAt: event.updatedAt,
@@ -192,7 +192,7 @@ export function demoPayoutResponse(event: RwaDemoPayoutEvent) {
     quoteTokenAmountAtomic: event.quoteTokenAmountAtomic,
     simulatedKztAmount: event.simulatedKztAmount,
     network: RWA_DEMO_NETWORK,
-    isDemo: true,
+    isDevnetTest: true,
     disclosure: event.disclosure || RWA_DEMO_PAYOUT_DISCLOSURE,
     createdAt: event.createdAt,
     updatedAt: event.updatedAt,

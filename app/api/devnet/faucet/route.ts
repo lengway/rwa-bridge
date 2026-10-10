@@ -139,7 +139,7 @@ export async function POST(request: Request) {
   // as simulated Devnet funding, never as a fiat on-ramp or production rail.
   if (process.env.ENABLE_LEGACY_DEVNET_FAUCET !== "true") {
     return NextResponse.json({
-      error: "Демо-кран выключен. Включите ENABLE_LEGACY_DEVNET_FAUCET=true только для контролируемого Devnet-демо.",
+      error: "Тестовый issuer выключен. Включите ENABLE_LEGACY_DEVNET_FAUCET=true только для контролируемой среды Solana Devnet.",
       code: "DEVNET_FAUCET_DISABLED",
     }, { status: 503 });
   }

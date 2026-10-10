@@ -41,11 +41,11 @@ export function RwaDemoLauncher({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-semibold">RWA-DEMO</p>
-              <Badge variant="secondary">DEVNET DEMO</Badge>
+              <p className="font-semibold">RWA · Solana Devnet</p>
+              <Badge variant="secondary">SOLANA DEVNET</Badge>
               <Badge variant="outline">NO MONETARY VALUE</Badge>
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">Цифровая доля в демонстрационном портфеле. Начните с небольшой суммы тестового токена расчёта.</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Цифровая доля в портфеле Solana Devnet. Начните с небольшой суммы тестового токена расчёта.</p>
           </div>
           <ShieldCheck className="mt-0.5 size-5 text-muted-foreground" />
         </div>
@@ -84,7 +84,7 @@ type Funding = {
   id: string;
   status: string;
   requestedKztAmount: string;
-  demoRate: string | null;
+  simulatedRate: string | null;
   quoteTokenAmountAtomic: string;
   mintSignature: string | null;
   mintExplorerUrl: string | null;
@@ -137,10 +137,18 @@ class DemoApiError extends Error {
   }
 }
 
-const SIMULATED_FUNDING_DISCLOSURE = "SIMULATED FUNDING · демо-пополнение, реальный платёж не проводится";
-const SIMULATED_PAYOUT_DISCLOSURE = "Демо-выплата · банковский перевод не создаётся";
-const DEVNET_TOKEN_DISCLOSURE = "DEVNET DEMO · NO MONETARY VALUE · используются тестовые средства, без прав на реальный актив.";
-const DEVNET_SWAP_DISCLOSURE = "Демо-операция · без реальных средств и прав на актив";
+const SIMULATED_FUNDING_DISCLOSURE = "SIMULATED FUNDING · тестовое пополнение, реальный платёж не проводится";
+const SIMULATED_PAYOUT_DISCLOSURE = "SIMULATED PAYOUT · банковский перевод не создаётся";
+const DEVNET_TOKEN_DISCLOSURE = "SOLANA DEVNET · NO MONETARY VALUE · используются тестовые средства, без прав на реальный актив.";
+const DEVNET_SWAP_DISCLOSURE = "Операция Solana Devnet · без реальных средств и прав на актив";
+
+function displayDevnetSymbol(symbol: string) {
+  return symbol.endsWith("-DEMO") ? symbol.slice(0, -"-DEMO".length) : symbol;
+}
+
+function displayRwaAssetName(asset: Pick<DemoAsset, "id" | "name">) {
+  return asset.id === "rwa-demo" ? "RWA · Solana Devnet" : asset.name;
+}
 
 export function RwaDemoDrawer({
   open,
@@ -172,7 +180,7 @@ export function RwaDemoDrawer({
   const walletMismatch = Boolean(wallet?.address && devnet.walletAddress && wallet.address !== devnet.walletAddress);
   const isDevnet = asset?.network.toLowerCase() === "devnet";
   const externalQuoteMint = asset?.externalQuoteMint === true;
-  const quoteSymbol = asset?.quoteSymbol ?? "QUOTE-DEMO";
+  const quoteSymbol = displayDevnetSymbol(asset?.quoteSymbol ?? "QUOTE-DEMO");
   const demoReady = Boolean(asset && configured && isDevnet && asset.tradeEnabled && wallet && walletAddress && !walletMismatch);
   const buyInputAtomic = useMemo(
     () => asset ? decimalToAtomic(buyInput, asset.quoteDecimals) : null,
@@ -223,7 +231,7 @@ export function RwaDemoDrawer({
         ? assets.find((item) => item.id === assetId)
         : assets.find((item) => item.id === "rwa-demo") ?? assets[0];
       if (!selected) {
-        throw new DemoApiError("Демонстрационный актив пока недоступен.", 503);
+        throw new DemoApiError("Актив Solana Devnet пока недоступен.", 503);
       }
       if (assetId && selected.id !== assetId) {
         throw new DemoApiError("Этот актив сейчас недоступен.", 404);
@@ -257,7 +265,7 @@ export function RwaDemoDrawer({
     if (!demoReady || busy || !walletAddress || funding || externalQuoteMint) return;
     const requestedKztAmount = parseKztInput(kztInput);
     if (requestedKztAmount === null) {
-      setError({ message: "Укажите корректную сумму для демонстрационного пополнения.", retryStage: null });
+      setError({ message: "Укажите корректную сумму для тестового пополнения.", retryStage: null });
       return;
     }
     setBusy("funding");
@@ -276,7 +284,7 @@ export function RwaDemoDrawer({
       });
       const response = asRecord(payload);
       const nextFunding = normalizeFunding(response?.funding);
-      if (!nextFunding) throw new DemoApiError("Не удалось подготовить демонстрационное пополнение.", 502);
+      if (!nextFunding) throw new DemoApiError("Не удалось подготовить тестовое пополнение.", 502);
       setFunding(nextFunding);
       clearTrade();
       setNotice(nextFunding.status === "TEST_TOKEN_ISSUED"
@@ -448,11 +456,11 @@ export function RwaDemoDrawer({
       });
       const response = asRecord(payload);
       const nextPayout = normalizePayout(response?.payout);
-      if (!nextPayout) throw new DemoApiError("Не удалось подготовить демонстрационную запись о выплате.", 502);
+      if (!nextPayout) throw new DemoApiError("Не удалось подготовить запись о симулируемой выплате.", 502);
       setPayout(nextPayout);
       setNotice(nextPayout.status === "SIMULATED_CONFIRMED"
-        ? "Демонстрационная запись о выплате готова. Банковский перевод не отправлялся."
-        : "Демонстрационная запись о выплате создана. Банковский перевод не отправлялся.");
+        ? "Запись о симулируемой выплате готова. Банковский перевод не отправлялся."
+        : "Запись о симулируемой выплате создана. Банковский перевод не отправлялся.");
     } catch (requestError) {
       setError({ message: userFacingError(requestError, "Не удалось подготовить запись о выплате."), retryStage: "payout" });
     } finally {
@@ -482,14 +490,14 @@ export function RwaDemoDrawer({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      title="RWA-DEMO"
-      description="DEVNET DEMO · тестовый токен расчёта и доли не имеют денежной стоимости."
+      title="RWA · Solana Devnet"
+      description="SOLANA DEVNET · тестовый токен расчёта и доли не имеют денежной стоимости."
     >
       {successfulBuy ? (
         <DrawerSuccess
           amount={0}
-          amountLabel={`+ ${formatAtomic(completedOrder.actualOutputAmountAtomic ?? quote?.expectedOutputAtomic ?? "0", asset?.decimals ?? 0)} ${asset?.symbol ?? "RWA-DEMO"}`}
-          sentence="Покупка демо-доли подтверждена."
+          amountLabel={`+ ${formatAtomic(completedOrder.actualOutputAmountAtomic ?? quote?.expectedOutputAtomic ?? "0", asset?.decimals ?? 0)} ${displayDevnetSymbol(asset?.symbol ?? "RWA-DEMO")}`}
+          sentence="Покупка Devnet-доли подтверждена."
           note={DEVNET_SWAP_DISCLOSURE}
           explorerUrl={completedOrder.explorerUrl ?? explorerForSignature(completedOrder.signature)}
           onDone={() => changeOpen(false)}
@@ -511,7 +519,7 @@ export function RwaDemoDrawer({
         <DrawerSuccess
           amount={0}
           amountLabel={`${payout.simulatedKztAmount ?? "0"} ₸`}
-          sentence="После продажи создана учебная запись о выплате."
+          sentence="После продажи создана запись о симулируемой выплате."
           note={SIMULATED_PAYOUT_DISCLOSURE}
           explorerUrl={completedOrder?.explorerUrl ?? explorerForSignature(completedOrder?.signature ?? null)}
           onDone={() => changeOpen(false)}
@@ -521,12 +529,12 @@ export function RwaDemoDrawer({
       ) : (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">DEVNET DEMO</Badge>
+            <Badge variant="secondary">SOLANA DEVNET</Badge>
             <Badge variant="outline">SIMULATED FUNDING</Badge>
             <Badge variant="outline">NO MONETARY VALUE</Badge>
           </div>
 
-          {busy === "assets" ? <LoadingLine label="Готовим демо-покупку…" /> : null}
+          {busy === "assets" ? <LoadingLine label="Готовим покупку в Solana Devnet…" /> : null}
           {!busy && !asset && !error ? <EmptyState onRetry={() => void loadAssets()} /> : null}
 
           {asset ? (
@@ -535,7 +543,7 @@ export function RwaDemoDrawer({
               <p className="text-center text-xs leading-5 text-muted-foreground">{DEVNET_TOKEN_DISCLOSURE}</p>
 
               {!configured ? (
-                <GuardAlert title="Демо пока недоступно">
+                <GuardAlert title="Solana Devnet пока недоступен">
                   Подготовка ещё не завершена. Попробуйте обновить страницу через минуту.
                 </GuardAlert>
               ) : null}
@@ -611,7 +619,7 @@ export function RwaDemoDrawer({
               ) : (
                 <SellPanel
                   value={sellInput}
-                  symbol={asset.symbol}
+                  symbol={displayDevnetSymbol(asset.symbol)}
                   disabled={!demoReady || Boolean(busy)}
                   onValueChange={(value) => {
                     setSellInput(value);
@@ -686,7 +694,7 @@ export function RwaDemoDrawer({
                 <Card className="gap-3 rounded-2xl p-4">
                   <div>
                     <p className="font-medium">Продажа подтверждена</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Можно создать демонстрационную запись о выплате. Банковский перевод не будет отправлен.</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">Можно создать запись о симулируемой выплате. Банковский перевод не будет отправлен.</p>
                   </div>
                   <Button className="w-full" onClick={() => void createPayout()} disabled={Boolean(busy)}>
                     {busy === "payout" ? <><LoaderCircle className="animate-spin" />Готовим запись о выплате…</> : "Создать запись о выплате"}
@@ -722,7 +730,7 @@ function FundingPanel({
     <Card className="gap-4 rounded-2xl p-4">
       <div className="space-y-1">
         <p className="font-medium">Сумма пополнения</p>
-        <p className="text-xs leading-5 text-muted-foreground">Укажите сумму для демонстрационного баланса.</p>
+        <p className="text-xs leading-5 text-muted-foreground">Укажите сумму для тестового баланса Solana Devnet.</p>
       </div>
       <label className="space-y-1.5 text-sm">
         <span className="font-medium">Сумма</span>
@@ -735,13 +743,13 @@ function FundingPanel({
             onChange={(event) => onValueChange(event.target.value.replace(/[^0-9]/g, ""))}
             disabled={disabled}
             className="h-11 text-lg tabular-nums"
-            aria-label="Сумма демонстрационного пополнения"
+            aria-label="Сумма тестового пополнения"
           />
           <span className="text-sm font-medium">₸</span>
         </div>
       </label>
       <Button className="w-full" variant="outline" onClick={onFunding} disabled={disabled || Boolean(funding) || parseKztInput(value) === null}>
-        Пополнить демонстрационный баланс
+        Пополнить тестовый баланс
       </Button>
       {funding ? (
         <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5">
@@ -754,7 +762,7 @@ function FundingPanel({
             <summary className="cursor-pointer font-medium text-foreground">Подробнее</summary>
             <div className="space-y-2 pt-2">
               <p>{funding.disclosure || SIMULATED_FUNDING_DISCLOSURE}.</p>
-              {funding.demoRate ? <p>Демонстрационный курс: {funding.demoRate} KZT за {quoteSymbol}.</p> : null}
+              {funding.simulatedRate ? <p>Симулируемый курс: {funding.simulatedRate} KZT за {quoteSymbol}.</p> : null}
               {funding.mintExplorerUrl ? <ExplorerLink href={funding.mintExplorerUrl} label="Открыть технические сведения" /> : null}
             </div>
           </details>
@@ -850,8 +858,8 @@ function SellPanel({
 }
 
 function QuoteCard({ quote, asset }: { quote: DemoQuote; asset: DemoAsset }) {
-  const inputSymbol = quote.side === "BUY" ? asset.quoteSymbol : asset.symbol;
-  const outputSymbol = quote.side === "BUY" ? asset.symbol : asset.quoteSymbol;
+  const inputSymbol = displayDevnetSymbol(quote.side === "BUY" ? asset.quoteSymbol : asset.symbol);
+  const outputSymbol = displayDevnetSymbol(quote.side === "BUY" ? asset.symbol : asset.quoteSymbol);
   const inputDecimals = quote.side === "BUY" ? asset.quoteDecimals : asset.decimals;
   const outputDecimals = quote.side === "BUY" ? asset.decimals : asset.quoteDecimals;
   const priceImpactPercent = quote.priceImpactBps === null ? null : quote.priceImpactBps / 100;
@@ -870,7 +878,7 @@ function QuoteCard({ quote, asset }: { quote: DemoQuote; asset: DemoAsset }) {
       <QuoteRow label="Не менее" value={`${formatAtomic(quote.minimumOutputAtomic, outputDecimals)} ${outputSymbol}`} />
       {priceImpactPercent !== null && priceImpactPercent >= 2 ? (
         <Disclosure>
-          <p className="font-medium">Эта сумма заметно влияет на цену в демо-пуле.</p>
+          <p className="font-medium">Эта сумма заметно влияет на цену в Devnet-пуле.</p>
           <p>Результат может быть ниже обычного. Рассмотрите меньшую сумму перед подтверждением.</p>
         </Disclosure>
       ) : null}
@@ -902,25 +910,25 @@ function AssetCard({
     <Card className="gap-3 rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-semibold">{asset.name}</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Цифровая доля в демонстрационном портфеле.</p>
+          <p className="font-semibold">{displayRwaAssetName(asset)}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Цифровая доля в портфеле Solana Devnet.</p>
         </div>
         <Badge variant={configured && asset.tradeEnabled ? "secondary" : "outline"}>{configured && asset.tradeEnabled ? "Доступно" : "Недоступно"}</Badge>
       </div>
       <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs">
-        <QuoteRow label="Валюта расчёта" value={asset.quoteSymbol} />
-        <QuoteRow label="Статус" value={configured && asset.tradeEnabled ? "Открыто для демо-покупки" : "Временно недоступно"} />
+        <QuoteRow label="Валюта расчёта" value={displayDevnetSymbol(asset.quoteSymbol)} />
+        <QuoteRow label="Статус" value={configured && asset.tradeEnabled ? "Открыто для покупки в Solana Devnet" : "Временно недоступно"} />
       </div>
       <details className="rounded-xl bg-muted/50 px-3 py-2 text-xs leading-5 text-muted-foreground">
         <summary className="cursor-pointer font-medium text-foreground">Технические сведения</summary>
         <div className="space-y-2 pt-3">
           <QuoteRow label="Сеть" value={asset.network || "—"} />
-          <QuoteRow label="Токен расчёта" value={asset.quoteSymbol} />
+          <QuoteRow label="Токен расчёта" value={displayDevnetSymbol(asset.quoteSymbol)} />
           <QuoteRow label="Пул" value={asset.poolAddress ? shortenAddress(asset.poolAddress) : "Не настроен"} />
           <QuoteRow label="Маршрут" value="Direct Meteora DLMM Devnet" />
           <div className="flex flex-wrap gap-2 pt-1">
             {asset.explorerUrl ? <ExplorerLink href={asset.explorerUrl} label="Токен RWA" /> : null}
-            {asset.quoteMintExplorerUrl ? <ExplorerLink href={asset.quoteMintExplorerUrl} label={`Токен ${asset.quoteSymbol}`} /> : null}
+            {asset.quoteMintExplorerUrl ? <ExplorerLink href={asset.quoteMintExplorerUrl} label={`Токен ${displayDevnetSymbol(asset.quoteSymbol)}`} /> : null}
             {asset.poolExplorerUrl ? <ExplorerLink href={asset.poolExplorerUrl} label="Пул" /> : null}
           </div>
           <p className="pt-1">{disclosure ?? asset.rightsDisclosure}</p>
@@ -962,7 +970,7 @@ function EmptyState({ onRetry }: { onRetry: () => void }) {
     <Card className="items-center gap-3 rounded-2xl p-5 text-center">
       <AlertTriangle className="size-5 text-muted-foreground" />
       <div>
-        <p className="font-medium">RWA-DEMO пока недоступен</p>
+        <p className="font-medium">RWA Solana Devnet пока недоступен</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">Попробуйте обновить данные через минуту.</p>
       </div>
       <Button variant="outline" onClick={onRetry}><RefreshCw />Обновить</Button>
@@ -1027,7 +1035,7 @@ function normalizeFunding(value: unknown): Funding | null {
     id,
     status,
     requestedKztAmount,
-    demoRate: readString(source?.demoRate),
+    simulatedRate: readString(source?.simulatedRate),
     quoteTokenAmountAtomic,
     mintSignature: readString(source?.mintSignature),
     mintExplorerUrl: readString(source?.mintExplorerUrl),

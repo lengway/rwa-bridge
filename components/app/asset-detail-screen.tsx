@@ -23,7 +23,7 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
         <TestAssetArtwork ticker={asset.ticker} />
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{asset.ticker}</Badge>
-          <Badge variant="secondary">DEVNET DEMO</Badge>
+          <Badge variant="secondary">SOLANA DEVNET</Badge>
           <Badge variant="outline">NO MONETARY VALUE</Badge>
         </div>
         <div>

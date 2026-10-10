@@ -16,16 +16,16 @@ export function RwaDemoScreen() {
     <div className="space-y-6">
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">DEVNET DEMO</Badge>
+          <Badge variant="secondary">SOLANA DEVNET</Badge>
           <Badge variant="outline">SIMULATED FUNDING</Badge>
           <Badge variant="outline">NO MONETARY VALUE</Badge>
         </div>
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">
-            RWA-DEMO
+            RWA · Solana Devnet
           </h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Цифровая доля в демонстрационном портфеле. Выберите сумму, проверьте
+            Цифровая доля в портфеле Solana Devnet. Выберите сумму, проверьте
             условия и подтвердите покупку.
           </p>
         </div>
@@ -44,15 +44,15 @@ export function RwaDemoScreen() {
           </li>
           <li>
             <span className="font-medium text-foreground">3. Подтвердите.</span>{" "}
-            Кошелёк попросит подтвердить демонстрационную операцию.
+            Кошелёк попросит подтвердить операцию Solana Devnet.
           </li>
         </ol>
       </Card>
 
       <p className="text-center text-xs leading-5 text-muted-foreground">
         {devnet.walletAddress
-          ? "DEVNET DEMO: операция использует тестовый токен расчёта и не создаёт прав на реальный актив или денежную выплату."
-          : "Войдите в приложение, чтобы продолжить в демонстрационном режиме."}
+          ? "SOLANA DEVNET: операция использует тестовый токен расчёта и не создаёт прав на реальный актив или денежную выплату."
+          : "Войдите в приложение, чтобы продолжить в среде Solana Devnet."}
       </p>
 
       <RwaDemoLauncher onTradeConfirmed={() => void devnet.refreshPortfolio()} />

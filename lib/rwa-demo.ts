@@ -102,7 +102,7 @@ export function quoteAtomicFromKzt({
   quoteDecimals: number;
 }): bigint {
   if (kztPerQuoteToken <= BigInt(0)) {
-    throw new RwaDemoValidationError("Demo KZT rate must be greater than zero.");
+    throw new RwaDemoValidationError("Simulated KZT rate must be greater than zero.");
   }
   return (requestedKzt * tokenScale(quoteDecimals)) / kztPerQuoteToken;
 }
@@ -142,7 +142,7 @@ export function assertOrderTransition(from: RwaDemoOrderStatus, to: RwaDemoOrder
     NEEDS_REVIEW: new Set(),
   };
   if (!transitions[from].has(to)) {
-    throw new RwaDemoValidationError(`Invalid RWA demo order state transition: ${from} -> ${to}.`);
+    throw new RwaDemoValidationError(`Invalid Devnet test-asset order state transition: ${from} -> ${to}.`);
   }
 }
 

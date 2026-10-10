@@ -56,7 +56,7 @@ export type MeteoraDemoQuote = {
   poolAddress: string;
   route: typeof RWA_DEMO_ROUTE;
   network: typeof RWA_DEMO_NETWORK;
-  isDemo: true;
+  isDevnetTest: true;
   expiresAt: number;
 };
 
@@ -102,7 +102,7 @@ async function loadVerifiedPool(): Promise<LoadedPool> {
   const poolMints = [pool.tokenX.publicKey.toBase58(), pool.tokenY.publicKey.toBase58()];
   const expectedMints = [config.quoteMint.toBase58(), config.rwaMint.toBase58()];
   if (!expectedMints.every((mint) => poolMints.includes(mint))) {
-    throw new MeteoraDevnetError("POOL_MINT_MISMATCH", "Configured demo mints do not match the configured Meteora pool.");
+    throw new MeteoraDevnetError("POOL_MINT_MISMATCH", "Configured Devnet test-token mints do not match the configured Meteora pool.");
   }
   let quoteMintInfo;
   let rwaMintInfo;
@@ -112,7 +112,7 @@ async function loadVerifiedPool(): Promise<LoadedPool> {
       getMint(connection, config.rwaMint, "confirmed", TOKEN_PROGRAM_ID),
     ]);
   } catch {
-    throw new MeteoraDevnetError("MINT_UNAVAILABLE", "Configured demo mint account could not be verified on Devnet.");
+    throw new MeteoraDevnetError("MINT_UNAVAILABLE", "Configured Devnet test-token mint account could not be verified.");
   }
   if (quoteMintInfo.decimals !== config.quoteDecimals) {
     throw new MeteoraDevnetError("QUOTE_DECIMALS_MISMATCH", "DEVNET_QUOTE_DECIMALS does not match DEVNET_QUOTE_MINT.");
@@ -126,7 +126,7 @@ function poolDirection(pool: DLMM, config: ConfiguredRwaDemoConfig, side: RwaDem
   const swapForY = input.equals(pool.tokenX.publicKey);
   const expectedOutput = swapForY ? pool.tokenY.publicKey : pool.tokenX.publicKey;
   if (!expectedOutput.equals(output)) {
-    throw new MeteoraDevnetError("POOL_MINT_MISMATCH", "Configured demo token direction is not valid for the Meteora pool.");
+    throw new MeteoraDevnetError("POOL_MINT_MISMATCH", "Configured Devnet test-token direction is not valid for the Meteora pool.");
   }
   return { input, output, swapForY };
 }
@@ -156,7 +156,7 @@ async function quoteLoadedPool({
     );
     // Exact-input orders must not silently degrade to a partial fill.
     if (!sdkQuote.consumedInAmount.eq(inAmount) || sdkQuote.outAmount.lte(new BN(0))) {
-      throw new MeteoraDevnetError("INSUFFICIENT_LIQUIDITY", "The Devnet pool cannot fill this exact-input demo swap.");
+      throw new MeteoraDevnetError("INSUFFICIENT_LIQUIDITY", "The Devnet pool cannot fill this exact-input swap.");
     }
     const quote: MeteoraDemoQuote = {
       assetId: RWA_DEMO_ASSET_ID,
@@ -173,7 +173,7 @@ async function quoteLoadedPool({
       poolAddress: loaded.config.pool.toBase58(),
       route: RWA_DEMO_ROUTE,
       network: RWA_DEMO_NETWORK,
-      isDemo: true,
+      isDevnetTest: true,
       expiresAt,
     };
     return { quote, sdkQuote, input, output };
@@ -411,7 +411,7 @@ export async function verifyMeteoraDemoSwap({
     rwaBalanceAfterAtomic: rwaBalanceAfter.toString(10),
     network: RWA_DEMO_NETWORK,
     route: RWA_DEMO_ROUTE,
-    isDemo: true as const,
+    isDevnetTest: true as const,
   };
 }
 

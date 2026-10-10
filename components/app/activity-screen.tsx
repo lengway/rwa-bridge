@@ -4,6 +4,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Building2, CreditCard } from "lucide-
 import { Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { presentDevnetCopy } from "@/components/app/earn-detail-parts";
 import { formatActivityDay, formatQuantity } from "@/lib/format";
 import { useAppStore, type ActivityItem } from "@/lib/store";
 import { useNow } from "@/lib/useNow";
@@ -86,11 +87,11 @@ function ActivityRow({
         <Icon className="size-4 text-muted-foreground" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{item.title}</p>
+        <p className="truncate font-medium">{presentDevnetCopy(item.title)}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {time}{item.method ? ` · ${methodLabel(item.method)}` : ""}
+          {time}{item.method ? ` · ${presentDevnetCopy(methodLabel(item.method))}` : ""}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">{item.note ?? "DEVNET DEMO · NO MONETARY VALUE"}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{presentDevnetCopy(item.note ?? "SOLANA DEVNET · NO MONETARY VALUE")}</p>
         {item.explorerUrl ? (
           <a
             href={item.explorerUrl}

@@ -55,7 +55,7 @@ async function getMoonPayIp(flow: "buy" | "sell" = "sell") {
 function TestCardDetails() {
   return (
     <ul className="list-inside list-disc space-y-0.5">
-      <li>Email: test-demo@moonpay.test · код 123456</li>
+      <li>Email: используйте тестовый email из вашего MoonPay Sandbox-аккаунта · код 123456</li>
       <li>Телефон: если номер не принимается во встроенном окне, откройте MoonPay в новой вкладке. Тестовый номер: +1 500 555 0000, код 123456.</li>
       <li>Карта: Visa 4242 4242 4242 4242 · 12/2030 · CVC 123</li>
       <li>Адрес: любой в США или Великобритании; шаг с документами можно пропустить.</li>

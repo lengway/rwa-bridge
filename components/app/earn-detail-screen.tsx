@@ -80,7 +80,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
           }}
           disabled={!hydrated || !canInvest}
         >
-          <ArrowRight />{canInvest ? "Открыть Devnet-демо" : "Недоступно"}
+          <ArrowRight />{canInvest ? "Открыть Solana Devnet" : "Недоступно"}
         </Button>
       </DetailActionBar>
       <InvestDrawer

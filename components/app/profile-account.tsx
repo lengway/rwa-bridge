@@ -164,7 +164,7 @@ function WalletSectionReady() {
                   <div>
                     <h3 className="font-medium">Отправить на другой кошелёк</h3>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Переведите app-controlled TEST QUOTE на любой адрес Solana. Перевод имеет значение только в Devnet-демо.
+                      Переведите app-controlled TEST QUOTE на любой адрес Solana. Перевод имеет значение только в Solana Devnet.
                     </p>
                   </div>
                   <label className="space-y-1.5 text-sm">
@@ -203,7 +203,7 @@ function WalletSectionReady() {
                   <Button className="w-full" onClick={sendTokens} disabled={sending || (!pendingTransfer && (!recipientValid || !amountValid))}>
                     <Send />{sending ? (sendProgress ?? "Отправляем…") : pendingTransfer ? "Повторить подтверждение" : `Отправить ${formatQuantity(amountValue || 0)} TEST QUOTE`}
                   </Button>
-                  <p className="text-xs text-muted-foreground">DEVNET DEMO · NO MONETARY VALUE. Подтверждённая подпись появляется только после реального перевода в Solana Devnet.</p>
+                  <p className="text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. Подтверждённая подпись появляется только после реального перевода в Solana Devnet.</p>
               </Card>
             </>
           ) : (

@@ -8,6 +8,7 @@ import { BuyAssetDrawer } from "@/components/app/buy-asset-drawer";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { ExchangeDrawer } from "@/components/app/exchange-drawer";
 import { InvestDrawer } from "@/components/app/invest-drawer";
+import { presentDevnetCopy } from "@/components/app/earn-detail-parts";
 import { PortfolioSettings } from "@/components/app/profile-screen";
 import { WithdrawDrawer } from "@/components/app/withdraw-drawer";
 import { Badge } from "@/components/ui/badge";
@@ -24,9 +25,9 @@ type DisplayHolding = DevnetPortfolio["holdings"][number];
 const allocationNames = [
   { id: "cash", name: "Свободные TEST QUOTE", color: "bg-sky-500" },
   { id: "kzte", name: "Legacy KZTE · Devnet only", color: "bg-rose-500" },
-  { id: "ondo-usdy", name: "Devnet Demo Strategy", color: "bg-emerald-500" },
-  { id: "kz-bond-demo", name: "Historic demo shares · exit only", color: "bg-amber-500" },
-  { id: "demo-office", name: "OFFICE-DEMO · app test token", color: "bg-violet-500" },
+  { id: "ondo-usdy", name: "Solana Devnet Strategy", color: "bg-emerald-500" },
+  { id: "kz-bond-demo", name: "Historic Devnet shares · exit only", color: "bg-amber-500" },
+  { id: "demo-office", name: "OFFICE · app test token", color: "bg-violet-500" },
 ] as const;
 
 // Legacy KZT/card adapter screens are retained for a separately reviewed
@@ -80,7 +81,7 @@ export function PortfolioScreen() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Портфель</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Ваши Devnet-тестовые активы и демо-доли
+            Ваши тестовые активы и доли Solana Devnet
           </p>
         </div>
         <Button variant="outline" size="icon" aria-label="Настройки" onClick={() => setSettingsOpen(true)}>
@@ -92,7 +93,7 @@ export function PortfolioScreen() {
         <div>
           <p className="text-sm text-muted-foreground">Тестовый баланс</p>
           <p className="mt-1 text-3xl font-semibold tabular-nums">{formatQuantity(totalValue)} TEST QUOTE</p>
-          <p className="mt-1 text-xs text-muted-foreground">DEVNET DEMO · NO MONETARY VALUE · ILLUSTRATIVE YIELD не отражается в балансе.</p>
+          <p className="mt-1 text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE · ILLUSTRATIVE YIELD не отражается в балансе.</p>
         </div>
         {allocationTotal > 0 ? (
           <div className="space-y-3">
@@ -128,8 +129,8 @@ export function PortfolioScreen() {
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
             <Wallet className="size-6 text-muted-foreground" />
             <p className="font-medium">Пока нет активов</p>
-            <p className="text-sm text-muted-foreground">Подготовьте тестовые единицы или откройте Devnet-демо.</p>
-            <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Посмотреть Devnet-демо</Button>
+            <p className="text-sm text-muted-foreground">Подготовьте тестовые единицы или откройте Solana Devnet.</p>
+            <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Посмотреть Solana Devnet</Button>
           </Card>
         ) : null}
         <div className="space-y-2">
@@ -192,7 +193,7 @@ export function PortfolioScreen() {
 }
 
 function HoldingRow({ holding }: { holding: DisplayHolding }) {
-  const name = holding.kind === "asset" ? "OFFICE-DEMO · app test token" : holding.name;
+  const name = holding.kind === "asset" ? "OFFICE · app test token" : presentDevnetCopy(holding.name);
   return (
     <Card className="gap-3 rounded-2xl p-4 transition-colors hover:bg-muted/40">
       <div className="flex items-start gap-3">
@@ -202,7 +203,7 @@ function HoldingRow({ holding }: { holding: DisplayHolding }) {
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{name}</span>
           <span className="mt-1 block truncate text-xs text-muted-foreground">
-            {formatQuantity(holding.balance)} {holding.ticker}
+            {formatQuantity(holding.balance)} {presentDevnetCopy(holding.ticker)}
           </span>
         </span>
         <span className="text-right">
@@ -265,7 +266,7 @@ function HoldingDetails({
   onExchange: (direction: "kzte-to-usd" | "usd-to-kzte") => void;
   onCopy: (value: string, label: string) => void;
 }) {
-  const name = holding.kind === "asset" ? "OFFICE-DEMO · app test token" : holding.name;
+  const name = holding.kind === "asset" ? "OFFICE · app test token" : presentDevnetCopy(holding.name);
   const strategy = YIELD_STRATEGIES.find((item) => item.id === holding.productId);
   const canInvest = holding.kind === "cash" || Boolean(strategy?.gateway.capabilities.deposit && strategy.gateway.availability === "ENABLED");
   const canWithdraw = holding.kind === "vault";
@@ -273,10 +274,10 @@ function HoldingDetails({
   const canExchange = legacyFiatAdaptersEnabled && (holding.kind === "cash" || holding.kind === "kzte");
   const exchangeDirection = holding.kind === "kzte" ? "kzte-to-usd" : "usd-to-kzte";
   return (
-    <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${holding.ticker} · ${formatQuantity(holding.valueUsd)} TEST QUOTE · NO MONETARY VALUE`}>
+    <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${presentDevnetCopy(holding.ticker)} · ${formatQuantity(holding.valueUsd)} TEST QUOTE · NO MONETARY VALUE`}>
       <div className="space-y-4">
           <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
-            <span className="text-muted-foreground">{holding.kind === "vault" ? "Стоимость демо-доли" : "Статус токена"}</span><span className="font-medium">{holding.kind === "vault" ? "1 TEST QUOTE · fixed" : "NO MONETARY VALUE"}</span>
+            <span className="text-muted-foreground">{holding.kind === "vault" ? "Стоимость Devnet-доли" : "Статус токена"}</span><span className="font-medium">{holding.kind === "vault" ? "1 TEST QUOTE · fixed" : "NO MONETARY VALUE"}</span>
           </div>
         {holding.kind === "kzte" ? (
           <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">

@@ -30,9 +30,9 @@ async function prepareTransaction({
 }) {
   return withLedgerKeyLock(`rwa-demo-transaction:${orderId}`, async () => {
     const order = await getRwaDemoOrderForWallet(orderId, walletAddress);
-    if (!order) throw new RwaDemoRequestError(404, "ORDER_NOT_FOUND", "The requested demo order was not found.");
+    if (!order) throw new RwaDemoRequestError(404, "ORDER_NOT_FOUND", "The requested Devnet order was not found.");
     if (!["ORDER_CREATED", "WALLET_APPROVAL_PENDING", "QUOTE_EXPIRED", "USER_REJECTED", "CONFIRMATION_TIMEOUT"].includes(order.status)) {
-      throw new RwaDemoRequestError(409, "ORDER_NOT_BUILDABLE", "This demo order cannot be prepared for another transaction.");
+      throw new RwaDemoRequestError(409, "ORDER_NOT_BUILDABLE", "This Devnet order cannot be prepared for another transaction.");
     }
     if (order.status === "WALLET_APPROVAL_PENDING" || order.status === "CONFIRMATION_TIMEOUT") {
       if (order.transactionLastValidBlockHeight === undefined) {

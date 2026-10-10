@@ -28,7 +28,7 @@ export function AssetListCard({ asset }: { asset: BridgeAsset }) {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-semibold">{asset.name}</h2>
               <Badge variant="outline">{asset.ticker}</Badge>
-              <Badge variant="secondary">DEVNET DEMO</Badge>
+              <Badge variant="secondary">SOLANA DEVNET</Badge>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">{asset.sourceLabel}</p>
           </div>

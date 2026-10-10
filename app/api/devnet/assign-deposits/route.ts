@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   // opt-in for controlled migration only, never part of the Earn Gateway.
   if (process.env.ENABLE_LEGACY_EARN_IMPORT !== "true") {
     return NextResponse.json({
-      error: "Автоматическое присвоение исторических переводов выключено. Для сверки используйте журнал Devnet-демо.",
+      error: "Автоматическое присвоение исторических переводов выключено. Для сверки используйте журнал Solana Devnet.",
       code: "LEGACY_IMPORT_DISABLED",
     }, { status: 410 });
   }

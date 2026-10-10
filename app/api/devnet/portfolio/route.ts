@@ -106,7 +106,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
   knownMints.set(devnetConfig.usdMint, {
     kind: "cash",
     name: "TEST QUOTE",
-    ticker: "QUOTE-DEMO",
+    ticker: "TEST QUOTE",
     mint: devnetConfig.usdMint,
     priceUsd: 1,
   });
@@ -244,7 +244,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!mintRow) continue;
     recordMerged(deposit.signature, deposit.mintSignature, {
       id: deposit.mintSignature,
-      title: `Devnet demo · −${deposit.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE, +${deposit.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}`,
+      title: `Solana Devnet · −${deposit.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE, +${deposit.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}`,
       type: "invest",
       amountUsd: deposit.amountUsd,
       at: Math.max(deposit.at, mintRow.at),
@@ -272,7 +272,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!mintRow) continue;
     recordMerged(purchase.paymentSignature, purchase.mintSignature, {
       id: purchase.mintSignature,
-      title: `App test asset · −${purchase.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE, +${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} OFFICE-DEMO`,
+      title: `App test asset · −${purchase.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE, +${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} OFFICE`,
       type: "buy",
       amountUsd: purchase.amountUsd,
       at: Math.max(purchase.at, mintRow.at),

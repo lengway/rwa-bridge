@@ -65,15 +65,15 @@ export function BalanceCard({
         <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">TEST QUOTE</span>
       </div>
       <div className="flex items-center justify-between gap-4 border-t pt-4 text-sm">
-        <span className="text-muted-foreground">Доступно для Devnet-демо</span>
+        <span className="text-muted-foreground">Доступно в Solana Devnet</span>
         {hydrated ? (
           <span className="font-medium tabular-nums">{formatQuantity(cashUsd)} TEST QUOTE</span>
         ) : <Skeleton className="h-4 w-20" />}
       </div>
       <p className="-mt-3 text-xs text-muted-foreground">
-        DEVNET DEMO · NO MONETARY VALUE. ILLUSTRATIVE YIELD не добавляется к балансу.
+        SOLANA DEVNET · NO MONETARY VALUE. ILLUSTRATIVE YIELD не добавляется к балансу.
       </p>
-      {hydrated && earnings !== 0 ? <p className="text-xs text-muted-foreground">Показатель доходности в этом демо не учитывается.</p> : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
+      {hydrated && earnings !== 0 ? <p className="text-xs text-muted-foreground">Показатель доходности в Solana Devnet не учитывается.</p> : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
     </Card>
   );
 }

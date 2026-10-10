@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { EARN_STRATEGIES } from "@/lib/earn-gateway";
+import { EARN_STRATEGIES, toPublicEarnStrategy } from "@/lib/earn-gateway";
 
 /**
  * Public, read-only catalog metadata. Execution still goes through the
@@ -11,7 +11,7 @@ import { EARN_STRATEGIES } from "@/lib/earn-gateway";
 export async function GET() {
   return NextResponse.json({
     network: "devnet",
-    strategies: EARN_STRATEGIES,
+    strategies: EARN_STRATEGIES.map(toPublicEarnStrategy),
     disclosures: {
       funding: "SIMULATED FUNDING",
       yield: "ILLUSTRATIVE YIELD",

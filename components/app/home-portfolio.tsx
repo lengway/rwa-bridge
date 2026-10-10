@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowDownToLine, BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { displayStrategyName, displayStrategyTicker, presentDevnetCopy } from "@/components/app/earn-detail-parts";
 import { Card } from "@/components/ui/card";
 import { BRIDGE_ASSETS } from "@/lib/assets";
 import { formatQuantity } from "@/lib/format";
@@ -45,9 +46,9 @@ function PositionCard({ item }: { item: PositionItem }) {
           <BadgeCheck className="size-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{strategy.name}</span>
+          <span className="block truncate font-medium">{displayStrategyName(strategy)}</span>
           <span className="mt-1 block text-xs text-muted-foreground">
-            {formatQuantity(position.shares ?? 0)} {strategy.ticker} · {strategy.gateway.yield.label}
+            {formatQuantity(position.shares ?? 0)} {displayStrategyTicker(strategy)} · {presentDevnetCopy(strategy.gateway.yield.label)}
           </span>
         </span>
         <span className="text-right">
@@ -60,7 +61,7 @@ function PositionCard({ item }: { item: PositionItem }) {
         </span>
       </Link>
       <p className="px-4 pb-3 text-xs text-muted-foreground">
-        {strategy.gateway.yield.sourceNote} {earned !== 0 ? "Historic display carry is excluded from this balance." : ""}
+        {presentDevnetCopy(strategy.gateway.yield.sourceNote)} {earned !== 0 ? "Historic display carry is excluded from this balance." : ""}
       </p>
     </Card>
   );
@@ -82,7 +83,7 @@ export function HoldingsSection({
                 {asset.ticker.slice(0, 2)}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">OFFICE-DEMO · app test token</span>
+                <span className="block truncate font-medium">OFFICE · app test token</span>
                 <span className="text-xs text-muted-foreground">
                   {formatQuantity(holding.units, 0)} {asset.ticker}
                 </span>
@@ -102,13 +103,13 @@ export function PromoCard() {
     <Card className="gap-3 rounded-2xl border-emerald-600/20 bg-emerald-500/5 p-5">
       <Link href={`/earn/${strategy.slug}`} className="block space-y-3">
         <div className="flex items-center justify-between">
-          <Badge variant="secondary" className="font-normal text-emerald-700 dark:text-emerald-300">DEVNET DEMO</Badge>
+          <Badge variant="secondary" className="font-normal text-emerald-700 dark:text-emerald-300">SOLANA DEVNET</Badge>
           <ArrowDownToLine className="size-4 text-emerald-700 dark:text-emerald-300" />
         </div>
         <div>
-          <h2 className="font-semibold">{strategy.name}</h2>
+          <h2 className="font-semibold">{displayStrategyName(strategy)}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            SIMULATED FUNDING · тестовый токен обменивается на демо-долю 1:1 после подтверждённой операции Devnet.
+            SIMULATED FUNDING · тестовый токен обменивается на Devnet-долю 1:1 после подтверждённой операции Devnet.
           </p>
         </div>
       </Link>

@@ -8,6 +8,8 @@ import {
   EarnGatewayError,
   formatAtomicToDecimal,
   requirePositiveDecimalToAtomic,
+  toPublicEarnStrategy,
+  type EarnStrategy,
 } from "@/lib/earn-gateway";
 import {
   isConfigured,
@@ -41,6 +43,16 @@ function displayAmount(amountAtomic: bigint) {
   // The API boundary remains JSON-safe; this number is for the existing UI
   // only and is derived from a bounded, exact six-decimal base-unit amount.
   return Number(formatAtomicToDecimal(amountAtomic, DEVNET_DEMO_TOKEN_DECIMALS));
+}
+
+function publicGatewayMetadata(strategy: EarnStrategy) {
+  const publicStrategy = toPublicEarnStrategy(strategy);
+  return {
+    network: publicStrategy.network,
+    mode: publicStrategy.mode,
+    yieldKind: publicStrategy.yieldKind,
+    disclosures: publicStrategy.disclosures,
+  };
 }
 
 function actionNeedsReviewResponse() {
@@ -134,15 +146,12 @@ export async function POST(request: Request) {
         mint: quote.mint,
         mintSignature: existing.mintSignature,
         explorerUrl: explorerUrl(existing.mintSignature),
-        network: strategy.gateway.network,
-        mode: strategy.gateway.mode,
-        yieldKind: strategy.gateway.yieldKind,
-        disclosures: strategy.gateway.disclosures,
+        ...publicGatewayMetadata(strategy.gateway),
       };
       notifyReceipt(request, {
         kind: "invest",
         amountUsd: existing.amountUsd,
-        details: `Выпущено ${response.sharesMintedAtomic} atomic-долей ${productId} в DEVNET DEMO.`,
+        details: `Выпущено ${response.sharesMintedAtomic} atomic-долей ${productId} в Solana Devnet.`,
         explorerUrl: response.explorerUrl,
         receiptId: existing.signature,
       });
@@ -214,10 +223,7 @@ export async function POST(request: Request) {
         mint: quote.mint,
         mintSignature,
         explorerUrl: explorerUrl(mintSignature),
-        network: strategy.gateway.network,
-        mode: strategy.gateway.mode,
-        yieldKind: strategy.gateway.yieldKind,
-        disclosures: strategy.gateway.disclosures,
+        ...publicGatewayMetadata(strategy.gateway),
       };
       notifyReceipt(request, {
         kind: "invest",

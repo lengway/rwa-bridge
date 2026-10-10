@@ -162,14 +162,14 @@ function BuyAssetDrawerContents({
       open={open}
       onOpenChange={changeOpen}
       title={`Получить тестовый актив · ${asset.ticker}`}
-      description="DEVNET DEMO · NO MONETARY VALUE. OFFICE не даёт прав на недвижимость или денежную выплату."
+      description="SOLANA DEVNET · NO MONETARY VALUE. OFFICE не даёт прав на недвижимость или денежную выплату."
     >
       {result ? (
         <DrawerSuccess
           amount={result.amount}
           amountLabel={`${formatQuantity(result.units, 0)} ${asset.ticker}`}
           sentence="Тестовый актив выпущен в Solana Devnet."
-          note={result.note ?? "DEVNET DEMO · NO MONETARY VALUE. OFFICE не предоставляет прав на недвижимость или денежную выплату."}
+          note={result.note ?? "SOLANA DEVNET · NO MONETARY VALUE. OFFICE не предоставляет прав на недвижимость или денежную выплату."}
           onDone={() => changeOpen(false)}
           secondaryHref="/assets"
           secondaryLabel="К активам"

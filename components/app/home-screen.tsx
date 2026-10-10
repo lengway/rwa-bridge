@@ -65,7 +65,7 @@ export function HomeScreen() {
                 Найден исторический Devnet-перевод без действия Earn
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Он не будет автоматически зачислен или конвертирован. Обратитесь к оператору демо для сверки подписи.
+                Он не будет автоматически зачислен или конвертирован. Обратитесь к оператору Solana Devnet для сверки подписи.
               </p>
             </div>
           </Card>
@@ -73,10 +73,10 @@ export function HomeScreen() {
         {hydrated && portfolioReady && positionValues.length === 0 && holdingValues.length === 0 ? (
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
             <p className="font-medium">Пока нет Devnet-позиций</p>
-            <p className="text-sm text-muted-foreground">Откройте Devnet-демо или app test asset, чтобы увидеть портфель.</p>
+            <p className="text-sm text-muted-foreground">Откройте стратегию Solana Devnet или app test asset, чтобы увидеть портфель.</p>
             <div className="grid w-full grid-cols-2 gap-2 pt-1">
               <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/earn" />}>
-                Открыть Devnet-демо
+                Открыть Solana Devnet
               </Button>
               <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/assets/office-building" />}>
                 Открыть test asset
