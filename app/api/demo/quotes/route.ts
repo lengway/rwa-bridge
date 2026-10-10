@@ -11,9 +11,9 @@ import {
   requireDemoSession,
 } from "@/lib/rwa-demo-api";
 import {
-  RWA_DEMO_ASSET_ID,
   RWA_DEMO_SWAP_DISCLOSURE,
   RwaDemoValidationError,
+  isSupportedRwaAssetId,
   requirePositiveAtomicAmount,
   serializeAtomic,
   type RwaDemoSide,
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   try {
     const body = await readDemoJson(request);
     const session = await requireDemoSession(request, body.walletAddress);
-    if (body.assetId !== RWA_DEMO_ASSET_ID) {
+    if (!isSupportedRwaAssetId(body.assetId)) {
       throw new RwaDemoValidationError("Only the server-configured Solana Devnet test asset can be quoted.");
     }
     const side = demoSide(body.side);

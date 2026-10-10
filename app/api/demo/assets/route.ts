@@ -3,7 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { getMeteoraDemoAssetMetadata } from "@/lib/meteora-devnet";
 import { readRwaDemoConfig } from "@/lib/rwa-demo-config";
-import { RWA_DEMO_ASSET_ID, RWA_DEMO_NETWORK, RWA_DEMO_SWAP_DISCLOSURE } from "@/lib/rwa-demo";
+import { RWA_DEMO_NETWORK, RWA_DEMO_SWAP_DISCLOSURE, RWA_DEVNET_ASSET_ID } from "@/lib/rwa-demo";
 
 export const runtime = "nodejs";
 
@@ -42,7 +42,7 @@ function assetResponse({
   poolAddress: string | null;
 }) {
   return {
-    id: RWA_DEMO_ASSET_ID,
+    id: RWA_DEVNET_ASSET_ID,
     name: "RWA Devnet Test Asset",
     symbol: "RWA-DEVNET",
     description: ASSET_DESCRIPTION,

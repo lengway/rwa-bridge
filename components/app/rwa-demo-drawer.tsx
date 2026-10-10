@@ -147,7 +147,7 @@ function displayDevnetSymbol(symbol: string) {
 }
 
 function displayRwaAssetName(asset: Pick<DemoAsset, "id" | "name">) {
-  return asset.id === "rwa-demo" ? "RWA · Solana Devnet" : asset.name;
+  return asset.id === "rwa-devnet" || asset.id === "rwa-demo" ? "RWA · Solana Devnet" : asset.name;
 }
 
 export function RwaDemoDrawer({
@@ -229,7 +229,7 @@ export function RwaDemoDrawer({
         : [];
       const selected = assetId
         ? assets.find((item) => item.id === assetId)
-        : assets.find((item) => item.id === "rwa-demo") ?? assets[0];
+        : assets.find((item) => item.id === "rwa-devnet" || item.id === "rwa-demo") ?? assets[0];
       if (!selected) {
         throw new DemoApiError("Актив Solana Devnet пока недоступен.", 503);
       }

@@ -18,6 +18,7 @@ import {
   RWA_DEMO_ROUTE,
   RWA_DEMO_SWAP_DISCLOSURE,
   RwaDemoValidationError,
+  toPublicRwaAssetId,
 } from "@/lib/rwa-demo";
 import { getSessionWallet } from "@/lib/session-wallet";
 
@@ -126,7 +127,7 @@ function priceImpactBps(value: string | null) {
 export function demoQuoteResponse(quote: RwaDemoQuoteRecord) {
   return {
     id: quote.id,
-    assetId: quote.assetId,
+    assetId: toPublicRwaAssetId(quote.assetId),
     side: quote.side,
     inputMint: quote.inputMint,
     outputMint: quote.outputMint,

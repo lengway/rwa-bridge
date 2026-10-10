@@ -1,4 +1,14 @@
 export const RWA_DEMO_ASSET_ID = "rwa-demo";
+/** Public catalog identifier; the legacy value remains accepted for stored records. */
+export const RWA_DEVNET_ASSET_ID = "rwa-devnet";
+
+export function isSupportedRwaAssetId(value: unknown): boolean {
+  return value === RWA_DEMO_ASSET_ID || value === RWA_DEVNET_ASSET_ID;
+}
+
+export function toPublicRwaAssetId(value: string): string {
+  return value === RWA_DEMO_ASSET_ID ? RWA_DEVNET_ASSET_ID : value;
+}
 
 export const RWA_DEMO_FUNDING_DISCLOSURE = "SIMULATED — no fiat payment. DEVNET TEST TOKEN — no monetary value.";
 export const RWA_DEMO_SWAP_DISCLOSURE = "DEVNET SWAP — no real asset rights.";
