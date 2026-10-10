@@ -45,7 +45,7 @@ export function AssetsScreen() {
           Цифровая доля в портфеле Solana Devnet. Откройте актив, чтобы
           посмотреть условия покупки.
         </p>
-        <Link href="/assets/rwa-demo" className="block">
+        <Link href="/assets/rwa" className="block">
           <Card className="gap-2 rounded-2xl p-4 transition-colors hover:bg-muted/50">
             <div className="flex items-center justify-between gap-3">
               <div>

@@ -1,5 +1,5 @@
-import { RwaDemoScreen } from "@/components/app/rwa-demo-screen";
+import { redirect } from "next/navigation";
 
-export default function RwaDemoPage() {
-  return <RwaDemoScreen />;
+export default function LegacyRwaPage() {
+  redirect("/assets/rwa");
 }
