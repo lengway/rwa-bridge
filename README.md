@@ -56,6 +56,21 @@ npm run dev
 node scripts/devnet-smoke.mjs   # end-to-end check of every money flow
 ```
 
+## Deploy
+
+The canonical repository is private at `https://github.com/lengway/rwa-bridge`.
+The VPS has a read-only GitHub deploy key and a checkout at
+`/home/plain/worktrees/rwa-bridge`. After committing a change, deploy with:
+
+```bash
+scripts/deploy.sh stapp
+```
+
+The script pushes committed `HEAD` to `origin/main`, runs `git pull --ff-only`
+on the VPS, installs from the lockfile, builds, and atomically repoints the
+running app only after the build succeeds. Shared runtime configuration remains
+outside Git in `/home/plain/shared/.env.local`.
+
 ## RWA-DEMO: direct Meteora DLMM Devnet flow
 
 `RWA-DEMO` is a separate, Devnet-only test scenario. It is not an asset, a security,
