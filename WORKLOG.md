@@ -89,9 +89,9 @@ a fresh checkout. Changed the documented `npm run typecheck` to execute
 
 ## Release constraints
 
-- **Deployed and externally checked:** code release `ac002f4bfe08cd4f99846fe35dba0fa4ab991d5f`
-  is active at `https://plain.lengway.me` on the authorized VPS. `plain-web` is
-  active/running; `/home/plain/app` resolves to that exact release worktree.
+- **First stabilization release:** `ac002f4bfe08cd4f99846fe35dba0fa4ab991d5f`
+  was deployed and externally checked at `https://plain.lengway.me`. The newer
+  UX release and its actual checks are recorded below.
   The original checkout is untouched and clean; preflight unit is stopped.
 - VPS clean npm install, lint, generated-route typecheck, **40 tests** and
   production build passed. Preflight and post-switch loopback HTTP checks each
@@ -173,3 +173,11 @@ a fresh checkout. Changed the documented `npm run typecheck` to execute
   English login renders without horizontal overflow at desktop and 390px iframe
   widths; optional disabled FX/yield endpoints are not requested by that page.
   Full authenticated visual flow and SMTP delivery remain owner checks.
+- **UX release deployed and externally checked:** `27b4e79e670988a4e8f9cb1fb7aa0fd2b025fc16`.
+  `plain-web` is active/running and `/home/plain/app` resolves to this exact
+  release. Clean VPS install, lint, typegen/typecheck, 53 tests and production
+  build pass; preflight and post-switch checks each pass 14/14. Public HTTPS
+  read-only smoke passes 10/10. Public English login renders without horizontal
+  overflow and does not request disabled FX/yield reference endpoints. Previous
+  code release `ac002f4` is retained for rollback. No owner transaction was signed,
+  sent, or asserted successful by this implementation session.
