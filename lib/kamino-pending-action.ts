@@ -49,6 +49,11 @@ export function validateKaminoPendingAction(
     if (typeof source.signature !== "string" || !SIGNATURE.test(source.signature)) {
       return { kind: "invalid" };
     }
+    try {
+      if (bs58.decode(source.signature).length !== 64) return { kind: "invalid" };
+    } catch {
+      return { kind: "invalid" };
+    }
   } else if (source.signature !== undefined && source.signature !== null) {
     return { kind: "invalid" };
   }
@@ -71,3 +76,4 @@ export function validateKaminoPendingAction(
 export function kaminoPendingActionStorageKey(walletAddress: string) {
   return `kamino-lend-pending:v1:${walletAddress}`;
 }
+import bs58 from "bs58";

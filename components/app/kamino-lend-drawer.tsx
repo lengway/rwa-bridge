@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SolanaWallet } from "@crossmint/wallets-sdk";
 import {
   ArrowDownToLine,
@@ -38,6 +38,10 @@ import {
 } from "@/lib/kamino-pending-action";
 import { useAuth } from "@/lib/useAuth";
 import { useDevnet } from "@/lib/useDevnet";
+import { KaminoWalletSetup } from "@/components/app/kamino-wallet-setup";
+import { normalizeKaminoWalletSnapshot, kaminoActionMaximum, type KaminoWalletSnapshot } from "@/lib/kamino-wallet-snapshot";
+import { pollKaminoConfirmation, type KaminoConfirmationCheck } from "@/lib/kamino-confirmation-poll";
+import { formatAtomicToDecimal } from "@/lib/earn-gateway";
 
 export type KaminoLendDrawerProps = {
   open: boolean;
@@ -76,8 +80,17 @@ export function KaminoLendDrawer({
   const [confirmedAmountAtomic, setConfirmedAmountAtomic] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [walletSnapshotState, setWalletSnapshotState] = useState<{ walletAddress: string; snapshot: KaminoWalletSnapshot } | null>(null);
+  const [walletSnapshotError, setWalletSnapshotError] = useState<{ walletAddress: string; message: string } | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [polling, setPolling] = useState(false);
 
   const activeWalletAddress = walletAddress ?? devnet.walletAddress;
+  const activeWalletRef = useRef(activeWalletAddress);
+  const confirmationInFlight = useRef(false);
+  useEffect(() => { activeWalletRef.current = activeWalletAddress; }, [activeWalletAddress]);
+  const walletSnapshot = walletSnapshotState?.walletAddress === activeWalletAddress ? walletSnapshotState.snapshot : null;
+  const balanceError = walletSnapshotError?.walletAddress === activeWalletAddress ? walletSnapshotError.message : null;
   const reserve = market?.ready ? market.reserve : null;
   const amountAtomic = useMemo(
     () => reserve ? decimalToAtomic(amount, reserve.decimals) : null,
@@ -85,17 +98,22 @@ export function KaminoLendDrawer({
   );
   const exceedsMaximum = Boolean(amountAtomic && reserve?.maximumAmountAtomic
     && BigInt(amountAtomic) > BigInt(reserve.maximumAmountAtomic));
+  const availableMaximum = kaminoActionMaximum({ action, cap: reserve?.maximumAmountAtomic ?? null,
+    reserveLiquidity: reserve?.availableLiquidityAtomic ?? null, wallet: walletSnapshot });
+  const exceedsWalletMaximum = Boolean(amountAtomic && availableMaximum !== null && BigInt(amountAtomic) > BigInt(availableMaximum));
   const marketReady = market?.ready === true && market.market !== null && reserve !== null;
   const recoveryReady = recoveryWallet === activeWalletAddress && recoveryStatus === "ready";
   const recoveryBlocked = recoveryWallet === activeWalletAddress && recoveryStatus === "blocked";
   const currentPendingAction = pendingAction?.walletAddress === activeWalletAddress ? pendingAction : null;
-  const actionLabel = action === "deposit" ? "Пополнить резерв" : "Вывести из резерва";
-  const inputLabel = action === "deposit" ? "Сумма для пополнения" : "Сумма для вывода";
+  const actionLabel = action === "deposit" ? "Supply to reserve" : "Withdraw from reserve";
+  const inputLabel = action === "deposit" ? "Supply amount" : "Withdrawal amount";
   const canPrepare = marketReady
     && Boolean(wallet)
     && Boolean(activeWalletAddress)
     && Boolean(amountAtomic)
     && !exceedsMaximum
+    && !exceedsWalletMaximum
+    && walletSnapshot?.solBalanceLamports !== "0"
     && accepted
     && !prepared
     && recoveryReady
@@ -138,7 +156,7 @@ export function KaminoLendDrawer({
         try {
           value = JSON.parse(stored);
         } catch {
-          setRecoveryIssue("Сохранённые данные восстановления повреждены. Перед новой операцией подтвердите очистку с предупреждением.");
+          setRecoveryIssue("Saved recovery data is corrupted. Confirm the warning before clearing it and starting a new transaction.");
           setRecoveryWallet(activeWalletAddress);
           setRecoveryStatus("blocked");
           return;
@@ -157,19 +175,50 @@ export function KaminoLendDrawer({
           setRecoveryStatus("ready");
         } else {
           setRecoveryIssue(result.kind === "wallet-mismatch"
-            ? "Сохранённое действие принадлежит другому кошельку и не будет восстановлено. Подтвердите очистку перед новой операцией."
-            : "Сохранённые данные восстановления некорректны. Подтвердите очистку перед новой операцией.");
+            ? "The saved action belongs to another wallet and will not be recovered. Confirm clearing it before starting a new transaction."
+            : "Saved recovery data is invalid. Confirm clearing it before starting a new transaction.");
           setRecoveryWallet(activeWalletAddress);
           setRecoveryStatus("blocked");
         }
       } catch {
-        setRecoveryIssue("Не удалось прочитать localStorage. Восстановление недоступно; операции подписи заблокированы.");
+        setRecoveryIssue("Could not read local storage. Recovery is unavailable; signing is blocked.");
         setRecoveryWallet(activeWalletAddress);
         setRecoveryStatus("unavailable");
       }
     }, 0);
     return () => window.clearTimeout(timer);
   }, [activeWalletAddress]);
+
+  const loadWalletSnapshot = useCallback(async (signal?: AbortSignal) => {
+    if (!activeWalletAddress) return;
+    const checkedWallet = activeWalletAddress;
+    setWalletLoading(true);
+    try {
+      const response = await fetch(`/api/kamino/position?walletAddress=${encodeURIComponent(checkedWallet)}`, {
+        cache: "no-store", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
+      });
+      const payload = await response.json().catch(() => null);
+      if (signal?.aborted || activeWalletRef.current !== checkedWallet) return;
+      const snapshot = response.ok ? normalizeKaminoWalletSnapshot(payload, checkedWallet) : null;
+      if (!snapshot) throw new Error("Wallet balances are unavailable. Refresh before relying on the displayed amounts.");
+      setWalletSnapshotState({ walletAddress: checkedWallet, snapshot });
+      setWalletSnapshotError(null);
+    } catch {
+      if (signal?.aborted || activeWalletRef.current !== checkedWallet) return;
+      setWalletSnapshotState(null);
+      setWalletSnapshotError({ walletAddress: checkedWallet,
+        message: "Could not verify wallet balances. They are unknown, not zero. Refresh to try again." });
+    } finally {
+      if (activeWalletRef.current === checkedWallet) setWalletLoading(false);
+    }
+  }, [activeWalletAddress]);
+
+  useEffect(() => {
+    if (!open || !activeWalletAddress) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => void loadWalletSnapshot(controller.signal), 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [open, activeWalletAddress, loadWalletSnapshot]);
 
   const loadMarket = useCallback(async (signal?: AbortSignal) => {
     setBusy("loading");
@@ -180,18 +229,20 @@ export function KaminoLendDrawer({
       // link can still be settling immediately after sign-in; coupling it to
       // this read made a healthy Kamino route appear unavailable. Wallet-bound
       // authorization remains enforced by the prepare/confirm endpoints.
-      const response = await fetch("/api/kamino/market", { cache: "no-store", signal });
+      const response = await fetch("/api/kamino/market", { cache: "no-store",
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
+      });
       const payload = await response.json().catch(() => null);
       const nextMarket = normalizeKaminoLendMarket(payload);
       if (signal?.aborted) return;
-      if (!nextMarket) throw new KaminoDrawerError("Маршрут Kamino Lend вернул неполные технические данные.", response.status);
-      if (!response.ok && nextMarket.ready) throw new KaminoDrawerError(readKaminoApiError(payload, "Не удалось проверить маршрут Kamino Lend."), response.status);
+      if (!nextMarket) throw new KaminoDrawerError("The Kamino Lend route returned incomplete technical data.", response.status);
+      if (!response.ok && nextMarket.ready) throw new KaminoDrawerError(readKaminoApiError(payload, "Could not verify the Kamino Lend route."), response.status);
       setMarket(nextMarket);
-      if (!nextMarket.ready) setNotice(nextMarket.reason ?? "Маршрут Kamino Lend временно недоступен.");
+      if (!nextMarket.ready) setNotice(nextMarket.reason ?? "The Kamino Lend route is temporarily unavailable.");
     } catch (requestError) {
       if (isAbortError(requestError)) return;
       setMarket(null);
-      setError(userFacingError(requestError, "Не удалось загрузить состояние Kamino Lend."));
+      setError(userFacingError(requestError, "Could not load Kamino Lend status."));
     } finally {
       if (!signal?.aborted) setBusy((current) => current === "loading" ? null : current);
     }
@@ -210,7 +261,10 @@ export function KaminoLendDrawer({
   const confirmSubmittedAction = useCallback(async (
     actionToConfirm: Pick<KaminoPendingAction, "action" | "actionId" | "amountAtomic"> & { signature: string },
     actionWalletAddress: string,
-  ) => {
+    signal?: AbortSignal,
+  ): Promise<KaminoConfirmationCheck> => {
+    if (confirmationInFlight.current) return "pending";
+    confirmationInFlight.current = true;
     setBusy("confirming");
     setError(null);
     try {
@@ -222,12 +276,14 @@ export function KaminoLendDrawer({
           walletAddress: actionWalletAddress,
           signature: actionToConfirm.signature,
         }),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
       });
       const payload = await response.json().catch(() => null);
+      if (signal?.aborted || activeWalletRef.current !== actionWalletAddress) return "unknown";
 
       if (response.status === 202) {
-        setNotice("Транзакция отправлена в Solana Devnet. Подтверждение ещё обрабатывается — повторите проверку через несколько секунд.");
-        return;
+        setNotice("Transaction submitted to Solana Devnet. Confirmation is still processing—check again in a few seconds.");
+        return "pending";
       }
       if (!response.ok) {
         if (isVerifiedTransactionFailure(payload)) {
@@ -240,14 +296,14 @@ export function KaminoLendDrawer({
               setPrepared(null);
             }
             setNotice(null);
-            setError("Сервер подтвердил, что транзакция завершилась ошибкой в Devnet. Можно подготовить новую операцию.");
+            setError("The server confirmed that the transaction failed on Devnet. You can prepare a new transaction.");
           } catch {
-            setRecoveryIssue("Транзакция завершилась ошибкой, но localStorage не удалось очистить. Повторите проверку или перезагрузите страницу перед новой операцией.");
-            setError("Транзакция завершилась ошибкой; не удалось очистить локальные данные восстановления.");
+            setRecoveryIssue("The transaction failed, but local storage could not be cleared. Check again or reload the page before starting a new transaction.");
+            setError("The transaction failed, but local recovery data could not be cleared.");
           }
-          return;
+          return "failed";
         }
-        throw new KaminoDrawerError(readKaminoApiError(payload, "Не удалось подтвердить транзакцию в Kamino Lend."), response.status);
+        throw new KaminoDrawerError(readKaminoApiError(payload, "Could not confirm the Kamino Lend transaction."), response.status);
       }
 
       const nextConfirmation = normalizeKaminoLendConfirmation(
@@ -257,7 +313,7 @@ export function KaminoLendDrawer({
         actionToConfirm.signature,
       );
       if (!nextConfirmation) {
-        throw new KaminoDrawerError("Сервер ещё не подтвердил завершение транзакции. Повторите проверку, не создавая новую операцию.", 502);
+        throw new KaminoDrawerError("The server has not confirmed transaction completion yet. Check again without creating a new transaction.", 502);
       }
 
       let recoveryCleared = true;
@@ -266,12 +322,12 @@ export function KaminoLendDrawer({
       } catch {
         recoveryCleared = false;
         if (activeWalletAddress === actionWalletAddress) {
-          setRecoveryIssue("Операция подтверждена, но localStorage не удалось очистить. Не отправляйте новую операцию до проверки восстановления.");
+          setRecoveryIssue("The transaction is confirmed, but local recovery data could not be cleared. Do not submit another transaction until recovery is checked.");
         }
       }
       if (activeWalletAddress === actionWalletAddress) {
         setConfirmation(nextConfirmation);
-        setConfirmedAmountAtomic(actionToConfirm.amountAtomic);
+        setConfirmedAmountAtomic(nextConfirmation.actualLiquidityAmountAtomic ?? actionToConfirm.amountAtomic);
         setNotice(null);
         if (recoveryCleared) {
           setPendingAction(null);
@@ -281,20 +337,60 @@ export function KaminoLendDrawer({
       }
       void devnet.refreshPortfolio();
       void loadMarket();
+      void loadWalletSnapshot();
       onConfirmed?.(nextConfirmation);
       toast.success(actionToConfirm.action === "deposit"
-        ? "Пополнение Kamino Lend подтверждено в Solana Devnet"
-        : "Вывод из Kamino Lend подтверждён в Solana Devnet");
+        ? "Kamino Lend supply confirmed on Solana Devnet"
+        : "Kamino Lend withdrawal confirmed on Solana Devnet");
+      return "confirmed";
     } catch (requestError) {
-      setError(userFacingError(requestError, "Не удалось подтвердить транзакцию. Повторите только проверку подтверждения."));
+      if (signal?.aborted || activeWalletRef.current !== actionWalletAddress) return "unknown";
+      setError(userFacingError(requestError, "Could not confirm the transaction. Retry the confirmation check only."));
+      return "unknown";
     } finally {
+      confirmationInFlight.current = false;
       setBusy(null);
     }
-  }, [activeWalletAddress, devnet, loadMarket, onConfirmed]);
+  }, [activeWalletAddress, devnet, loadMarket, loadWalletSnapshot, onConfirmed]);
+
+  const confirmRef = useRef(confirmSubmittedAction);
+  const pollingRun = useRef(0);
+  useEffect(() => { confirmRef.current = confirmSubmittedAction; }, [confirmSubmittedAction]);
+  const pendingSignature = currentPendingAction?.stage === "signature" ? currentPendingAction.signature : null;
+  const pendingId = currentPendingAction?.actionId;
+  const pendingKind = currentPendingAction?.action;
+  const pendingAmount = currentPendingAction?.amountAtomic;
+  useEffect(() => {
+    if (!open || !activeWalletAddress || !pendingSignature || !pendingId || !pendingKind || !pendingAmount) return;
+    const controller = new AbortController();
+    const run = ++pollingRun.current;
+    const confirmedWallet = activeWalletAddress;
+    const identity = { action: pendingKind, actionId: pendingId, amountAtomic: pendingAmount, signature: pendingSignature };
+    const timer = window.setTimeout(() => {
+      setPolling(true);
+      void pollKaminoConfirmation({ signal: controller.signal,
+        check: (signal) => confirmRef.current(identity, confirmedWallet, signal),
+      }).then((result) => {
+        if (!controller.signal.aborted && result === "pending") {
+          setNotice("Still waiting for finalization. Your action is saved. You can close this window or check again; do not send it twice.");
+        }
+      }).finally(() => {
+        if (pollingRun.current === run && activeWalletRef.current === confirmedWallet) setPolling(false);
+      });
+    }, 1_000);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+      if (pollingRun.current === run) {
+        pollingRun.current += 1;
+        setPolling(false);
+      }
+    };
+  }, [open, activeWalletAddress, pendingSignature, pendingId, pendingKind, pendingAmount]);
 
   const prepareAction = async () => {
     if (!marketReady || !amountAtomic || !activeWalletAddress || !wallet || !accepted || exceedsMaximum || busy
-      || !recoveryReady || currentPendingAction || recoveryBlocked) return;
+      || !recoveryReady || currentPendingAction || recoveryBlocked || exceedsWalletMaximum || walletSnapshot?.solBalanceLamports === "0") return;
     setBusy("preparing");
     setError(null);
     setNotice(null);
@@ -303,17 +399,18 @@ export function KaminoLendDrawer({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress: activeWalletAddress, amountAtomic, cluster: "devnet" }),
+        signal: AbortSignal.timeout(45_000),
       });
       const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new KaminoDrawerError(readKaminoApiError(payload, "Не удалось подготовить транзакцию Kamino Lend."), response.status);
+      if (!response.ok) throw new KaminoDrawerError(readKaminoApiError(payload, "Could not prepare a Kamino Lend transaction."), response.status);
       const nextPrepared = normalizePreparedKaminoLendAction(payload, action);
       if (!nextPrepared || !preparedActionMatchesMarket(nextPrepared, market, amountAtomic)) {
-        throw new KaminoDrawerError("Сервер вернул транзакцию, которая не совпадает с выбранным Devnet-маршрутом.", 502);
+        throw new KaminoDrawerError("The server returned a transaction that does not match the selected Devnet route.", 502);
       }
       setPrepared(nextPrepared);
-      setNotice("Серверная симуляция пройдена. Проверьте детали операции перед подписью в кошельке.");
+      setNotice("Server simulation passed. Review the transaction details before signing in your wallet.");
     } catch (requestError) {
-      setError(userFacingError(requestError, "Не удалось подготовить операцию Kamino Lend."));
+      setError(userFacingError(requestError, "Could not prepare the Kamino Lend transaction."));
     } finally {
       setBusy(null);
     }
@@ -324,7 +421,7 @@ export function KaminoLendDrawer({
     if (prepared.expiresAt <= Date.now()) {
       setPrepared(null);
       setNotice(null);
-      setError("Срок подготовки истёк. Подготовьте свежую транзакцию; эта транзакция не отправлялась.");
+      setError("The prepared transaction expired. Prepare a new one; this transaction was not submitted.");
       return;
     }
     const actionWalletAddress = activeWalletAddress;
@@ -343,7 +440,7 @@ export function KaminoLendDrawer({
         const recovered = validateKaminoPendingAction(JSON.parse(stored), actionWalletAddress);
         if (recovered.kind === "valid") setPendingAction(recovered.pending);
         else setRecoveryStatus("blocked");
-        setRecoveryIssue("Другая вкладка сохранила операцию. Проверьте её статус перед новой отправкой.");
+        setRecoveryIssue("Another tab saved an action. Check its status before submitting another transaction.");
         setPrepared(null);
         return;
       }
@@ -352,9 +449,9 @@ export function KaminoLendDrawer({
         JSON.stringify(awaitingSignature),
       );
     } catch {
-      setRecoveryIssue("Не удалось сохранить данные восстановления в localStorage. Подпись и отправка заблокированы.");
+      setRecoveryIssue("Could not save recovery data to local storage. Signing and submission are blocked.");
       setRecoveryStatus("unavailable");
-      setError("Сначала включите доступ к локальному хранилищу; транзакция не отправлялась.");
+      setError("Enable local storage access first; the transaction was not submitted.");
       return;
     }
     setPendingAction(awaitingSignature);
@@ -366,11 +463,11 @@ export function KaminoLendDrawer({
       const result = await SolanaWallet.from(wallet).sendTransaction({
         serializedTransaction: prepared.serializedTransaction,
       });
-      if (!result.hash) throw new KaminoDrawerError("Кошелёк не вернул подпись транзакции.", 502);
+      if (!result.hash) throw new KaminoDrawerError("The wallet did not return a transaction signature.", 502);
       const signedPending: KaminoPendingAction = { ...awaitingSignature, stage: "signature", signature: result.hash };
       if (validateKaminoPendingAction(signedPending, actionWalletAddress).kind !== "valid") {
-        setNotice("Кошелёк вернул подпись неизвестного формата. Проверьте кошелёк и Solana Explorer вручную; отправка заблокирована.");
-        setError("Не удалось сохранить пригодную для проверки подпись. Не создавайте новую операцию до ручной проверки.");
+        setNotice("The wallet returned a signature in an unknown format. Check your wallet and Solana Explorer manually; submission is blocked.");
+        setError("Could not save a verifiable signature. Do not create a new transaction before checking manually.");
         return;
       }
       try {
@@ -379,24 +476,25 @@ export function KaminoLendDrawer({
           JSON.stringify(signedPending),
         );
       } catch {
-        setRecoveryIssue("Получена подпись, но localStorage не удалось обновить. Не отправляйте операцию повторно; проверка выполняется по этой подписи.");
+        setRecoveryIssue("A signature was received, but local recovery data could not be updated. Do not resubmit; confirmation will be checked using this signature.");
       }
       if (activeWalletAddress === actionWalletAddress) setPendingAction(signedPending);
-      setNotice("Транзакция отправлена. Проверяем подтверждение в Solana Devnet.");
-      await confirmSubmittedAction(signedPending, actionWalletAddress);
+      setNotice("Transaction submitted. Checking confirmation on Solana Devnet.");
+      // The recovery effect owns confirmation checks, including the first
+      // check. Do not race a second confirmation request with that poller.
     } catch (requestError) {
       const rejection = isLikelyUserRejection(requestError);
-      setNotice("Статус отправки неизвестен. Проверьте кошелёк и Solana Explorer вручную; новая отправка заблокирована до явного подтверждения очистки.");
+      setNotice("Submission status is unknown. Check your wallet and Solana Explorer manually; another submission is blocked until you explicitly confirm clearing recovery data.");
       setError(rejection
-        ? "Кошелёк сообщил об отмене, но отправку нельзя подтвердить. Проверьте кошелёк/Explorer перед сбросом."
-        : "Не удалось получить подпись. Транзакция могла быть отправлена; проверьте кошелёк/Explorer перед сбросом.");
+        ? "The wallet reported cancellation, but submission status cannot be verified. Check your wallet and Explorer before resetting."
+        : "Could not obtain a signature. The transaction may have been submitted; check your wallet and Explorer before resetting.");
     } finally {
       setBusy(null);
     }
   };
 
   const verifyPendingConfirmation = async () => {
-    if (!currentPendingAction || currentPendingAction.stage !== "signature" || !activeWalletAddress || busy) return;
+    if (!currentPendingAction || currentPendingAction.stage !== "signature" || !activeWalletAddress || busy || polling) return;
     if (!currentPendingAction.signature) return;
     await confirmSubmittedAction({ ...currentPendingAction, signature: currentPendingAction.signature }, activeWalletAddress);
   };
@@ -404,7 +502,7 @@ export function KaminoLendDrawer({
   const acknowledgeUnknownSend = () => {
     if (!activeWalletAddress || busy || (!currentPendingAction && !recoveryBlocked)) return;
     const confirmed = window.confirm(
-      "Статус транзакции неизвестен. Сначала проверьте кошелёк и Solana Explorer. Очистка удалит данные восстановления и позволит создать новую операцию, что может привести к дублированию, если транзакция всё же отправилась. Продолжить?",
+      "Transaction status is unknown. Check your wallet and Solana Explorer first. Clearing recovery data lets you create a new transaction, which could duplicate the action if the first transaction was submitted. Continue?",
     );
     if (!confirmed) return;
     try {
@@ -421,7 +519,7 @@ export function KaminoLendDrawer({
       setAccepted(false);
       setAmount("");
     } catch {
-      setRecoveryIssue("Не удалось очистить localStorage. Новые операции остаются заблокированы.");
+      setRecoveryIssue("Could not clear local recovery data. New transactions remain blocked.");
       setRecoveryStatus("unavailable");
     }
   };
@@ -445,29 +543,29 @@ export function KaminoLendDrawer({
     onOpenChange(nextOpen);
   };
 
-  if (confirmation && reserve) {
-    const completedActionLabel = confirmation.action === "deposit" ? "Пополнено" : "Выведено";
+  if (confirmation) {
+    const completedActionLabel = confirmation.action === "deposit" ? "Supplied" : "Withdrawn";
     return (
       <DrawerFrame
         open={open}
         onOpenChange={changeOpen}
         title="Kamino Lend · Solana Devnet"
-        description="Операция подтверждена в Devnet."
+        description="Transaction confirmed on Devnet."
       >
         <DrawerSuccess
           amount={0}
-          amountLabel={`${completedActionLabel} ${formatAtomicAmount(confirmedAmountAtomic ?? prepared?.amountAtomic ?? amountAtomic ?? "0", reserve.decimals)}`}
+          amountLabel={`${completedActionLabel} ${formatAtomicAmount(confirmedAmountAtomic ?? prepared?.amountAtomic ?? amountAtomic ?? "0", reserve?.decimals ?? 6)} Devnet USDC`}
           sentence={confirmation.action === "deposit"
-            ? "Ликвидность внесена в выбранный резерв Kamino Lend."
-            : "Ликвидность выведена из выбранного резерва Kamino Lend."}
-          note={recoveryIssue ?? "SOLANA DEVNET · Тестовые токены и позиции не имеют денежной стоимости."}
+            ? "Liquidity supplied to the selected Kamino Lend reserve."
+            : "Liquidity withdrawn from the selected Kamino Lend reserve."}
+          note={recoveryIssue ?? "SOLANA DEVNET · Test tokens and positions have no monetary value."}
           explorerUrl={confirmation.explorerUrl}
           onDone={() => {
             resetPreparedAction();
             onOpenChange(false);
           }}
           secondaryHref="/portfolio"
-          secondaryLabel="Открыть портфель"
+          secondaryLabel="View portfolio"
         />
       </DrawerFrame>
     );
@@ -478,19 +576,19 @@ export function KaminoLendDrawer({
       open={open}
       onOpenChange={changeOpen}
       title="Kamino Lend · Solana Devnet"
-      description="On-chain supply и вывод через проверенный Devnet-маршрут."
+      description="On-chain supply and withdrawal through a verified Devnet route."
     >
       <div className="space-y-5">
-        <div className="flex flex-wrap gap-1.5" aria-label="Сведения о сети и протоколе">
+        <div className="flex flex-wrap gap-1.5" aria-label="Network and protocol details">
           <Badge variant="secondary">SOLANA DEVNET</Badge>
           <Badge variant="outline">KAMINO LEND</Badge>
           <Badge variant="outline">USER-SIGNED</Badge>
         </div>
 
-        {activeWalletAddress && recoveryStatus === "loading" ? <LoadingLine label="Проверяем локальное восстановление…" /> : null}
+        {activeWalletAddress && recoveryStatus === "loading" ? <LoadingLine label="Checking local recovery…" /> : null}
         {recoveryIssue ? (
           <Card className="gap-2 rounded-xl border-amber-500/30 bg-amber-500/5 p-3">
-            <p className="text-sm font-medium">Восстановление операции требует внимания</p>
+            <p className="text-sm font-medium">Action recovery needs attention</p>
             <p className="text-xs leading-5 text-muted-foreground">{recoveryIssue}</p>
           </Card>
         ) : null}
@@ -499,25 +597,25 @@ export function KaminoLendDrawer({
           <Card className="gap-3 rounded-xl border-amber-500/30 bg-amber-500/5 p-3">
             <div>
               <p className="text-sm font-medium">
-                {currentPendingAction.stage === "signature" ? "Операция ожидает подтверждения" : "Статус отправки неизвестен"}
+                {currentPendingAction.stage === "signature" ? "Transaction awaiting confirmation" : "Submission status unknown"}
               </p>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {currentPendingAction.action === "deposit" ? "Пополнение" : "Вывод"} · {currentPendingAction.amountAtomic} atomic units
+                {currentPendingAction.action === "deposit" ? "Supply" : "Withdrawal"} · {currentPendingAction.amountAtomic} atomic units
                 {currentPendingAction.stage === "signature"
-                  ? " · повторная отправка отключена; можно только проверить подтверждение"
-                  : " · проверьте кошелёк и Solana Explorer вручную; повторная отправка отключена"}
+                  ? " · resubmission is disabled; you can only check confirmation"
+                  : " · check your wallet and Solana Explorer manually; resubmission is disabled"}
               </p>
             </div>
             {currentPendingAction.stage === "signature" ? <a className="break-all text-xs underline" target="_blank" rel="noopener noreferrer"
-              href={`https://explorer.solana.com/tx/${currentPendingAction.signature}?cluster=devnet`}>Открыть отправленную транзакцию в Explorer</a> : null}
+              href={`https://explorer.solana.com/tx/${currentPendingAction.signature}?cluster=devnet`}>View submitted transaction in Explorer</a> : null}
             {currentPendingAction.stage === "signature" ? (
-              <Button className="w-full" onClick={() => void verifyPendingConfirmation()} disabled={Boolean(busy || !recoveryReady)}>
+              <Button className="w-full" onClick={() => void verifyPendingConfirmation()} disabled={Boolean(busy || polling || !recoveryReady)}>
                 {busy === "confirming" ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
-                {busy === "confirming" ? "Проверяем подтверждение…" : "Повторить только проверку"}
+                {busy === "confirming" ? "Checking confirmation…" : "Check confirmation again"}
               </Button>
             ) : (
               <Button variant="outline" className="w-full" onClick={acknowledgeUnknownSend} disabled={Boolean(busy)}>
-                Я проверил кошелёк/Explorer — очистить и сбросить
+                I checked my wallet and Explorer — clear and reset
               </Button>
             )}
           </Card>
@@ -525,13 +623,26 @@ export function KaminoLendDrawer({
 
         {recoveryBlocked ? (
           <Button variant="outline" className="w-full" onClick={acknowledgeUnknownSend} disabled={Boolean(busy)}>
-            Подтвердить очистку повреждённых данных
+            Confirm clearing corrupted data
           </Button>
         ) : null}
         {notice ? <Notice>{notice}</Notice> : null}
         {error ? <p className="text-xs leading-5 text-destructive">{error}</p> : null}
+        {polling ? <LoadingLine label="Checking finalization automatically. No new transaction is being sent." /> : null}
+        {activeWalletAddress && !currentPendingAction ? <KaminoWalletSetup walletAddress={activeWalletAddress} action={action}
+          snapshot={walletSnapshot} loading={walletLoading} error={balanceError}
+          onRefresh={() => void loadWalletSnapshot()} onCopy={() => {
+            void navigator.clipboard.writeText(activeWalletAddress).then(() => toast.success("Wallet address copied"))
+              .catch(() => setError("Could not copy the address. Select it and copy manually."));
+          }} /> : null}
+        {walletSnapshot?.solBalanceLamports === "0" && !currentPendingAction ? <p className="text-xs leading-5 text-muted-foreground">Add Devnet SOL for fees before preparing a transaction. The test-funds guide above explains how.</p> : null}
+        {action === "withdraw" && walletSnapshot?.collateralAmountAtomic === "0" && !currentPendingAction ? <Card className="gap-2 rounded-xl p-4">
+          <p className="text-sm font-medium">Nothing to withdraw yet</p>
+          <p className="text-xs leading-5 text-muted-foreground">This wallet has no Kamino position. Add a test deposit first.</p>
+          <Button variant="outline" size="sm" disabled={Boolean(busy || prepared || !recoveryReady)} onClick={() => changeAction("deposit")}>Add to Earn</Button>
+        </Card> : null}
 
-        {busy === "loading" && !market ? <LoadingLine label="Проверяем маршрут Kamino Lend…" /> : null}
+        {busy === "loading" && !market ? <LoadingLine label="Checking Kamino Lend route…" /> : null}
 
         {!market && busy !== "loading" ? (
           <UnavailableRoute error={error} onRetry={() => void loadMarket()} />
@@ -543,19 +654,19 @@ export function KaminoLendDrawer({
 
         {marketReady && reserve ? (
           <>
-            <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Действие Kamino Lend">
+            <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Kamino Lend action">
               <ActionTab
                 active={action === "deposit"}
                 disabled={Boolean(busy || prepared || currentPendingAction || !recoveryReady)}
                 icon={<ArrowDownToLine />}
-                label="Пополнить"
+                label="Supply"
                 onClick={() => changeAction("deposit")}
               />
               <ActionTab
                 active={action === "withdraw"}
                 disabled={Boolean(busy || prepared || currentPendingAction || !recoveryReady)}
                 icon={<ArrowUpFromLine />}
-                label="Вывести"
+                label="Withdraw"
                 onClick={() => changeAction("withdraw")}
               />
             </div>
@@ -565,10 +676,10 @@ export function KaminoLendDrawer({
             {market.wallet ? (
               <Card className="gap-2 rounded-xl border-muted-foreground/15 bg-muted/30 p-3 text-xs leading-5">
                 <p>
-                  Доступно в кошельке: <span className="font-medium text-foreground">{formatAtomicAmount(market.wallet.liquidityBalanceAtomic, reserve.decimals)} Devnet USDC</span>
+                  Wallet balance: <span className="font-medium text-foreground">{formatAtomicAmount(market.wallet.liquidityBalanceAtomic, reserve.decimals)} Devnet USDC</span>
                 </p>
                 <p className="text-muted-foreground">
-                  Collateral в Kamino: {formatAtomicAmount(market.wallet.collateralBalanceAtomic, reserve.decimals)} cToken. Точная доступная сумма для вывода будет проверена перед подписью.
+                  Kamino collateral: {formatAtomicAmount(market.wallet.collateralBalanceAtomic, reserve.decimals)} cToken. The exact withdrawal amount will be checked before signing.
                 </p>
               </Card>
             ) : null}
@@ -576,9 +687,15 @@ export function KaminoLendDrawer({
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <label htmlFor="kamino-lend-amount" className="text-sm font-medium">{inputLabel}</label>
+                <Button variant="ghost" size="sm" disabled={availableMaximum === null || availableMaximum === "0" || Boolean(busy || prepared || currentPendingAction)}
+                  onClick={() => {
+                    if (availableMaximum !== null) {
+                      setAmount(formatAtomicToDecimal(BigInt(availableMaximum), reserve.decimals));
+                    }
+                  }}>Max</Button>
                 {reserve.maximumAmountAtomic ? (
                   <span className="text-xs text-muted-foreground">
-                    Лимит {formatAtomicAmount(reserve.maximumAmountAtomic, reserve.decimals)}
+                    Limit {formatAtomicAmount(reserve.maximumAmountAtomic, reserve.decimals)}
                   </span>
                 ) : null}
               </div>
@@ -594,14 +711,16 @@ export function KaminoLendDrawer({
                 className="h-12 text-xl font-semibold tabular-nums"
               />
               {exceedsMaximum ? (
-                <p className="text-xs text-destructive">Сумма превышает текущий лимит маршрута.</p>
+                <p className="text-xs text-destructive">Amount exceeds the current route limit.</p>
               ) : null}
+              {!exceedsMaximum && exceedsWalletMaximum ? <p className="text-xs text-destructive">Amount exceeds your current balance or available withdrawal estimate. Refresh balances to check again.</p> : null}
+              {action === "withdraw" && walletSnapshot ? <p className="text-xs text-muted-foreground">Estimated position: {formatAtomicAmount(walletSnapshot.estimatedUnderlyingAmountAtomic, 6)} Devnet USDC. The server rechecks liquidity before signing.</p> : null}
               {amount && !amountAtomic ? (
-                <p className="text-xs text-destructive">Укажите положительную сумму с точностью до {reserve.decimals} знаков после запятой.</p>
+                <p className="text-xs text-destructive">Enter a positive amount with up to {reserve.decimals} decimal places.</p>
               ) : null}
               {reserve.availableLiquidityAtomic ? (
                 <p className="text-xs text-muted-foreground">
-                  Ликвидность резерва: {formatAtomicAmount(reserve.availableLiquidityAtomic, reserve.decimals)}. Доступность вывода проверяется сервером перед подписью.
+                  Reserve liquidity: {formatAtomicAmount(reserve.availableLiquidityAtomic, reserve.decimals)}. The server checks withdrawal availability before signing.
                 </p>
               ) : null}
             </div>
@@ -614,7 +733,7 @@ export function KaminoLendDrawer({
                 className="mt-0.5"
               />
               <span>
-                Понимаю, что операция выполняется в Solana Devnet: использую тестовые токены, а позиция не имеет денежной стоимости. Перед подписью я увижу сумму, маршрут и результат серверной симуляции.
+                I understand this transaction runs on Solana Devnet: it uses test tokens and the position has no monetary value. I will review the amount, route, and server simulation before signing.
               </span>
             </label>
 
@@ -624,20 +743,20 @@ export function KaminoLendDrawer({
 
             {!activeWalletAddress || !wallet ? (
               <Card className="gap-2 rounded-xl border-amber-500/30 bg-amber-500/5 p-3">
-                <p className="text-sm font-medium">Подключите Solana-кошелёк</p>
-                <p className="text-xs leading-5 text-muted-foreground">Кошелёк требуется только для подписи уже подготовленной Devnet-транзакции.</p>
+                <p className="text-sm font-medium">Connect a Solana wallet</p>
+                <p className="text-xs leading-5 text-muted-foreground">Your wallet is only used to sign the prepared Devnet transaction.</p>
               </Card>
             ) : null}
 
             {prepared && !currentPendingAction ? (
               <Button className="w-full" onClick={() => void signAndSendPreparedAction()} disabled={Boolean(busy || !wallet || !recoveryReady)}>
                 {busy === "signing" ? <LoaderCircle className="animate-spin" /> : <ShieldCheck />}
-                {busy === "signing" ? "Ожидаем подпись…" : `${actionLabel} и подписать`}
+                {busy === "signing" ? "Waiting for signature…" : `${actionLabel} and sign`}
               </Button>
             ) : !prepared && !currentPendingAction ? (
               <Button className="w-full" onClick={() => void prepareAction()} disabled={!canPrepare}>
                 {busy === "preparing" ? <LoaderCircle className="animate-spin" /> : <CheckCircle2 />}
-                {busy === "preparing" ? "Симулируем операцию…" : "Подготовить транзакцию"}
+                {busy === "preparing" ? "Simulating transaction…" : "Prepare transaction"}
               </Button>
             ) : null}
           </>
@@ -654,19 +773,19 @@ function RouteSummary({ market, action }: { market: KaminoLendMarket; action: Ka
     <Card className="gap-3 rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">{action === "deposit" ? "Supply в Kamino Lend" : "Redeem из Kamino Lend"}</p>
+          <p className="font-medium">{action === "deposit" ? "Supply to Kamino Lend" : "Redeem from Kamino Lend"}</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {action === "deposit"
-              ? "Токен резерва будет направлен в выбранный lending reserve."
-              : "Сервер проверит доступность ликвидности и подготовит вывод из выбранного lending reserve."}
+              ? "The reserve token will be supplied to the selected lending reserve."
+              : "The server will check liquidity and prepare a withdrawal from the selected lending reserve."}
           </p>
         </div>
         <Badge variant="secondary">DEVNET</Badge>
       </div>
       <details className="rounded-xl bg-muted/50 px-3 py-2 text-xs leading-5 text-muted-foreground">
-        <summary className="cursor-pointer font-medium text-foreground">Технические детали маршрута</summary>
+        <summary className="cursor-pointer font-medium text-foreground">Route technical details</summary>
         <div className="space-y-2 pt-3">
-          <RouteRow label="Рынок" value={market.market.name ?? shortenAddress(market.market.address)} />
+          <RouteRow label="Market" value={market.market.name ?? shortenAddress(market.market.address)} />
           <RouteRow label="Reserve" value={shortenAddress(reserve.address)} />
           <RouteRow label="Mint" value={shortenAddress(reserve.mint)} />
           <RouteRow label="Collateral mint" value={shortenAddress(reserve.collateralMint)} />
@@ -690,19 +809,21 @@ function PreparedActionReview({
       <div className="flex items-start gap-3">
         <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-300" />
         <div>
-          <p className="font-medium">Транзакция готова к подписи</p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">Серверная симуляция завершилась без ошибки. Подпись и отправка выполняются только после вашего следующего действия.</p>
+          <p className="font-medium">Transaction ready to sign</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">Server simulation completed without errors. The transaction will only be signed and submitted after your next action.</p>
         </div>
       </div>
       <div className="space-y-2 rounded-xl bg-background/70 p-3 text-xs">
-        <RouteRow label="Действие" value={prepared.action === "deposit" ? "Пополнение резерва" : "Вывод из резерва"} />
-        <RouteRow label="Сумма" value={formatAtomicAmount(prepared.amountAtomic, reserve.decimals)} />
-        <RouteRow label="Сеть" value="Solana Devnet" />
-        <RouteRow label="Комиссию оплачивает" value={walletAddress ? shortenAddress(walletAddress) : "Подключённый кошелёк"} />
+        <RouteRow label="Action" value={prepared.action === "deposit" ? "Supply to reserve" : "Withdraw from reserve"} />
+        <RouteRow label="Amount" value={formatAtomicAmount(prepared.amountAtomic, reserve.decimals)} />
+        <RouteRow label="Network" value="Solana Devnet" />
+        {prepared.networkFeeLamports !== null ? <RouteRow label="Network fee" value={`${formatAtomicAmount(prepared.networkFeeLamports, 9)} Devnet SOL`} /> : null}
+        <RouteRow label="Fee payer" value={walletAddress ? shortenAddress(walletAddress) : "Connected wallet"} />
         <RouteRow label="Reserve" value={shortenAddress(prepared.reserve)} />
         {prepared.simulation.unitsConsumed !== null ? <RouteRow label="Compute units" value={prepared.simulation.unitsConsumed.toLocaleString("ru-RU")} /> : null}
       </div>
-      <p className="text-xs leading-5 text-muted-foreground">Перед подтверждением внимательно проверьте сумму, сеть и кошелёк-оплатчик комиссии.</p>
+      <p className="text-xs leading-5 text-muted-foreground">Before confirming, carefully check the amount, network, and fee-paying wallet.</p>
+      <p className="text-xs leading-5 text-muted-foreground">Network fee excludes any refundable token-account rent. Test funds have no monetary value.</p>
     </Card>
   );
 }
@@ -739,10 +860,10 @@ function UnavailableRoute({ error, onRetry }: { error: string | null; onRetry: (
     <Card className="items-center gap-3 rounded-2xl p-5 text-center">
       <ShieldCheck className="size-5 text-muted-foreground" />
       <div>
-        <p className="font-medium">Kamino Lend временно недоступен</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{error ?? "Маршрут Devnet пока не готов к новым операциям."}</p>
+        <p className="font-medium">Kamino Lend is temporarily unavailable</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{error ?? "The Devnet route is not ready for new transactions yet."}</p>
       </div>
-      <Button variant="outline" onClick={onRetry}><RefreshCw />Обновить</Button>
+      <Button variant="outline" onClick={onRetry}><RefreshCw />Refresh</Button>
     </Card>
   );
 }
@@ -775,11 +896,11 @@ class KaminoDrawerError extends Error {
 }
 
 function userFacingError(error: unknown, fallback: string) {
-  if (isLikelyUserRejection(error)) return "Подтверждение в кошельке отменено. Транзакция не была отправлена.";
+  if (isLikelyUserRejection(error)) return "Wallet confirmation was canceled. The transaction was not submitted.";
   const message = error instanceof Error ? error.message : "";
-  if (/insufficient|balance|liquidity/i.test(message)) return "Недостаточно доступного баланса или ликвидности для этой операции.";
-  if (/blockhash|expired/i.test(message)) return "Подготовленная транзакция устарела. Подготовьте её заново перед подписью.";
-  if (/wallet|session/i.test(message)) return "Не удалось подтвердить подключённый Solana-кошелёк. Перезайдите в аккаунт и повторите попытку.";
+  if (/insufficient|balance|liquidity/i.test(message)) return "Insufficient available balance or liquidity for this transaction.";
+  if (/blockhash|expired/i.test(message)) return "The prepared transaction has expired. Prepare it again before signing.";
+  if (/wallet|session/i.test(message)) return "Could not verify the connected Solana wallet. Sign in again and retry.";
   return error instanceof KaminoDrawerError && error.message ? error.message : fallback;
 }
 

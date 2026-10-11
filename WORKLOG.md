@@ -125,3 +125,51 @@ a fresh checkout. Changed the documented `npm run typecheck` to execute
    remains unavailable to this session; no $50-cap compliance claim is made.
 3. Review submission material/public-source access and demo recording, then
    publish/submit only with the owner's authorization.
+
+## UX pass — implementation, not a full signed E2E claim
+
+- Primary Home actions are now Add to Earn / Withdraw / Activity; historic assets
+  and exits remain accessible. Core pages, auth errors, sign-in emails, metadata
+  and PWA description are English. Repeated protocol details are collapsed;
+  Devnet/no-value and risk disclosures remain visible.
+- Added authenticated USDC/SOL balance checks, exact Max bounded by wallet,
+  configured cap and withdrawal liquidity, and manual official test-fund guides.
+  Withdraw guidance does not require funding USDC again. No faucet request or
+  real funding was automated.
+- Prepared actions quote their actual RPC network fee in SOL; refundable
+  token-account rent is explicitly separate. Receipt reconciliation no longer
+  depends on the reserve still accepting new actions, but retains canonical
+  Devnet, exact-message, signer, instruction and token-delta verification.
+- Existing signatures are checked automatically, at most 10 checks, with
+  cancellation, timeouts and unknown/pending outcomes preserved. The poller can
+  never build, sign or resend. Actual verified proceeds are shown after success,
+  even if a later reserve-health refresh fails.
+- Fixed an integration mismatch in the advanced legacy transfer form: its
+  TEST QUOTE balance must match its configured mint; Kamino USDC cannot satisfy
+  a legacy transfer's balance check. Unknown legacy balances remain unknown.
+- Legacy FX/yield polling is disabled when those adapters are disabled, rather
+  than repeatedly requesting unavailable reference feeds from the primary app.
+- Focused tests for polling, snapshots/Max, fee metadata and wallet-setup rendering
+  pass. Intermediate full run: lint/typecheck/build pass and 51 tests pass. A
+  subsequent null-balance TypeScript error introduced by the legacy UI fix was
+  detected and corrected; final checks and deployment status follow below.
+- Existing SMTP delivery, real wallet signing and authenticated-screen visual
+  behavior still require the owner flow; email templates/render tests are not
+  delivery or on-chain success evidence. Three bounded copy/presentation jobs
+  used GPT-6 Luna; integration and financial-boundary changes stayed with Sol.
+- Strict receipt tests uncovered an old client bug: `readSignature` reused the
+  32-byte address parser, while fallback to the expected signature hid missing
+  or mismatched response signatures. Fixed client/server/recovery validation to
+  Base58-decoded 64-byte signatures; no fallback can manufacture completion.
+- The first read-only fee-RPC spike failed because its test command used a
+  truncated genesis literal (not an application-code defect). Corrected against
+  the repository's canonical constant; the unsigned v0 fixture returned an
+  actual RPC fee of 5000 lamports. This is read-only RPC compatibility evidence,
+  not a submitted Kamino transaction or proof of the full wallet journey.
+- Final local checks for this UX candidate: lint, generated-route typecheck,
+  **53 tests**, production build and diff check pass. Production localhost HTTP
+  smoke passes **14/14**. Authenticated empty-wallet snapshot and wallet mismatch
+  checks passed against real Devnet RPC with the local-only test-session fixture.
+  English login renders without horizontal overflow at desktop and 390px iframe
+  widths; optional disabled FX/yield endpoints are not requested by that page.
+  Full authenticated visual flow and SMTP delivery remain owner checks.

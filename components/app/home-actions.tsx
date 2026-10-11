@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowDownToLine, ArrowUpFromLine, Plus, ShoppingBag } from "lucide-react";
+import { Activity, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 
 export function QuickActions() {
   return (
-    <section aria-label="Быстрые действия" className="grid grid-cols-4 gap-2">
-      <QuickAction label="Пополнить" icon={<Plus />} href="/earn/kamino-lend" />
-      <QuickAction label="Вложить" icon={<ArrowDownToLine />} href="/earn/kamino-lend" />
-      <QuickAction label="Купить долю" icon={<ShoppingBag />} href="/assets" />
-      <QuickAction label="Вывести" icon={<ArrowUpFromLine />} href="/earn/kamino-lend?action=withdraw" />
+    <section aria-label="Quick actions" className="grid grid-cols-3 gap-2">
+      <QuickAction label="Add to Earn" icon={<ArrowDownToLine />} href="/earn/kamino-lend?action=deposit" />
+      <QuickAction label="Withdraw" icon={<ArrowUpFromLine />} href="/earn/kamino-lend?action=withdraw" />
+      <QuickAction label="Activity" icon={<Activity />} href="/activity" />
     </section>
   );
 }
@@ -33,7 +32,7 @@ function QuickAction({
       <span className="text-center text-[11px] font-medium leading-tight">{label}</span>
     </>
   );
-  const className = "group flex flex-col items-center gap-2 text-muted-foreground hover:text-foreground";
+  const className = "group flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl px-1 py-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return href ? (
     <Link href={href} className={className}>{content}</Link>
   ) : (

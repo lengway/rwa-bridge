@@ -108,7 +108,7 @@ function DevnetRuntime({
     if (!loggedInAddress) return;
     try {
       const response = await fetch(`/api/devnet/portfolio?wallet=${encodeURIComponent(loggedInAddress)}`, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
-      if (!response.ok) throw new Error("Не удалось загрузить портфель из Devnet. Последние данные могут быть устаревшими; не считайте недоступный баланс нулевым.");
+      if (!response.ok) throw new Error("Could not load the Devnet portfolio. The latest data may be stale; do not treat an unavailable balance as zero.");
       const value = await response.json() as DevnetPortfolio;
       if (Array.isArray(value.positions)
         && Array.isArray(value.holdings)
@@ -118,12 +118,12 @@ function DevnetRuntime({
         setPortfolioState({ walletAddress: loggedInAddress, portfolio: value });
         setPortfolioFailure(null);
       } else {
-        throw new Error("Получены неполные данные портфеля. Повторите загрузку.");
+        throw new Error("Incomplete portfolio data received. Refresh and try again.");
       }
     } catch (cause) {
       // Retain the last confirmed portfolio during transient RPC failures.
-      setPortfolioFailure({ walletAddress: loggedInAddress, error: cause instanceof Error && cause.message.startsWith("Не удалось")
-        ? cause.message : "Портфель временно недоступен. Проверьте соединение и повторите загрузку." });
+      setPortfolioFailure({ walletAddress: loggedInAddress, error: cause instanceof Error && cause.message.startsWith("Could not")
+        ? cause.message : "The portfolio is temporarily unavailable. Check your connection and refresh." });
     }
   }, [loggedInAddress]);
 

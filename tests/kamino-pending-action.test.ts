@@ -28,6 +28,7 @@ test("accepts a minimal awaiting-signature identity and scopes the storage key b
 });
 
 test("accepts a signed pending action and rejects malformed stage/signature combinations", () => {
+  assert.equal(validateKaminoPendingAction({ ...awaitingSignature, stage: "signature", signature: "5".repeat(64) }, walletAddress).kind, "invalid");
   const signed = { ...awaitingSignature, stage: "signature", signature };
   assert.deepEqual(validateKaminoPendingAction(signed, walletAddress), {
     kind: "valid",

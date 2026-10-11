@@ -48,36 +48,36 @@ export function HomeScreen() {
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Портфель</h2>
-          <Link href="/portfolio" className="text-sm text-muted-foreground hover:text-foreground">Весь портфель →</Link>
+          <h2 className="text-base font-semibold">Portfolio</h2>
+          <Link href="/portfolio" className="rounded px-2 py-1 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View portfolio →</Link>
         </div>
         {(devnet.portfolio?.unassignedDepositsUsd ?? 0) > 0 ? (
           <Card className="gap-3 rounded-2xl p-4">
             <div>
               <p className="font-medium">
-                Найден исторический Devnet-перевод без действия Earn
+                Historic Devnet transfer found without an Earn action
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Он не будет автоматически зачислен или конвертирован. Обратитесь к оператору Solana Devnet для сверки подписи.
+                It will not be credited or converted automatically. Contact a Solana Devnet operator to verify the transaction signature.
               </p>
             </div>
           </Card>
         ) : null}
         {hydrated && portfolioReady && positionValues.length === 0 && holdingValues.length === 0 ? (
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
-            <p className="font-medium">Пока нет Devnet-позиций</p>
-            <p className="text-sm text-muted-foreground">Откройте стратегию Solana Devnet или app test asset, чтобы увидеть портфель.</p>
+            <p className="font-medium">No Devnet positions yet</p>
+            <p className="text-sm text-muted-foreground">Explore a Solana Devnet strategy or app test asset to see it in your portfolio.</p>
             <div className="grid w-full grid-cols-2 gap-2 pt-1">
               <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/earn" />}>
-                Открыть Solana Devnet
+                Explore Earn
               </Button>
               <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/assets/office-building" />}>
-                Открыть test asset
+                View test asset
               </Button>
             </div>
           </Card>
         ) : null}
-        {!portfolioReady ? <p className="text-sm text-muted-foreground">Загружаем портфель…</p> : null}
+        {!portfolioReady && !devnet.portfolioError ? <p role="status" className="text-sm text-muted-foreground">Loading portfolio…</p> : null}
         {hydrated && positionValues.length > 0 ? (
           <PositionSection positions={positionValues} />
         ) : null}

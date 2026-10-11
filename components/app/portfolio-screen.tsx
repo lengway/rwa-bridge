@@ -22,7 +22,7 @@ import { useDevnet, type DevnetPortfolio } from "@/lib/useDevnet";
 type DisplayHolding = DevnetPortfolio["holdings"][number];
 
 const allocationNames = [
-  { id: "cash", name: "Доступные Devnet units", color: "bg-sky-500" },
+  { id: "cash", name: "Available Devnet units", color: "bg-sky-500" },
   { id: "kzte", name: "Legacy KZTE · Devnet only", color: "bg-rose-500" },
   { id: "kamino-lend", name: "Kamino Lend · Devnet position", color: "bg-emerald-500" },
   { id: "ondo-usdy", name: "Legacy Devnet position · exit only", color: "bg-emerald-500" },
@@ -68,9 +68,9 @@ export function PortfolioScreen() {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
-      toast.success(`${label} скопирован`);
+      toast.success(`${label} copied`);
     } catch {
-      toast.error("Не удалось скопировать");
+      toast.error("Could not copy");
     }
   };
 
@@ -78,25 +78,25 @@ export function PortfolioScreen() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">Портфель</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Portfolio</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Локальные активы Solana Devnet и история операций
+            Local Solana Devnet assets and activity history
           </p>
         </div>
-        <Button variant="outline" size="icon" aria-label="Настройки" onClick={() => setSettingsOpen(true)}>
+        <Button variant="outline" size="icon" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
           <Settings />
         </Button>
       </div>
 
       <Card className="gap-4 rounded-2xl p-5">
         <div>
-          <p className="text-sm text-muted-foreground">Локальная сводка Devnet</p>
-          <p className="mt-1 text-3xl font-semibold tabular-nums">{isReady ? formatQuantity(totalValue) : "…"} DEVNET UNITS</p>
-          <p className="mt-1 text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. Переменная ставка Kamino Lend проверяется в карточке стратегии, а не в этой локальной сводке.</p>
+          <p className="text-sm text-muted-foreground">Local Devnet summary</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums">{isReady ? formatQuantity(totalValue) : devnet.portfolioError ? "Unavailable" : "…"} DEVNET UNITS</p>
+          <p className="mt-1 text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. Check Kamino Lend’s variable rate on the strategy page; it is not part of this local summary.</p>
         </div>
         {allocationTotal > 0 ? (
           <div className="space-y-3">
-            <div className="flex h-2.5 overflow-hidden rounded-full bg-muted" aria-label="Распределение портфеля">
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-muted" aria-label="Portfolio allocation">
               {visibleAllocationValues.map((item) => (
                 <span key={item.id} className={item.color} style={{ width: `${item.value / allocationTotal * 100}%` }} />
               ))}
@@ -114,23 +114,25 @@ export function PortfolioScreen() {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Локальная сводка обновится после операции в Devnet.</p>
+          <p className="text-sm text-muted-foreground">
+            {isReady ? "This summary updates after a Devnet transaction." : devnet.portfolioError ? "Allocation is unavailable. Holdings are not shown as zero." : "Allocation will appear when portfolio data is available."}
+          </p>
         )}
       </Card>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Активы</h3>
+          <h3 className="font-semibold">Holdings</h3>
            <span className="text-xs text-muted-foreground">{isReady ? displayHoldings.length : "…"}</span>
         </div>
-        {!isReady ? <p className="text-sm text-muted-foreground">Загружаем данные из Solana…</p> : null}
-        {devnet.portfolio?.legacyUnavailable ? <p role="alert" className="text-sm text-destructive">Legacy-позиции сейчас не удалось загрузить. Они не считаются нулевыми; повторите обновление перед погашением.</p> : null}
+        {!isReady ? <p className="text-sm text-muted-foreground">{devnet.portfolioError ? "Portfolio data unavailable. Values are not treated as zero." : "Loading Solana data…"}</p> : null}
+        {devnet.portfolio?.legacyUnavailable ? <p role="alert" className="text-sm text-destructive">Historic positions could not be loaded. They are not treated as zero; refresh before redeeming.</p> : null}
         {isReady && displayHoldings.length === 0 ? (
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
             <Wallet className="size-6 text-muted-foreground" />
-            <p className="font-medium">Пока нет активов</p>
-            <p className="text-sm text-muted-foreground">Откройте Kamino Lend, чтобы проверить доступный маршрут Devnet.</p>
-            <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Открыть Kamino Lend</Button>
+            <p className="font-medium">No holdings yet</p>
+            <p className="text-sm text-muted-foreground">Open Kamino Lend to check the available Devnet route.</p>
+            <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Open Kamino Lend</Button>
           </Card>
         ) : null}
         <div className="space-y-2">
@@ -143,7 +145,7 @@ export function PortfolioScreen() {
                 <Button variant="outline" size="sm" className="ml-4" onClick={() => {
                   setExchangeDirection("usd-to-kzte");
                   setExchangeOpen(true);
-                }}>Обменять</Button>
+                }}>Exchange</Button>
               ) : null}
             </div>
           ))}
@@ -154,13 +156,13 @@ export function PortfolioScreen() {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Операции в сети</h3>
-          <Button variant="link" size="sm" className="h-auto p-0" nativeButton={false} render={<Link href="/activity" />}>Все операции</Button>
+          <h3 className="font-semibold">On-chain activity</h3>
+          <Button variant="link" size="sm" className="h-auto p-0" nativeButton={false} render={<Link href="/activity" />}>View all</Button>
         </div>
         <OnchainHistory rows={devnet.portfolio?.history ?? []} />
       </section>
 
-      <DrawerFrame open={settingsOpen} onOpenChange={setSettingsOpen} title="Настройки">
+      <DrawerFrame open={settingsOpen} onOpenChange={setSettingsOpen} title="Settings">
         <PortfolioSettings />
       </DrawerFrame>
 
@@ -214,35 +216,35 @@ function HoldingRow({ holding }: { holding: DisplayHolding }) {
         <span className="text-right">
           <span className="block font-semibold tabular-nums">{formatQuantity(holding.valueUsd)} DEVNET UNITS</span>
           {holding.kind === "vault" ? (
-            <span className="mt-1 block text-xs text-muted-foreground">Проверяйте условия выхода из позиции</span>
+            <span className="mt-1 block text-xs text-muted-foreground">Check the position’s exit terms</span>
           ) : <span className="mt-1 block text-xs text-muted-foreground">NO MONETARY VALUE</span>}
         </span>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Devnet-позиция · проверьте доступность выхода" : "App Devnet token · NO MONETARY VALUE"}</span></div>
+      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Devnet position · check exit availability" : "App Devnet token · NO MONETARY VALUE"}</span></div>
     </Card>
   );
 }
 
 function WalletCard({ portfolio, onCopy }: { portfolio: DevnetPortfolio | null; onCopy: (value: string, label: string) => void }) {
-  if (!portfolio) return <Card className="gap-2 rounded-2xl p-4"><h3 className="font-semibold">Кошелёк Solana</h3><p className="text-sm text-muted-foreground">Загружаем адрес кошелька…</p></Card>;
+  if (!portfolio) return <Card className="gap-2 rounded-2xl p-4"><h3 className="font-semibold">Solana wallet</h3><p className="text-sm text-muted-foreground">Loading wallet address…</p></Card>;
   const address = portfolio.wallet.address;
   return (
     <Card className="gap-3 rounded-2xl p-4">
       <div className="flex items-center gap-2">
         <Wallet className="size-4 text-muted-foreground" />
-        <h3 className="font-semibold">Кошелёк Solana</h3>
+        <h3 className="font-semibold">Solana wallet</h3>
         <Badge variant="secondary" className="ml-auto">{portfolio.wallet.network}</Badge>
       </div>
       <div className="flex items-center gap-2 rounded-xl bg-muted/60 p-3">
         <span className="min-w-0 flex-1 truncate font-mono text-xs">{shortAddress(address)}</span>
-        <Button variant="ghost" size="icon" aria-label="Скопировать адрес" onClick={() => onCopy(address, "Адрес")}><Copy /></Button>
+        <Button variant="ghost" size="icon" aria-label="Copy address" onClick={() => onCopy(address, "Address")}><Copy /></Button>
       </div>
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">SOL для комиссий</span>
+        <span className="text-muted-foreground">SOL for network fees</span>
         <span className="font-medium tabular-nums">{formatQuantity(portfolio.wallet.solBalance, 5)} SOL</span>
       </div>
       <Button variant="outline" className="w-full" nativeButton={false} render={<a href={portfolio.wallet.explorerUrl} target="_blank" rel="noopener noreferrer" />}>
-        <ExternalLink />Открыть в обозревателе
+        <ExternalLink />Open in explorer
       </Button>
     </Card>
   );
@@ -281,12 +283,12 @@ function HoldingDetails({
     <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${presentPortfolioCopy(holding.ticker)} · ${formatQuantity(holding.valueUsd)} DEVNET UNITS · NO MONETARY VALUE`}>
       <div className="space-y-4">
           <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
-            <span className="text-muted-foreground">{holding.kind === "vault" ? "Статус Devnet-позиции" : "Статус токена"}</span><span className="font-medium">{holding.kind === "vault" ? "Проверьте условия выхода" : "NO MONETARY VALUE"}</span>
+            <span className="text-muted-foreground">{holding.kind === "vault" ? "Devnet position status" : "Token status"}</span><span className="font-medium">{holding.kind === "vault" ? "Check exit terms" : "NO MONETARY VALUE"}</span>
           </div>
         {holding.kind === "kzte" ? (
           <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
-            <p>Legacy Devnet token reserve: {kzteReserve === null ? "—" : formatQuantity(kzteReserve)} KZTE · общий объём {formatQuantity(kzteSupply ?? 1_000_000_000, 0)}</p>
-            <p>Это токен приложения в Devnet, не KZT-стейблкоин и не интеграция с Intebix или банком.</p>
+            <p>Legacy Devnet token reserve: {kzteReserve === null ? "—" : formatQuantity(kzteReserve)} KZTE · total supply {formatQuantity(kzteSupply ?? 1_000_000_000, 0)}</p>
+            <p>This is an app token on Devnet, not a KZT stablecoin or an Intebix or bank integration.</p>
           </div>
         ) : null}
         <div className="space-y-3 rounded-xl border p-3">
@@ -294,10 +296,10 @@ function HoldingDetails({
           <AddressLine label="Token account" address={holding.tokenAccount} explorerUrl={holding.tokenAccountExplorerUrl} onCopy={() => onCopy(holding.tokenAccount, "Token account")} />
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {canInvest ? <Button variant="outline" onClick={onInvest}><ArrowDownToLine />Вложить ещё</Button> : null}
-          {canWithdraw ? <Button variant="outline" onClick={onWithdraw}><ArrowUpFromLine />Вывести</Button> : null}
-          {canExchange ? <Button variant="outline" onClick={() => onExchange(exchangeDirection)}>Обменять</Button> : null}
-          {canBuy ? <Button variant="outline" className="col-span-2" onClick={onBuy}>Купить ещё</Button> : null}
+          {canInvest ? <Button variant="outline" onClick={onInvest}><ArrowDownToLine />Add more</Button> : null}
+          {canWithdraw ? <Button variant="outline" onClick={onWithdraw}><ArrowUpFromLine />Withdraw</Button> : null}
+          {canExchange ? <Button variant="outline" onClick={() => onExchange(exchangeDirection)}>Exchange</Button> : null}
+          {canBuy ? <Button variant="outline" className="col-span-2" onClick={onBuy}>Buy more</Button> : null}
         </div>
       </div>
     </DrawerFrame>
@@ -310,8 +312,8 @@ function AddressLine({ label, address, explorerUrl, onCopy }: { label: string; a
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">{label}</span>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" aria-label={`Скопировать ${label}`} onClick={onCopy}><Copy /></Button>
-          <Button variant="ghost" size="icon" aria-label={`Открыть ${label} в обозревателе`} nativeButton={false} render={<a href={explorerUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /></Button>
+          <Button variant="ghost" size="icon" aria-label={`Copy ${label}`} onClick={onCopy}><Copy /></Button>
+          <Button variant="ghost" size="icon" aria-label={`Open ${label} in explorer`} nativeButton={false} render={<a href={explorerUrl} target="_blank" rel="noopener noreferrer" />}><ExternalLink /></Button>
         </div>
       </div>
       <p className="font-mono text-[11px] leading-4" title={address}>{shortAddress(address)}</p>
@@ -320,7 +322,7 @@ function AddressLine({ label, address, explorerUrl, onCopy }: { label: string; a
 }
 
 function OnchainHistory({ rows }: { rows: DevnetPortfolio["history"] }) {
-  if (!rows.length) return <Card className="rounded-2xl p-4 text-sm text-muted-foreground">Операций в Solana пока нет.</Card>;
+  if (!rows.length) return <Card className="rounded-2xl p-4 text-sm text-muted-foreground">No Solana activity yet.</Card>;
   return (
     <div className="space-y-2">
       {rows.slice(0, 5).map((row) => (
@@ -328,7 +330,7 @@ function OnchainHistory({ rows }: { rows: DevnetPortfolio["history"] }) {
           <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"><ArrowDownToLine className="size-4 text-muted-foreground" /></span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium leading-5">{presentPortfolioCopy(row.title)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{new Date(row.at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{new Date(row.at).toLocaleString("en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
             <a href={row.explorerUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs underline underline-offset-4">Solana Explorer <ExternalLink className="size-3" /></a>
           </div>
         </Card>

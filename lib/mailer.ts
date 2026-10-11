@@ -26,18 +26,18 @@ export type Receipt = {
 };
 
 const labels: Record<ReceiptKind, string> = {
-  welcome: "Добро пожаловать",
-  faucet: "Пополнение тестовыми долларами",
-  "bank-embed": "Пополнение со счёта в банке",
-  transak: "Пополнение через Transak",
-  moonpay: "Пополнение через MoonPay",
-  invest: "Вложение в тестовой сети",
-  redemption: "Погашение долей",
-  "asset-purchase": "Покупка доли OFFICE",
-  "wallet-send": "Перевод тестовых долларов",
-  "kzte-topup": "Перевод из резерва Intebix",
-  "kzte-exchange": "Обмен KZTE",
-  "kzte-redeem": "KZTE возвращены в резерв Intebix · выплата в тенге",
+  welcome: "Welcome",
+  faucet: "Test-token funding",
+  "bank-embed": "Legacy demo-bank funding",
+  transak: "Legacy Transak test flow",
+  moonpay: "Legacy MoonPay test flow",
+  invest: "Devnet test deposit",
+  redemption: "Historic test-share redemption",
+  "asset-purchase": "OFFICE test-token purchase",
+  "wallet-send": "Test-token transfer",
+  "kzte-topup": "Legacy Intebix test reserve transfer",
+  "kzte-exchange": "Legacy KZTE test-token exchange",
+  "kzte-redeem": "Legacy KZTE test-token redemption",
 };
 
 let transport: Transporter | null = null;
@@ -86,7 +86,7 @@ function safeExplorerUrl(value: string | undefined) {
 
 function formatUsd(amountUsd: number) {
   const amount = Number.isFinite(amountUsd) && amountUsd > 0 ? amountUsd : 0;
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(amount);
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(amount)} TEST UNITS`;
 }
 
 export async function sendReceipt({ to, kind, amountUsd, details, explorerUrl, secondaryExplorerUrl }: Receipt) {
@@ -97,23 +97,23 @@ export async function sendReceipt({ to, kind, amountUsd, details, explorerUrl, s
   const secondaryHref = safeExplorerUrl(secondaryExplorerUrl);
   const safeDetails = escapeHtml(details);
   const button = href
-    ? `<a href="${escapeHtml(href)}" style="display:inline-block;background:#172554;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">Открыть в обозревателе</a>`
+    ? `<a href="${escapeHtml(href)}" style="display:inline-block;background:#172554;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600">Open in Explorer</a>`
     : "";
   const secondaryButton = secondaryHref
-    ? `<a href="${escapeHtml(secondaryHref)}" style="display:inline-block;background:#ffffff;color:#172554;text-decoration:none;padding:11px 17px;border:1px solid #cbd5e1;border-radius:8px;font-weight:600">Открыть вторую транзакцию</a>`
+    ? `<a href="${escapeHtml(secondaryHref)}" style="display:inline-block;background:#ffffff;color:#172554;text-decoration:none;padding:11px 17px;border:1px solid #cbd5e1;border-radius:8px;font-weight:600">Open second transaction</a>`
     : "";
   const isWelcome = kind === "welcome";
   const isKzte = kind.startsWith("kzte-");
-  const networkNote = isKzte ? "Solana devnet · KZTE" : "Solana devnet · тестовые доллары";
-  const html = `<!doctype html><html lang="ru"><body style="margin:0;background:#f4f6fa;color:#172033;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e8f0;border-radius:14px"><tr><td style="padding:28px"><p style="margin:0 0 24px;color:#64748b;font-size:14px;font-weight:700;letter-spacing:.04em">Plain</p><h1 style="margin:0 0 18px;font-size:24px;line-height:1.3">${isWelcome ? "Добро пожаловать" : escapeHtml(label)}</h1>${isWelcome ? "<p style=\"margin:0 0 20px;color:#475569;line-height:1.6\">Пополните баланс, откройте вклад или купите долю OFFICE. Подтверждённые операции доступны в сети Solana devnet.</p>" : `<p style="margin:0 0 8px;color:#64748b;font-size:13px">Сумма</p><p style="margin:0 0 20px;font-size:24px;font-weight:700">${formattedAmount}</p><p style="margin:0 0 22px;color:#475569;line-height:1.6">${safeDetails}</p>`}${button ? `<p style="margin:0 0 ${secondaryButton ? 10 : 26}px">${button}</p>` : ""}${secondaryButton ? `<p style="margin:0 0 26px">${secondaryButton}</p>` : ""}<p style="margin:0;padding-top:18px;border-top:1px solid #e4e8f0;color:#64748b;font-size:12px;line-height:1.6">${networkNote}</p></td></tr></table></td></tr></table></body></html>`;
+  const networkNote = `${isKzte ? "Solana Devnet · legacy KZTE" : "Solana Devnet · test tokens"} · No monetary value`;
+  const html = `<!doctype html><html lang="en"><body style="margin:0;background:#f4f6fa;color:#172033;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e8f0;border-radius:14px"><tr><td style="padding:28px"><p style="margin:0 0 24px;color:#64748b;font-size:14px;font-weight:700;letter-spacing:.04em">Plain</p><h1 style="margin:0 0 18px;font-size:24px;line-height:1.3">${isWelcome ? "Welcome to Plain" : escapeHtml(label)}</h1>${isWelcome ? "<p style=\"margin:0 0 20px;color:#475569;line-height:1.6\">Explore Kamino Lend with a Solana Devnet wallet and free test tokens. The app checks your wallet-signed transactions before showing confirmation. Test funds have no monetary value.</p>" : `<p style="margin:0 0 8px;color:#64748b;font-size:13px">Test quantity</p><p style="margin:0 0 20px;font-size:24px;font-weight:700">${formattedAmount}</p><p style="margin:0 0 22px;color:#475569;line-height:1.6">${safeDetails}</p>`}${button ? `<p style="margin:0 0 ${secondaryButton ? 10 : 26}px">${button}</p>` : ""}${secondaryButton ? `<p style="margin:0 0 26px">${secondaryButton}</p>` : ""}<p style="margin:0;padding-top:18px;border-top:1px solid #e4e8f0;color:#64748b;font-size:12px;line-height:1.6">${networkNote}</p></td></tr></table></td></tr></table></body></html>`;
   const text = isWelcome
-    ? "Добро пожаловать в Plain. Пополните баланс, откройте вклад или купите долю OFFICE. Подтверждённые операции доступны в сети Solana devnet."
-    : `Plain — ${label}\nСумма: ${formattedAmount}\n${details}${href ? `\nОткрыть в обозревателе: ${href}` : ""}${secondaryHref ? `\nОткрыть вторую транзакцию: ${secondaryHref}` : ""}\n\n${networkNote}`;
+    ? "Welcome to Plain. Explore Kamino Lend with a Solana Devnet wallet and free test tokens. Transactions are verified before confirmation. Test funds have no monetary value."
+    : `Plain — ${label}\nTest quantity: ${formattedAmount}\n${details}${href ? `\nOpen in Explorer: ${href}` : ""}${secondaryHref ? `\nOpen second transaction: ${secondaryHref}` : ""}\n\n${networkNote}`;
 
   await getTransport().sendMail({
     from: { name: "Plain", address: process.env.MAIL_FROM as string },
     to,
-    subject: `${isWelcome ? "Добро пожаловать в Plain" : `Plain · ${label}`}`,
+    subject: `${isWelcome ? "Welcome to Plain" : `Plain · ${label}`}`,
     text,
     html,
   });
@@ -121,12 +121,12 @@ export async function sendReceipt({ to, kind, amountUsd, details, explorerUrl, s
 
 export async function sendLoginCode(to: string, code: string) {
   const formattedCode = `${code.slice(0, 3)} ${code.slice(3)}`;
-  const text = `Plain\n\nКод входа: ${formattedCode}\n\nКод действует 10 минут. Если вы не запрашивали вход, проигнорируйте это письмо.`;
-  const html = `<!doctype html><html lang="ru"><body style="margin:0;background:#f4f6fa;color:#172033;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#ffffff;border:1px solid #e4e8f0;border-radius:14px"><tr><td style="padding:28px"><p style="margin:0 0 24px;color:#64748b;font-size:14px;font-weight:700;letter-spacing:.04em">Plain</p><h1 style="margin:0 0 18px;font-size:22px;line-height:1.3">Код для входа</h1><p style="margin:0 0 8px;color:#475569;line-height:1.6">Введите этот код на странице входа:</p><p style="margin:0 0 18px;font-size:32px;font-weight:700;letter-spacing:.16em">${formattedCode}</p><p style="margin:0;color:#64748b;font-size:13px;line-height:1.6">Код действует 10 минут. Если вы не запрашивали вход, проигнорируйте это письмо.</p></td></tr></table></td></tr></table></body></html>`;
+  const text = `Plain\n\nYour sign-in code: ${formattedCode}\n\nThis code is valid for 10 minutes. If you did not request it, ignore this email.`;
+  const html = `<!doctype html><html lang="en"><body style="margin:0;background:#f4f6fa;color:#172033;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;background:#ffffff;border:1px solid #e4e8f0;border-radius:14px"><tr><td style="padding:28px"><p style="margin:0 0 24px;color:#64748b;font-size:14px;font-weight:700;letter-spacing:.04em">Plain</p><h1 style="margin:0 0 18px;font-size:22px;line-height:1.3">Your sign-in code</h1><p style="margin:0 0 8px;color:#475569;line-height:1.6">Enter this code on the sign-in page:</p><p style="margin:0 0 18px;font-size:32px;font-weight:700;letter-spacing:.16em">${formattedCode}</p><p style="margin:0;color:#64748b;font-size:13px;line-height:1.6">This code is valid for 10 minutes. If you did not request it, ignore this email.</p></td></tr></table></td></tr></table></body></html>`;
   await getTransport().sendMail({
     from: { name: "Plain", address: process.env.MAIL_FROM as string },
     to,
-    subject: "Код входа в Plain",
+    subject: "Your Plain sign-in code",
     text,
     html,
   });

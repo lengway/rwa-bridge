@@ -12,20 +12,40 @@ import { useDevnet } from "@/lib/useDevnet";
 import { Input } from "@/components/ui/input";
 
 const tabs = [
-  { href: "/home", label: "Главная", icon: House },
-  { href: "/earn", label: "Доход", icon: Landmark },
-  { href: "/assets", label: "Активы", icon: BriefcaseBusiness },
-  { href: "/activity", label: "История", icon: Activity },
-  { href: "/portfolio", label: "Портфель", icon: PieChart },
+  { href: "/home", label: "Home", icon: House },
+  { href: "/earn", label: "Earn", icon: Landmark },
+  { href: "/assets", label: "Assets", icon: BriefcaseBusiness },
+  { href: "/activity", label: "Activity", icon: Activity },
+  { href: "/portfolio", label: "Portfolio", icon: PieChart },
 ];
 
 const titles: Record<string, string> = {
   "/home": "Plain",
-  "/earn": "Доход",
-  "/assets": "Активы",
-  "/activity": "История",
-  "/portfolio": "Портфель",
+  "/earn": "Earn",
+  "/assets": "Assets",
+  "/activity": "Activity",
+  "/portfolio": "Portfolio",
 };
+
+const authErrorTranslations: Record<string, string> = {
+  "Введите корректный email.": "Enter a valid email address.",
+  "Отправка писем временно недоступна. Попробуйте позже.": "Email delivery is temporarily unavailable. Please try again later.",
+  "Новый код можно запросить через минуту.": "You can request a new code in one minute.",
+  "Для этого email запрошено слишком много кодов. Попробуйте позже.": "Too many codes were requested for this email. Please try again later.",
+  "С этого устройства запрошено слишком много кодов. Попробуйте позже.": "Too many codes were requested from this device. Please try again later.",
+  "Не удалось отправить письмо с кодом. Проверьте адрес и попробуйте позже.": "We couldn't send the code. Check the email address and try again later.",
+  "Введите шестизначный код из письма.": "Enter the six-digit code from your email.",
+  "Срок действия кода истёк. Запросите новый код.": "This code has expired. Request a new one.",
+  "Превышено число попыток. Запросите новый код.": "Too many attempts. Request a new code.",
+  "Код не найден или уже использован. Запросите новый код.": "This code was not found or has already been used. Request a new one.",
+  "Неверный код. Проверьте письмо и попробуйте ещё раз.": "That code is incorrect. Check your email and try again.",
+};
+
+function presentEnglishError(message: string | null | undefined, fallback: string) {
+  if (!message) return fallback;
+  if (authErrorTranslations[message]) return authErrorTranslations[message];
+  return /[А-Яа-яЁё]/.test(message) ? fallback : message;
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { status, walletAddress, walletError } = useAuth();
@@ -37,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
         <section className="w-full max-w-md space-y-3 rounded-3xl border bg-background p-7 text-center shadow-sm">
           <h1 className="text-2xl font-semibold tracking-tight">Plain</h1>
-          <p className="text-sm leading-6 text-muted-foreground">Кошелёк сейчас недоступен. Попробуйте позже.</p>
+          <p className="text-sm leading-6 text-muted-foreground">Your wallet is unavailable right now. Please try again later.</p>
         </section>
       </main>
     );
@@ -47,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function AuthLoader() {
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-muted/40" aria-label="Загрузка">
+    <main className="flex min-h-dvh items-center justify-center bg-muted/40" aria-label="Loading">
       <div className="size-8 animate-spin rounded-full border-2 border-muted-foreground/25 border-t-foreground" />
     </main>
   );
@@ -59,12 +79,12 @@ function WalletConnectionError({ message }: { message: string }) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
       <section className="w-full max-w-md space-y-4 rounded-3xl border bg-background p-7 text-center shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">Кошелёк недоступен</h1>
-        <p role="alert" className="text-sm leading-6 text-muted-foreground">{error ?? message}</p>
-        <Button className="w-full" onClick={retryWallet}>Повторить подключение</Button>
+        <h1 className="text-2xl font-semibold tracking-tight">Wallet unavailable</h1>
+        <p role="alert" className="text-sm leading-6 text-muted-foreground">{error ?? presentEnglishError(message, "We couldn't connect your wallet. Please try again.")}</p>
+        <Button className="w-full" onClick={retryWallet}>Retry connection</Button>
         <Button variant="outline" className="w-full" onClick={() => {
-          void signOut().catch(() => setError("Не удалось завершить сессию на сервере. Повторите выход после восстановления соединения."));
-        }}>Выйти</Button>
+          void signOut().catch(() => setError("We couldn't end your server session. Try signing out again when your connection is restored."));
+        }}>Sign out</Button>
       </section>
     </main>
   );
@@ -96,13 +116,13 @@ function SignInScreen() {
         body: JSON.stringify({ email }),
       });
       const result = await response.json().catch(() => null) as { error?: unknown; resendAfterSeconds?: unknown } | null;
-      if (!response.ok) throw new Error(typeof result?.error === "string" ? result.error : "Не удалось отправить код. Попробуйте ещё раз.");
+      if (!response.ok) throw new Error(presentEnglishError(typeof result?.error === "string" ? result.error : null, "We couldn't send a sign-in code. Please try again."));
       setStep("code");
       setCode("");
       setResendIn(typeof result?.resendAfterSeconds === "number" ? result.resendAfterSeconds : 60);
       if (resend) setError(null);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось отправить код. Попробуйте ещё раз.");
+      setError(presentEnglishError(requestError instanceof Error ? requestError.message : null, "We couldn't send a sign-in code. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -119,10 +139,10 @@ function SignInScreen() {
         body: JSON.stringify({ email, code }),
       });
       const result = await response.json().catch(() => null) as { error?: unknown } | null;
-      if (!response.ok) throw new Error(typeof result?.error === "string" ? result.error : "Не удалось проверить код.");
-      if (!await refreshSession()) throw new Error("Вход подтверждён, но не удалось загрузить сессию. Попробуйте ещё раз.");
+      if (!response.ok) throw new Error(presentEnglishError(typeof result?.error === "string" ? result.error : null, "We couldn't verify the code. Please try again."));
+      if (!await refreshSession()) throw new Error("Your code was accepted, but we couldn't load your session. Please try again.");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось проверить код. Попробуйте ещё раз.");
+      setError(presentEnglishError(requestError instanceof Error ? requestError.message : null, "We couldn't verify the code. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -140,7 +160,7 @@ function SignInScreen() {
       <section className="w-full max-w-md space-y-5 rounded-3xl border bg-background p-7 shadow-sm sm:p-9">
         <div className="space-y-2">
           <h1 className="text-center text-2xl font-semibold tracking-tight">Plain</h1>
-          <p className="text-center text-sm leading-6 text-muted-foreground">Войдите по email, чтобы продолжить.</p>
+          <p className="text-center text-sm leading-6 text-muted-foreground">Sign in with your email to continue.</p>
         </div>
         {step === "email" ? (
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void requestCode(); }}>
@@ -160,14 +180,14 @@ function SignInScreen() {
             </label>
             {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
             <Button className="w-full" size="lg" type="submit" disabled={busy || !email.trim()}>
-              {busy ? "Отправляем…" : "Получить код"}
+              {busy ? "Sending…" : "Send sign-in code"}
             </Button>
           </form>
         ) : (
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void verifyCode(); }}>
-            <p className="text-center text-sm leading-6 text-muted-foreground">Мы отправили код на <span className="font-medium text-foreground">{email}</span></p>
+            <p className="text-center text-sm leading-6 text-muted-foreground">We sent a code to <span className="font-medium text-foreground">{email}</span></p>
             <label className="block space-y-2 text-left text-sm font-medium">
-              <span>Код из письма</span>
+              <span>Email code</span>
               <Input
                 type="text"
                 inputMode="numeric"
@@ -179,18 +199,18 @@ function SignInScreen() {
                 onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                 required
                 disabled={busy}
-                aria-label="Шестизначный код из письма"
+                aria-label="Six-digit code from your email"
                 className="text-center font-mono text-xl tracking-[0.35em]"
               />
             </label>
             {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
             <Button className="w-full" size="lg" type="submit" disabled={busy || code.length !== 6}>
-              {busy ? "Проверяем…" : "Войти"}
+              {busy ? "Verifying…" : "Sign in"}
             </Button>
             <div className="flex items-center justify-between text-sm">
-              <Button type="button" variant="link" className="h-auto p-0" onClick={changeEmail} disabled={busy}>Изменить email</Button>
-              <Button type="button" variant="link" className="h-auto p-0" onClick={() => void requestCode(true)} disabled={busy || resendIn > 0}>
-                {resendIn > 0 ? `Повторить через ${resendIn} сек.` : "Отправить код повторно"}
+              <Button type="button" variant="link" className="h-11 px-2" onClick={changeEmail} disabled={busy}>Change email</Button>
+              <Button type="button" variant="link" className="h-11 px-2" onClick={() => void requestCode(true)} disabled={busy || resendIn > 0}>
+                {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend code"}
               </Button>
             </div>
           </form>
@@ -208,9 +228,9 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
   const isAssetDetail = /^\/assets\/[^/]+/.test(pathname);
   const isDetail = isEarnDetail || isAssetDetail;
   const title = isEarnDetail
-    ? "Детали вклада"
+    ? "Earn strategy"
     : isAssetDetail
-      ? "Детали актива"
+      ? "Asset details"
       : (titles[pathname] ?? "Plain");
 
   useEffect(() => {
@@ -231,27 +251,27 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
             {isDetail ? (
               <Link
                 href={isEarnDetail ? "/earn" : "/assets"}
-                aria-label={isEarnDetail ? "Назад к доходу" : "Назад к активам"}
-                className="-ml-2 inline-flex size-9 items-center justify-center rounded-full hover:bg-muted"
+                aria-label={isEarnDetail ? "Back to Earn" : "Back to Assets"}
+                className="-ml-2 inline-flex size-11 items-center justify-center rounded-full hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ArrowLeft className="size-5" />
               </Link>
             ) : null}
             <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h1>
-            <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">devnet</span>
+            <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">Devnet</span>
           </header>
         ) : null}
         <main
           className={`flex-1 px-4 pt-5 ${isDetail ? "pb-[calc(12rem_+_env(safe-area-inset-bottom))]" : "pb-28"}`}
         >
           {portfolioError ? <div role="alert" className="mb-4 space-y-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
-            <p>{portfolioError}</p>
-            <Button variant="outline" size="sm" onClick={() => void refreshPortfolio()}>Обновить портфель</Button>
+            <p>{presentEnglishError(portfolioError, "We couldn't load your portfolio. Please try again.")}</p>
+            <Button variant="outline" size="sm" onClick={() => void refreshPortfolio()}>Refresh portfolio</Button>
           </div> : null}
           {children}
         </main>
         <nav
-          aria-label="Основная навигация"
+          aria-label="Primary navigation"
           className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t bg-background/95 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur"
         >
           <div className="grid grid-cols-5">
@@ -262,7 +282,7 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
                   key={href}
                   href={href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg text-[10px] transition-colors ${active ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <Icon className={`size-5 ${active ? "stroke-[2.25]" : ""}`} />
                   <span>{label}</span>

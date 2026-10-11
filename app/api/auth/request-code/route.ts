@@ -7,10 +7,10 @@ import { isMailerConfigured, sendLoginCode } from "@/lib/mailer";
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { email?: unknown } | null;
   if (typeof body?.email !== "string" || !isValidEmail(body.email)) {
-    return NextResponse.json({ error: "Введите корректный email." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
   if (!isMailerConfigured()) {
-    return NextResponse.json({ error: "Отправка писем временно недоступна. Попробуйте позже." }, { status: 503 });
+    return NextResponse.json({ error: "Email delivery is temporarily unavailable. Try again later." }, { status: 503 });
   }
 
   const email = normalizeEmail(body.email);
@@ -28,10 +28,10 @@ export async function POST(request: Request) {
 
   if (!reservation.ok) {
     const message = reservation.reason === "cooldown"
-      ? "Новый код можно запросить через минуту."
+      ? "You can request a new code in one minute."
       : reservation.reason === "email-limit"
-        ? "Для этого email запрошено слишком много кодов. Попробуйте позже."
-        : "С этого устройства запрошено слишком много кодов. Попробуйте позже.";
+        ? "Too many codes have been requested for this email. Try again later."
+        : "Too many codes have been requested from this device. Try again later.";
     return NextResponse.json(
       { error: message, retryAfterSeconds: reservation.retryAfterSeconds },
       { status: 429, headers: { "Retry-After": String(reservation.retryAfterSeconds) } },
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     await sendLoginCode(email, code);
   } catch {
     await clearAuthCodeChallenge(emailKey, createdAt).catch(() => undefined);
-    return NextResponse.json({ error: "Не удалось отправить письмо с кодом. Проверьте адрес и попробуйте позже." }, { status: 503 });
+    return NextResponse.json({ error: "Could not send the email with your code. Check the address and try again later." }, { status: 503 });
   }
 
   return NextResponse.json({ ok: true, resendAfterSeconds: 60 });

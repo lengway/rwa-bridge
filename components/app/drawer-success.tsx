@@ -41,7 +41,7 @@ export function DrawerSuccess({
       </div>
       {note ? <p className="max-w-xs text-xs leading-5 text-muted-foreground">{note}</p> : null}
       <div className="mt-2 grid w-full gap-2">
-        <Button className="w-full" onClick={onDone}>Готово</Button>
+        <Button className="w-full" onClick={onDone}>Done</Button>
         {explorerUrl ? (
           <div className="grid gap-2">
             <Button
@@ -50,7 +50,7 @@ export function DrawerSuccess({
               nativeButton={false}
               render={<a href={explorerUrl} target="_blank" rel="noopener noreferrer" />}
             >
-              Открыть подтверждение в обозревателе
+              View confirmation in Explorer
             </Button>
             {secondaryExplorerUrl ? (
               <Button
@@ -59,7 +59,7 @@ export function DrawerSuccess({
                 nativeButton={false}
                 render={<a href={secondaryExplorerUrl} target="_blank" rel="noopener noreferrer" />}
               >
-                Открыть зачисление в обозревателе
+                View deposit in Explorer
               </Button>
             ) : null}
           </div>

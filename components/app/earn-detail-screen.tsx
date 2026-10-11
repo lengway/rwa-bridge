@@ -53,15 +53,13 @@ export function EarnDetail({ strategy, initialAction }: { strategy: YieldStrateg
       <TechnicalDetails strategy={strategy} />
 
       {!isKaminoLend && !canInvest ? (
-        <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5 text-muted-foreground">
-          RESEARCH / UNSUPPORTED: новые пополнения для этой карточки отключены. Она не является предложением вложить
-          реальные средства.
+        <p className="text-xs leading-5 text-muted-foreground">
+          Historic entry: new deposits are disabled. This is not an offer to invest real funds.
         </p>
       ) : null}
       {position && !canRedeem ? (
-        <p className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5 text-muted-foreground">
-          TEST-TOKEN REDEMPTION сейчас не поддерживается для этой позиции. Не создавайте новую операцию, пока
-          совместимый путь выхода не будет подтверждён.
+        <p className="text-xs leading-5 text-muted-foreground">
+          Test-token redemption is not currently supported for this position. Wait until a compatible exit route is confirmed before starting a transaction.
         </p>
       ) : null}
       <DetailActionBar amount={isKaminoLend ? "Devnet USDC" : hydrated ? `${formatQuantity(cashUsd)} TEST QUOTE` : "…"}>
@@ -75,7 +73,7 @@ export function EarnDetail({ strategy, initialAction }: { strategy: YieldStrateg
             }}
             disabled={!canRedeem}
           >
-            {canRedeem ? "Вывести" : "Вывод недоступен"}
+            {canRedeem ? "Withdraw" : "Withdraw unavailable"}
           </Button>
         ) : position ? (
           <Button
@@ -86,7 +84,7 @@ export function EarnDetail({ strategy, initialAction }: { strategy: YieldStrateg
             }}
             disabled={!hydrated || !canRedeem}
           >
-            {canRedeem ? "Погасить тестовые доли" : "Выход недоступен"}
+            {canRedeem ? "Redeem test shares" : "Exit unavailable"}
           </Button>
         ) : null}
         <Button
@@ -101,7 +99,7 @@ export function EarnDetail({ strategy, initialAction }: { strategy: YieldStrateg
           }}
           disabled={(!isKaminoLend && !hydrated) || !canInvest}
         >
-          <ArrowRight />{canInvest ? isKaminoLend ? "Пополнить Kamino" : "Открыть Solana Devnet" : "Недоступно"}
+          <ArrowRight />{canInvest ? isKaminoLend ? "Supply to Kamino" : "Open on Solana Devnet" : "Unavailable"}
         </Button>
       </DetailActionBar>
       {isKaminoLend ? (

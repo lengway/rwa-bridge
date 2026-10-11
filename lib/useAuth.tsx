@@ -52,7 +52,7 @@ export function AuthProvider({
       }
       const result = await response.json() as { email?: unknown; jwt?: unknown };
       if (!response.ok || typeof result.email !== "string" || typeof result.jwt !== "string") {
-        throw new Error("Не удалось загрузить сессию.");
+        throw new Error("Could not load the session.");
       }
       setEmail(result.email);
       setJwt(result.jwt);
@@ -98,9 +98,9 @@ export function AuthProvider({
     let requestError: Error | null = null;
     try {
       const response = await fetch("/api/auth/logout", { method: "POST" });
-      if (!response.ok) requestError = new Error("Не удалось завершить сессию на сервере.");
+      if (!response.ok) requestError = new Error("Could not end the server session.");
     } catch {
-      requestError = new Error("Не удалось завершить сессию на сервере.");
+      requestError = new Error("Could not end the server session.");
     } finally {
       setJwt(null);
       setEmail(null);
@@ -167,7 +167,7 @@ function CrossmintWalletBridge({
     let cancelled = false;
     const timeout = window.setTimeout(() => {
       cancelled = true;
-      onError("Кошелёк не ответил вовремя. Повторите подключение; новая транзакция не отправлялась.");
+      onError("The wallet did not respond in time. Try connecting again; no transaction was submitted.");
     }, 30_000);
     async function acceptWallet(loaded: Wallet<Chain>) {
       if (cancelled) return;
@@ -181,7 +181,7 @@ function CrossmintWalletBridge({
       });
       const result = await response.json().catch(() => null) as { ok?: unknown; error?: unknown } | null;
       if (!response.ok || result?.ok !== true) {
-        throw new Error(typeof result?.error === "string" ? result.error : "Не удалось связать кошелёк с сессией. Повторите подключение.");
+        throw new Error(typeof result?.error === "string" ? result.error : "Could not link the wallet to the session. Try connecting again.");
       }
       if (!cancelled) {
         onError(null);
@@ -195,13 +195,13 @@ function CrossmintWalletBridge({
         await wallets.getWallet({ chain: walletChain });
         if (cancelled) return;
         const existing = await getWalletRef.current({ chain: walletChain });
-        if (!existing) throw new Error("Не удалось загрузить кошелёк.");
+        if (!existing) throw new Error("Could not load the wallet.");
         await acceptWallet(existing);
       } catch (error) {
         if (cancelled) return;
         if (!(error instanceof WalletNotAvailableError)) {
-          onError(error instanceof Error && error.message.startsWith("Не удалось")
-            ? error.message : "Не удалось подключить кошелёк. Проверьте соединение и повторите попытку.");
+          onError(error instanceof Error && error.message.startsWith("Could not")
+            ? error.message : "Could not connect the wallet. Check your connection and try again.");
           return;
         }
         try {
@@ -209,10 +209,10 @@ function CrossmintWalletBridge({
             chain: walletChain,
             recoveryMethods: [{ type: "email", email: recoveryEmail }],
           });
-          if (!created) throw new Error("Не удалось создать кошелёк.");
+          if (!created) throw new Error("Could not create the wallet.");
           await acceptWallet(created);
         } catch {
-          if (!cancelled) onError("Не удалось создать или подключить кошелёк. Повторите попытку.");
+          if (!cancelled) onError("Could not create or connect the wallet. Try again.");
         }
       } finally {
         window.clearTimeout(timeout);

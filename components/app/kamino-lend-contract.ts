@@ -1,3 +1,5 @@
+import bs58 from "bs58";
+
 /**
  * Browser-side contract guards for the Kamino Lend Devnet route.
  *
@@ -45,6 +47,7 @@ export type PreparedKaminoLendAction = Readonly<{
   reserve: string;
   amountAtomic: string;
   collateralAmountAtomic: string | null;
+  networkFeeLamports: string | null;
   simulation: Readonly<{
     ok: true;
     unitsConsumed: number | null;
@@ -58,6 +61,7 @@ export type KaminoLendConfirmation = Readonly<{
   signature: string;
   explorerUrl: string;
   status: string | null;
+  actualLiquidityAmountAtomic: string | null;
 }>;
 
 type UnknownRecord = Record<string, unknown>;
@@ -84,7 +88,7 @@ export function normalizeKaminoLendMarket(value: unknown): KaminoLendMarket | nu
     return {
       ready: false,
       network: "devnet",
-      reason: reason ?? "Маршрут Kamino Lend временно недоступен.",
+      reason: reason ?? "The Kamino Lend route is temporarily unavailable.",
       market: null,
       reserve: null,
     };
@@ -150,6 +154,8 @@ export function normalizePreparedKaminoLendAction(
   const reserve = readAddress(source.reserve);
   const amountAtomic = readPositiveAtomic(source.amountAtomic);
   const collateralAmountAtomic = readAtomic(source.collateralAmountAtomic);
+  const networkFeeLamports = readAtomic(source.networkFeeLamports);
+  if (source.networkFeeLamports !== undefined && source.networkFeeLamports !== null && networkFeeLamports === null) return null;
   const simulation = asRecord(source.simulation);
 
   if (!actionId || !serializedTransaction || !blockhash || lastValidBlockHeight === null || expiresAt === null || expiresAt === 0 || !transactionMessageDigest
@@ -174,6 +180,7 @@ export function normalizePreparedKaminoLendAction(
     reserve,
     amountAtomic,
     collateralAmountAtomic,
+    networkFeeLamports,
     simulation: { ok: true, unitsConsumed },
   };
 }
@@ -211,7 +218,9 @@ export function normalizeKaminoLendConfirmation(
 
   const status = readText(source.status);
   const isConfirmed = source.confirmed === true && status === "COMPLETED";
-  const signature = readSignature(source.signature) ?? expectedSignature;
+  const actualLiquidityAmountAtomic = readPositiveAtomic(source.actualLiquidityAmountAtomic);
+  if (source.actualLiquidityAmountAtomic !== undefined && source.actualLiquidityAmountAtomic !== null && actualLiquidityAmountAtomic === null) return null;
+  const signature = readSignature(source.signature);
   if (!isConfirmed || !signature || signature !== expectedSignature) return null;
 
   return {
@@ -221,6 +230,7 @@ export function normalizeKaminoLendConfirmation(
     signature,
     explorerUrl: readExplorerUrl(source.explorerUrl) ?? explorerForSignature(signature),
     status,
+    actualLiquidityAmountAtomic,
   };
 }
 
@@ -283,7 +293,12 @@ function readAddress(value: unknown) {
 }
 
 function readSignature(value: unknown) {
-  return readAddress(value);
+  if (typeof value !== "string" || value !== value.trim() || !/^[1-9A-HJ-NP-Za-km-z]{64,100}$/.test(value)) return null;
+  try {
+    return bs58.decode(value).length === 64 ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function readActionId(value: unknown) {
@@ -302,12 +317,12 @@ function readSerializedTransaction(value: unknown) {
 }
 
 function readAtomic(value: unknown) {
-  const atomic = readText(value);
+  const atomic = typeof value === "string" && value === value.trim() ? value : null;
   return atomic && NON_NEGATIVE_ATOMIC.test(atomic) ? atomic : null;
 }
 
 function readPositiveAtomic(value: unknown) {
-  const atomic = readText(value);
+  const atomic = readAtomic(value);
   return atomic && POSITIVE_ATOMIC.test(atomic) ? atomic : null;
 }
 

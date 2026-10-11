@@ -27,8 +27,8 @@ export function PositionSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Ваши вклады</h2>
-        <Link href="/earn" className="text-sm text-muted-foreground hover:text-foreground">Все</Link>
+        <h2 className="text-base font-semibold">Your positions</h2>
+        <Link href="/earn" className="rounded px-2 py-1 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">All strategies</Link>
       </div>
       <div className="space-y-2">
         {positions.map((item) => <PositionCard key={item.strategy.id} item={item} />)}
@@ -74,7 +74,7 @@ export function HoldingsSection({
 }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold">Ваши активы</h2>
+      <h2 className="text-base font-semibold">Your assets</h2>
       <div className="space-y-2">
         {holdings.map(({ asset, holding }) => (
           <Link key={asset.id} href={`/assets/${asset.slug}`} className="block">
@@ -109,7 +109,7 @@ export function PromoCard() {
         <div>
           <h2 className="font-semibold">{displayStrategyName(strategy)}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            USER-SIGNED ON-CHAIN · сервер проверяет маршрут и симулирует транзакцию, а подключённый кошелёк подписывает её в Solana Devnet.
+            USER-SIGNED ON-CHAIN · The server validates the route and simulates the transaction; your connected wallet signs it on Solana Devnet.
           </p>
         </div>
       </Link>

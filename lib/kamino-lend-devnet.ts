@@ -87,6 +87,7 @@ type PreparedKaminoAction = {
   expiresAt: number;
   createdAt: number;
   signature?: string;
+  networkFeeLamports?: string;
   kaminoInstructionDigests: string[];
   status: "PREPARED" | "CONFIRMED" | "FAILED";
   result?: ConfirmedKaminoLendAction;
@@ -190,7 +191,7 @@ function assertAddress(actual: Address | string, expected: string, code: string,
   if (actual.toString() !== expected) error(code, message);
 }
 
-async function loadVerifiedKaminoLend(config = readConfig()): Promise<VerifiedKaminoLend> {
+async function loadVerifiedDevnetConnection(config = readConfig()) {
   const connection = new Connection(config.rpcUrl, "confirmed");
   let genesisHash: string;
   try {
@@ -201,6 +202,11 @@ async function loadVerifiedKaminoLend(config = readConfig()): Promise<VerifiedKa
   if (genesisHash !== SOLANA_DEVNET_GENESIS_HASH) {
     error("INVALID_CLUSTER", "Configured RPC is not canonical Solana Devnet.");
   }
+  return connection;
+}
+
+async function loadVerifiedKaminoLend(config = readConfig()): Promise<VerifiedKaminoLend> {
+  const connection = await loadVerifiedDevnetConnection(config);
 
   const program = publicKey(KAMINO_LEND_DEVNET.programId, "Kamino program");
   const marketAddress = publicKey(KAMINO_LEND_DEVNET.market, "Kamino market");
@@ -394,7 +400,12 @@ async function userTokenBalanceAtomic({
 }
 
 function signatureLooksValid(value: unknown): value is string {
-  return typeof value === "string" && /^[1-9A-HJ-NP-Za-km-z]{64,100}$/.test(value);
+  if (typeof value !== "string" || value !== value.trim() || !/^[1-9A-HJ-NP-Za-km-z]{64,100}$/.test(value)) return false;
+  try {
+    return bs58.decode(value).length === 64;
+  } catch {
+    return false;
+  }
 }
 
 function messageDigest(transaction: VersionedTransaction) {
@@ -413,6 +424,7 @@ function publicResponse(prepared: PreparedKaminoAction, serializedTransaction: s
     lastValidBlockHeight: prepared.lastValidBlockHeight,
     transactionMessageDigest: prepared.messageDigest,
     expiresAt: prepared.expiresAt,
+    networkFeeLamports: prepared.networkFeeLamports ?? null,
     market: KAMINO_LEND_DEVNET.market,
     reserve: KAMINO_LEND_DEVNET.reserve,
     mint: KAMINO_LEND_DEVNET.liquidityMint,
@@ -672,6 +684,15 @@ export async function prepareKaminoLendDevnetAction({
   if (simulation.value.err) {
     error("SIMULATION_FAILED", "Kamino transaction simulation failed. Refresh balances and try again.");
   }
+  let fee;
+  try {
+    fee = (await loaded.connection.getFeeForMessage(transaction.message, "confirmed")).value;
+  } catch {
+    error("FEE_UNAVAILABLE", "Unable to read the network fee. Refresh and prepare a new transaction.");
+  }
+  if (fee === null || !Number.isSafeInteger(fee) || fee < 0) {
+    error("FEE_UNAVAILABLE", "The network fee is unavailable for this transaction. Prepare a fresh transaction.");
+  }
 
   const createdAt = Date.now();
   const prepared: PreparedKaminoAction = {
@@ -685,6 +706,7 @@ export async function prepareKaminoLendDevnetAction({
     lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
     expiresAt: createdAt + PREPARED_ACTION_TTL_MS,
     createdAt,
+    networkFeeLamports: fee.toString(),
     kaminoInstructionDigests: expectedKaminoInstructionDigests,
     status: "PREPARED",
   };
@@ -728,8 +750,10 @@ export async function confirmKaminoLendDevnetAction({
     if (prepared.status === "FAILED") error("TRANSACTION_FAILED", "Prepared Kamino transaction has already failed on-chain.");
     // Preparation expiry prevents signing stale payloads, not reconciliation of
     // a transaction already sent. Keep the digest durable until it is verified.
-    const loaded = await loadVerifiedKaminoLend();
-    const status = (await loaded.connection.getSignatureStatuses([signature], {
+    // Receipt reconciliation does not depend on the reserve still accepting
+    // new actions. Verify Devnet, then inspect the immutable finalized message.
+    const connection = await loadVerifiedDevnetConnection();
+    const status = (await connection.getSignatureStatuses([signature], {
       searchTransactionHistory: true,
     })).value[0];
     if (!status) {
@@ -742,11 +766,11 @@ export async function confirmKaminoLendDevnetAction({
       return { confirmed: false as const, status: "PENDING" as const, actionId: prepared.id };
     }
     const [rawTransaction, parsedTransaction] = await Promise.all([
-      loaded.connection.getTransaction(signature, {
+      connection.getTransaction(signature, {
         commitment: "finalized",
         maxSupportedTransactionVersion: 0,
       }),
-      loaded.connection.getParsedTransaction(signature, {
+      connection.getParsedTransaction(signature, {
         commitment: "finalized",
         maxSupportedTransactionVersion: 0,
       }),

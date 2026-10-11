@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import bs58 from "bs58";
 import {
   decimalToAtomic,
   formatAtomicAmount,
@@ -13,7 +14,7 @@ const MARKET = "11111111111111111111111111111111";
 const RESERVE = "22222222222222222222222222222222";
 const MINT = "33333333333333333333333333333333";
 const BLOCKHASH = "44444444444444444444444444444444";
-const SIGNATURE = "5555555555555555555555555555555555555555555555555555555555555555";
+const SIGNATURE = bs58.encode(new Uint8Array(64).fill(5));
 
 test("a ready Devnet Kamino market requires verified market and reserve metadata", () => {
   const market = normalizeKaminoLendMarket({
@@ -120,6 +121,13 @@ test("the drawer can only report success after matching API confirmation", () =>
 
   assert.equal(confirmation?.confirmed, true);
   assert.match(confirmation?.explorerUrl ?? "", /cluster=devnet/);
+  const complete = { action: "deposit", actionId: "lend_deposit_01", network: "devnet", confirmed: true, status: "COMPLETED", signature: SIGNATURE, actualLiquidityAmountAtomic: "100001" };
+  assert.equal(normalizeKaminoLendConfirmation(complete, "deposit", "lend_deposit_01", SIGNATURE)?.actualLiquidityAmountAtomic, "100001");
+  assert.equal(normalizeKaminoLendConfirmation({ ...complete, signature: undefined }, "deposit", "lend_deposit_01", SIGNATURE), null);
+  assert.equal(normalizeKaminoLendConfirmation({ ...complete, signature: "invalid" }, "deposit", "lend_deposit_01", SIGNATURE), null);
+  assert.equal(normalizeKaminoLendConfirmation({ ...complete, signature: bs58.encode(new Uint8Array(64).fill(6)) }, "deposit", "lend_deposit_01", SIGNATURE), null);
+  assert.equal(normalizeKaminoLendConfirmation({ ...complete, signature: MINT }, "deposit", "lend_deposit_01", SIGNATURE), null);
+  assert.equal(normalizeKaminoLendConfirmation({ ...complete, actualLiquidityAmountAtomic: "0" }, "deposit", "lend_deposit_01", SIGNATURE), null);
   assert.equal(normalizeKaminoLendConfirmation({
     action: "deposit",
     actionId: "lend_deposit_01",

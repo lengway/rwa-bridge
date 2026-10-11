@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     email = null;
   }
   if (!email) {
-    return NextResponse.json({ error: "Сессия не активна." }, { status: 401, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ error: "Session is inactive." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
   return NextResponse.json({ email, jwt: createAuthJwt(email) }, { headers: { "Cache-Control": "no-store" } });
 }

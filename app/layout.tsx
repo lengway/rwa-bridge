@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Plain",
-  description: "Доход на реальных активах в сети Solana devnet для банков и финтех-приложений.",
+  description: "Plain makes Kamino Lend easier to explore with an embedded wallet and verified Solana Devnet transactions. Test funds have no monetary value.",
   appleWebApp: {
     capable: true,
     title: "Plain",
@@ -31,6 +31,8 @@ export const viewport: Viewport = {
 };
 
 async function getInitialMarketData(): Promise<MarketDataInitialData | null> {
+  // FX and legacy reference yields are not prerequisites for Kamino Earn.
+  if (process.env.NEXT_PUBLIC_ENABLE_LEGACY_FIAT_ADAPTERS !== "true") return null;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
@@ -51,7 +53,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <html
-      lang="ru"
+      lang="en"
       className={`${geist.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >

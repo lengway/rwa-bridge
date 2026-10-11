@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test --test-reporter=spec tests/*.test.ts",
     "devnet:bootstrap": "tsx scripts/bootstrap-rwa-demo.ts"
   },
   "dependencies": {

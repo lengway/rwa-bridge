@@ -46,6 +46,7 @@ export function MarketDataProvider({
   }, [data.rate.usdKzt]);
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_ENABLE_LEGACY_FIAT_ADAPTERS !== "true") return;
     let active = true;
     let retryTimer: number | undefined;
     const refresh = async () => {

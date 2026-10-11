@@ -19,10 +19,10 @@ export function EarnList() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">Kamino Lend в Solana Devnet.</p>
+        <p className="text-sm text-muted-foreground">Kamino Lend on Solana Devnet.</p>
         <p className="text-xs leading-5 text-muted-foreground">
-          Операции строятся для закреплённого Devnet reserve и подписываются подключённым кошельком. Тестовые токены
-          и позиции не имеют денежной стоимости.
+          Transactions use the pinned Devnet reserve and are signed by your connected wallet. Devnet tokens and
+          positions have no monetary value.
         </p>
       </div>
       <div className="space-y-3">
@@ -33,8 +33,8 @@ export function EarnList() {
       <Card className="flex-row items-start gap-3 rounded-2xl p-4">
         <ShieldAlert className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <p className="text-xs leading-5 text-muted-foreground">
-          SOLANA DEVNET · NO MONETARY VALUE. Не банковский вклад, не застраховано фондом гарантирования депозитов.
-          Ставка и ликвидность резерва переменны; доход не гарантирован.
+          SOLANA DEVNET · NO MONETARY VALUE. Not a bank deposit. Reserve liquidity and protocol rates can change;
+          returns are not guaranteed.
         </p>
       </Card>
     </div>
@@ -52,7 +52,7 @@ function YieldCard({ strategy }: { strategy: YieldStrategy }) {
   const canInvest = canInvestInStrategy(strategy);
   return (
     <Card className="gap-4 rounded-2xl p-5 transition-colors hover:bg-muted/40">
-      <Link href={`/earn/${strategy.slug}`} className="block space-y-4" aria-label={`Открыть сведения о стратегии ${displayStrategyName(strategy)}`}>
+      <Link href={`/earn/${strategy.slug}`} className="block space-y-4" aria-label={`View details for ${displayStrategyName(strategy)}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-2">
             <h2 className="font-semibold">{displayStrategyName(strategy)}</h2>
@@ -68,19 +68,19 @@ function YieldCard({ strategy }: { strategy: YieldStrategy }) {
             <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy ? "text-3xl text-emerald-700 dark:text-emerald-400" : hasVariableProtocolRate ? "text-xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
               {hasIllustrativeApy ? formatApy(apy) : hasVariableProtocolRate ? "Variable" : "Unavailable"}
             </p>
-            <p className="text-xs text-muted-foreground">{hasIllustrativeApy ? "ILLUSTRATIVE YIELD · ориентир" : hasVariableProtocolRate ? "VARIABLE PROTOCOL RATE" : "ставка не задана"}</p>
+            <p className="text-xs text-muted-foreground">{hasIllustrativeApy ? "ILLUSTRATIVE YIELD · estimate" : hasVariableProtocolRate ? "VARIABLE PROTOCOL RATE" : "rate unavailable"}</p>
           </div>
           <RiskBadge strategy={strategy} />
         </div>
         <p className="text-sm text-muted-foreground">{presentDevnetCopy(strategy.description)}</p>
       </Link>
       <div className="space-y-1 border-t pt-3 text-xs leading-5 text-muted-foreground">
-        <p>Источник / режим: {presentDevnetCopy(gateway.sourceLabel)}.</p>
+        <p>Source / mode: {presentDevnetCopy(gateway.sourceLabel)}.</p>
         <p>{presentDevnetCopy(gateway.yield.sourceNote)}</p>
         {canInvest ? (
-          <p>USER-SIGNED ON-CHAIN: сервер симулирует точную Devnet-транзакцию, а подключённый кошелёк подписывает и отправляет её.</p>
+          <p>WALLET-SIGNED ON-CHAIN: the server simulates the exact Devnet transaction; your connected wallet signs and submits it.</p>
         ) : (
-          <p>Новые пополнения сейчас недоступны.</p>
+          <p>New deposits are currently unavailable.</p>
         )}
       </div>
     </Card>

@@ -4,7 +4,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Plain",
     short_name: "Plain",
-    description: "Доход на реальных активах в сети Solana devnet",
+    description: "Plain · Kamino Lend on Solana Devnet. Test tokens have no monetary value.",
+    lang: "en",
     start_url: "/home",
     display: "standalone",
     background_color: "#ffffff",

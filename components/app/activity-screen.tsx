@@ -5,7 +5,7 @@ import { Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { presentDevnetCopy } from "@/components/app/earn-detail-parts";
-import { formatActivityDay, formatQuantity } from "@/lib/format";
+import { formatQuantity } from "@/lib/format";
 import { useAppStore, type ActivityItem } from "@/lib/store";
 import { useNow } from "@/lib/useNow";
 
@@ -38,9 +38,9 @@ export function ActivityScreen() {
           <Activity className="size-5 text-muted-foreground" />
         </span>
         <div>
-          <h2 className="font-semibold">Пока нет операций</h2>
+          <h2 className="font-semibold">No activity yet</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Пополнения, вклады, выводы и покупки появятся здесь.
+            Top-ups, deposits, withdrawals, and asset purchases will appear here.
           </p>
         </div>
       </Card>
@@ -76,7 +76,7 @@ function ActivityRow({
       : item.type === "withdraw"
         ? ArrowUpFromLine
         : Building2;
-  const time = new Intl.DateTimeFormat("ru-RU", {
+  const time = new Intl.DateTimeFormat("en-US", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(item.at);
@@ -87,7 +87,7 @@ function ActivityRow({
         <Icon className="size-4 text-muted-foreground" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{presentDevnetCopy(item.title)}</p>
+        <p className="truncate font-medium">{activityTitle(item)}</p>
         <p className="mt-1 text-xs text-muted-foreground">
           {time}{item.method ? ` · ${presentDevnetCopy(methodLabel(item.method))}` : ""}
         </p>
@@ -97,9 +97,9 @@ function ActivityRow({
             href={item.explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 inline-flex text-xs underline underline-offset-4"
+            className="mt-2 inline-flex min-h-11 items-center rounded px-2 text-xs underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Открыть подтверждение
+            View transaction
           </a>
         ) : null}
       </div>
@@ -119,4 +119,36 @@ function methodLabel(method: string) {
     "bank-embed": "Legacy adapter · disabled by default",
   };
   return labels[method] ?? method;
+}
+
+function formatActivityDay(timestamp: number, now: number) {
+  const date = new Date(timestamp);
+  const today = new Date(now);
+  const sameDay = (left: Date, right: Date) => left.toDateString() === right.toDateString();
+  if (sameDay(date, today)) return "Today";
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (sameDay(date, yesterday)) return "Yesterday";
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long" }).format(date);
+}
+
+function activityTitle(item: ActivityItem) {
+  const title = presentDevnetCopy(item.title);
+  const historicTitles: Record<string, string> = {
+    "Перевод из резерва Intebix": "Transfer from Intebix reserve",
+    "KZTE возвращены в резерв Intebix · обмен KZTE → $": "KZTE returned to Intebix reserve · KZTE → $ exchange",
+    "Перевод из резерва Intebix · обмен $ → KZTE": "Transfer from Intebix reserve · $ → KZTE exchange",
+    "KZTE возвращены в резерв Intebix · выплата в тенге": "KZTE returned to Intebix reserve · payout in KZT",
+  };
+  if (historicTitles[title]) return historicTitles[title];
+
+  const typeLabels: Record<string, string> = {
+    "Вклад": "Deposit",
+    "Покупка доли": "Asset purchase",
+    "Вывод из вклада": "Withdrawal",
+    "Пополнение": "Top-up",
+    "Движение долей": "Position movement",
+    "Операция с активом": "Asset transaction",
+  };
+  return title.replace(/^(Вклад|Покупка доли|Вывод из вклада|Пополнение|Движение долей|Операция с активом)(?=\s|·|$)/, (label) => typeLabels[label] ?? label);
 }

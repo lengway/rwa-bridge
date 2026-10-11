@@ -8,14 +8,14 @@ import { isValidWalletAddress } from "@/lib/devnet-route";
 
 export async function POST(request: Request) {
   const email = await getVerifiedEmailFromRequest(request);
-  if (!email) return NextResponse.json({ error: "Не удалось проверить сессию." }, { status: 401 });
+  if (!email) return NextResponse.json({ error: "Could not verify the session." }, { status: 401 });
   const body = await request.json().catch(() => null) as { walletAddress?: unknown } | null;
   if (body?.walletAddress !== undefined) {
     if (!isValidWalletAddress(body.walletAddress)) {
-      return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+      return NextResponse.json({ error: "Enter a valid Solana wallet address." }, { status: 400 });
     }
     if (!(await linkEmailWallet(email, body.walletAddress))) {
-      return NextResponse.json({ error: "К этому email уже привязан другой Solana-кошелёк." }, { status: 409 });
+      return NextResponse.json({ error: "A different Solana wallet is already linked to this email." }, { status: 409 });
     }
   }
   const welcomeScheduled = await notifyWelcome(request);

@@ -12,6 +12,7 @@ import { formatQuantity } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { useDevnet } from "@/lib/useDevnet";
 import { useAuth } from "@/lib/useAuth";
+import { legacyWalletBalance } from "@/lib/legacy-wallet-display";
 
 export function AccountSection() {
   return <AccountSectionReady />;
@@ -26,9 +27,9 @@ function AccountSectionReady() {
     setBusy(true);
     try {
       await signOut();
-      toast.success("Вы вышли из аккаунта");
+      toast.success("Signed out");
     } catch {
-      toast.error("Не удалось выйти. Попробуйте ещё раз.");
+      toast.error("Could not sign out. Try again.");
     } finally {
       setBusy(false);
     }
@@ -36,15 +37,15 @@ function AccountSectionReady() {
 
   return (
     <Card className="gap-3 rounded-2xl p-4">
-      <h2 className="font-semibold">Аккаунт</h2>
+      <h2 className="font-semibold">Account</h2>
       {loggedIn ? (
         <>
-          <p className="text-sm text-muted-foreground">{email ?? "Вы вошли"}</p>
+          <p className="text-sm text-muted-foreground">{email ?? "Signed in"}</p>
           <Button variant="outline" onClick={handleLogout} disabled={busy}>
-            <LogOut />{busy ? "Выходим…" : "Выйти"}
+            <LogOut />{busy ? "Signing out…" : "Sign out"}
           </Button>
         </>
-      ) : <p className="text-sm text-muted-foreground">Сессия аккаунта не активна.</p>}
+      ) : <p className="text-sm text-muted-foreground">No active account session.</p>}
     </Card>
   );
 }
@@ -69,16 +70,17 @@ function WalletSectionReady() {
   const address = wallet?.address;
   const amountValue = Number(amount);
   const recipientValid = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(recipient.trim());
-  const balance = devnet.onchain?.usd ?? 0;
-  const amountValid = Number.isFinite(amountValue) && amountValue >= 0.01 && amountValue <= balance;
+  const balance = legacyWalletBalance(devnet.portfolio && !devnet.portfolio.legacyUnavailable
+    ? devnet.portfolio.holdings : null, devnet.usdMint);
+  const amountValid = balance !== null && Number.isFinite(amountValue) && amountValue >= 0.01 && amountValue <= balance;
 
   const copyAddress = async () => {
     if (!address) return;
     try {
       await navigator.clipboard.writeText(address);
-      toast.success("Адрес скопирован");
+      toast.success("Address copied");
     } catch {
-      toast.error("Не удалось скопировать адрес");
+      toast.error("Could not copy the address");
     }
   };
 
@@ -89,13 +91,13 @@ function WalletSectionReady() {
     try {
       let transfer = pendingTransfer;
       if (!transfer) {
-        setSendProgress("Подписываем перевод…");
+        setSendProgress("Signing transfer…");
         const transaction = await wallet.send(recipient.trim(), devnet.usdMint, String(amountValue));
-        if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
+        if (!transaction.hash) throw new Error("The wallet did not return a transfer signature.");
         transfer = { signature: transaction.hash, recipient: recipient.trim(), amountTestQuote: amountValue };
         setPendingTransfer(transfer);
       }
-      setSendProgress("Подтверждаем в сети…");
+      setSendProgress("Confirming on-chain…");
       const response = await fetch("/api/devnet/wallet-send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,16 +112,16 @@ function WalletSectionReady() {
       });
       const result = await response.json().catch(() => null) as { ok?: unknown; error?: unknown } | null;
       if (!response.ok || result?.ok !== true) {
-        throw new Error(typeof result?.error === "string" ? result.error : "Перевод пока не подтверждён в Solana devnet.");
+        throw new Error(typeof result?.error === "string" ? result.error : "The transfer is not confirmed on Solana Devnet yet.");
       }
       void devnet.refreshPortfolio();
       setPendingTransfer(null);
       setRecipient("");
       setAmount("10");
-      toast.success("Тестовые единицы отправлены");
+      toast.success("Devnet test units sent");
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      setSendError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить перевод. Повторите проверку через несколько секунд.");
+      setSendError(/[А-Яа-яЁё]/.test(message) ? message : "Could not confirm the transfer. Check again in a few seconds.");
     } finally {
       setSending(false);
       setSendProgress(null);
@@ -131,8 +133,8 @@ function WalletSectionReady() {
       <Card className="rounded-2xl p-0">
         <CollapsibleTrigger className="flex w-full items-center gap-2 p-4 text-left font-medium">
           <WalletCards className="size-4" />
-          <span className="flex-1">Кошелёк</span>
-          <Badge variant="outline">Для продвинутых</Badge>
+          <span className="flex-1">Wallet</span>
+          <Badge variant="outline">Advanced</Badge>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-3 border-t p-4">
           {address ? (
@@ -140,7 +142,7 @@ function WalletSectionReady() {
               <p className="font-mono text-xs leading-5" title={address}>{shortWalletAddress(address)}</p>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={copyAddress}>
-                  <Copy />Копировать
+                  <Copy />Copy
                 </Button>
                 <Button
                   variant="outline"
@@ -154,61 +156,62 @@ function WalletSectionReady() {
                     />
                   }
                 >
-                  Открыть в Solana Explorer
+                  Open in Solana Explorer
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Сеть: Solana devnet. Адрес не нужен для обычной работы в приложении.
+                Network: Solana Devnet. You do not need this address for regular app use.
               </p>
               <Card className="gap-3 rounded-2xl p-4">
                   <div>
-                    <h3 className="font-medium">Отправить на другой кошелёк</h3>
+                    <h3 className="font-medium">Send to another wallet</h3>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Переведите app-controlled TEST QUOTE на любой адрес Solana. Перевод имеет значение только в Solana Devnet.
+                      Send app-controlled TEST QUOTE to any Solana address. These test units have meaning only on Solana Devnet.
                     </p>
                   </div>
                   <label className="space-y-1.5 text-sm">
-                    <span>Адрес получателя</span>
+                    <span>Recipient address</span>
                     <Input
                       value={recipient}
                       onChange={(event) => setRecipient(event.target.value)}
-                      placeholder="Адрес Solana"
+                      placeholder="Solana address"
                       autoComplete="off"
                       spellCheck={false}
                       disabled={sending || Boolean(pendingTransfer)}
                     />
                   </label>
                   {recipient.length > 0 && !recipientValid ? (
-                    <p className="text-xs text-destructive">Проверьте адрес Solana.</p>
+                    <p className="text-xs text-destructive">Check the Solana address.</p>
                   ) : null}
                   <label className="space-y-1.5 text-sm">
-                    <span>Сумма в TEST QUOTE</span>
+                    <span>Amount in TEST QUOTE</span>
                     <Input
                       type="number"
                       min="0.01"
                       step="0.01"
-                      max={balance}
+                      max={balance ?? undefined}
                       inputMode="decimal"
                       value={amount}
                       onChange={(event) => setAmount(event.target.value)}
                       disabled={sending || Boolean(pendingTransfer)}
                     />
                   </label>
-                  {amountValue > balance ? (
+                  {balance === null ? <p className="text-xs text-muted-foreground">The historic TEST QUOTE balance is unavailable. Refresh the portfolio before transferring.</p> : null}
+                  {balance !== null && amountValue > balance ? (
                     <p className="text-xs text-destructive">
-                      Недостаточно средств. <Link href="/home" className="underline">Пополнить баланс</Link>.
+                      Insufficient TEST QUOTE. Kamino USDC is a different asset and cannot fund this historic transfer. <Link href="/portfolio" className="underline">Check historic holdings</Link>.
                     </p>
                   ) : null}
                   {sendError ? <p className="text-xs text-destructive">{sendError}</p> : null}
                   <Button className="w-full" onClick={sendTokens} disabled={sending || (!pendingTransfer && (!recipientValid || !amountValid))}>
-                    <Send />{sending ? (sendProgress ?? "Отправляем…") : pendingTransfer ? "Повторить подтверждение" : `Отправить ${formatQuantity(amountValue || 0)} TEST QUOTE`}
+                    <Send />{sending ? (sendProgress ?? "Sending…") : pendingTransfer ? "Retry confirmation" : `Send ${formatQuantity(amountValue || 0)} TEST QUOTE`}
                   </Button>
-                  <p className="text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. Подтверждённая подпись появляется только после реального перевода в Solana Devnet.</p>
+                  <p className="text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. A transfer signature is shown only after the on-chain Devnet transfer is confirmed.</p>
               </Card>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Войдите по email, чтобы получить адрес.
+              Sign in with email to get a wallet address.
             </p>
           )}
         </CollapsibleContent>

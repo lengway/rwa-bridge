@@ -13,23 +13,23 @@ import {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as { email?: unknown; code?: unknown } | null;
   if (typeof body?.email !== "string" || !isValidEmail(body.email)) {
-    return NextResponse.json({ error: "Введите корректный email." }, { status: 400 });
+    return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
   const code = typeof body.code === "string" ? body.code.replace(/\s/g, "") : "";
   if (!/^\d{6}$/.test(code)) {
-    return NextResponse.json({ error: "Введите шестизначный код из письма." }, { status: 400 });
+    return NextResponse.json({ error: "Enter the six-digit code from your email." }, { status: 400 });
   }
 
   const email = normalizeEmail(body.email);
   const result = await verifyAuthCode(emailLedgerKey(email), hashEmailCode(email, code));
   if (result !== "verified") {
     const error = result === "expired"
-      ? "Срок действия кода истёк. Запросите новый код."
+      ? "This code has expired. Request a new code."
       : result === "locked"
-        ? "Превышено число попыток. Запросите новый код."
+        ? "Too many attempts. Request a new code."
         : result === "missing"
-          ? "Код не найден или уже использован. Запросите новый код."
-          : "Неверный код. Проверьте письмо и попробуйте ещё раз.";
+          ? "Code not found or already used. Request a new code."
+          : "Incorrect code. Check your email and try again.";
     return NextResponse.json({ error }, { status: 400 });
   }
 
