@@ -89,10 +89,39 @@ a fresh checkout. Changed the documented `npm run typecheck` to execute
 
 ## Release constraints
 
-- Current patches are not deployed.
+- **Deployed and externally checked:** code release `ac002f4bfe08cd4f99846fe35dba0fa4ab991d5f`
+  is active at `https://plain.lengway.me` on the authorized VPS. `plain-web` is
+  active/running; `/home/plain/app` resolves to that exact release worktree.
+  The original checkout is untouched and clean; preflight unit is stopped.
+- VPS clean npm install, lint, generated-route typecheck, **40 tests** and
+  production build passed. Preflight and post-switch loopback HTTP checks each
+  passed **14/14**; external HTTPS read-only checks passed **10/10**.
+- Production browser renders login at 800px; login and landing were additionally
+  checked in a same-origin 390px iframe viewport. No horizontal overflow,
+  email/button/primary links fit. These are responsive layout checks, not a
+  claim that authenticated mobile signing or native PWA install was tested.
 - Full real email → embedded wallet → signed Devnet deposit → withdrawal still
   requires owner-controlled login and explicit transaction approval.
 - File-based action persistence is for the current single Node server with a
   stable writable data directory, not replicated/ephemeral serverless hosting.
 - Existing historic wallet-send UI recovery is a separate remaining risk;
   primary release stabilization focuses on Kamino.
+- Optional legacy/reference `/api/rates/kzt` and `/api/yields` return 503 on the
+  public app; the enabled Kamino route is ready independently. These unavailable
+  feeds are not evidence of a live FX price or Kamino APY. Browser console also
+  contains the expected 401 for a signed-out session; no uncaught application
+  exception was observed in the checked public screens.
+- Previous release retained at `/home/plain/worktrees/rwa-bridge`; rollback code
+  exists, but no deliberate post-activation failure was injected into production.
+- Source commits were sent to the VPS private Git repository only, not published
+  or pushed to GitHub. This final evidence update is documentation-only and does
+  not change the running code release.
+
+## Next three actions
+
+1. Owner signs in and explicitly approves a small Devnet deposit/withdrawal;
+   verify signatures, portfolio/history and reload recovery together.
+2. Read actual Cask/provider usage in the owner's billing dashboard. Spending
+   remains unavailable to this session; no $50-cap compliance claim is made.
+3. Review submission material/public-source access and demo recording, then
+   publish/submit only with the owner's authorization.
