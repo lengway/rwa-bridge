@@ -123,7 +123,7 @@ The repository defines these local install, lint, typecheck, test, build, and
 development commands:
 
 ```bash
-npm install
+npx --yes npm@11.19.1 ci
 npm run lint
 npm run typecheck
 npm test
@@ -161,7 +161,8 @@ scripts/deploy.sh stapp
 
 The script sends the commit to the VPS bare Git repository (not public GitHub),
 creates `/home/plain/releases/<commit>` as a separate worktree, installs from the
-lockfile, runs lint/typecheck/tests/build, and checks a production server on
+lockfile with npm 11.19.1 (the server's system npm 9 is not compatible with its
+peer resolution), runs lint/typecheck/tests/build, and checks a production server on
 loopback port 3202. Only then does it atomically switch `/home/plain/app` and
 restart `plain-web` on port 3200. Failed post-switch checks restore the previous
 symlink and restart the old release; old releases and the original worktree are

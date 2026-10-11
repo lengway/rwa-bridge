@@ -74,6 +74,14 @@ declares canonical Devnet and Kamino enabled. New deploy procedure builds an
 independent release, runs preflight on 3202, switches the symlink only after
 checks, and restores the previous symlink if post-switch checks fail.
 
+Deployment attempts found and preserved two actual blockers: the VPS bare Git
+repository was empty, making a full-history transfer exceed short timeouts over
+a slow link; seeded its baseline from the existing VPS checkout locally, then
+the release push succeeded. The isolated clean install then exposed Debian's
+system npm 9.2.0 peer-resolution incompatibility with the npm 11 lockfile. Restored
+explicit npm 11 tooling (pinned to local 11.19.1) rather than mutating dependencies
+or the lockfile. Both failures occurred before activating the new release.
+
 ## Release constraints
 
 - Current patches are not deployed.

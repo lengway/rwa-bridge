@@ -67,7 +67,9 @@ ln -sfn "$ENV" "$RELEASE/.env.local"
 sudo -u plain -H bash -s -- "$RELEASE" <<'BUILD'
 set -euo pipefail
 cd "$1"
-npm ci --no-audit --no-fund --loglevel=error
+# The repository lockfile uses npm 11 peer resolution. Debian's system npm 9
+# incorrectly reports missing React 18 peers; do not rewrite the lockfile.
+npx --yes npm@11.19.1 ci --no-audit --no-fund --loglevel=error
 npm run lint
 npm run typecheck
 npm test

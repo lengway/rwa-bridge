@@ -91,7 +91,7 @@ export function PortfolioScreen() {
       <Card className="gap-4 rounded-2xl p-5">
         <div>
           <p className="text-sm text-muted-foreground">Локальная сводка Devnet</p>
-          <p className="mt-1 text-3xl font-semibold tabular-nums">{formatQuantity(totalValue)} DEVNET UNITS</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums">{isReady ? formatQuantity(totalValue) : "…"} DEVNET UNITS</p>
           <p className="mt-1 text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. Переменная ставка Kamino Lend проверяется в карточке стратегии, а не в этой локальной сводке.</p>
         </div>
         {allocationTotal > 0 ? (
@@ -121,7 +121,7 @@ export function PortfolioScreen() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Активы</h3>
-          <span className="text-xs text-muted-foreground">{displayHoldings.length}</span>
+           <span className="text-xs text-muted-foreground">{isReady ? displayHoldings.length : "…"}</span>
         </div>
         {!isReady ? <p className="text-sm text-muted-foreground">Загружаем данные из Solana…</p> : null}
         {devnet.portfolio?.legacyUnavailable ? <p role="alert" className="text-sm text-destructive">Legacy-позиции сейчас не удалось загрузить. Они не считаются нулевыми; повторите обновление перед погашением.</p> : null}
