@@ -216,3 +216,52 @@ contains expected signed-out `/api/auth/session` 401 responses, not evidence of
 a completed authenticated flow. Owner email login and signed deposit/reload/
 withdrawal remain unverified; no real KYC/bank funding or production cross-site
 authentication is claimed. API billing/spend remains unavailable.
+
+## Portfolio failure / RPC storm hotfix
+
+Owner reported the authenticated Home portfolio failing after the widget release.
+VPS logs showed repeated Solana RPC `429 Too Many Requests` retries. The original
+15-second polling could overlap its own 25-second requests; full market verification
+and legacy history hydration repeated without coalescing, including unrelated
+Kamino token accounts in legacy scans. Public unauthenticated smoke did not cover
+this authenticated path, so its previous success was not sufficient evidence.
+
+Hotfix `841fbf7` coalesces wallet-scoped read snapshots (10 seconds), read-only
+verified market loads (30 seconds), legacy reads/status (60 seconds) and transient
+failures (cooldown). Browser polls now run every 60 seconds and coalesce in-flight
+refreshes. Historic hydration is bounded to two requests at once and scoped to
+known legacy mints; optional legacy reads cannot delay a verified Kamino summary
+more than four seconds. Missing legacy data is explicitly marked/excluded, never
+represented as a successfully loaded zero. Preparation/receipt verification still
+load fresh chain state; a newly verified action invalidates portfolio snapshots.
+Home initial failure renders 'Balance unavailable' rather than endless skeletons.
+
+Actual local lint/typecheck/build and **64 tests** passed, including failed-balance
+rendering, coalescing, wallet isolation, expiration, cooldown and concurrency limits.
+Five simultaneous authenticated HTTP reads against live Devnet all returned 200
+with actual portfolio data in 2.179 seconds. This used a separate local fixture
+ledger and session secret; no owner login, email, signatures or chain writes.
+VPS activation and an isolated VPS authenticated read check follow separately.
+
+Added `scripts/authenticated-portfolio-smoke.mjs` for repeatable isolated checks.
+It only admits loopback fixture ports 3203/3204 and signs an `.invalid` test-email
+session using a fixed non-production fixture secret. It must run against a
+separate ledger with SMTP and legacy authority disabled. It verifies five
+concurrent live-Devnet portfolio reads, authenticated wallet mismatch rejection
+and unauthenticated rejection; it never sends a transaction. Local repeat passed
+in 1.696 seconds. The fixture wallet is a public read target, not a wallet owned
+by or a balance belonging to the user.
+
+Hotfix `841fbf74518e40c78a889addeccad67292fb1520` activated on the authorized VPS;
+previous release retained. VPS lint/typecheck/build and 64 tests passed, with
+14 core HTTP checks before and after activation. External HTTPS read-only smoke
+passed 10 checks. A separate loopback instance of the activated build on the same
+VPS used a fixture session secret/ledger with SMTP, legacy authority/import disabled:
+five concurrent authenticated live-Devnet portfolio requests returned 200 in
+**1.206 seconds**, and wallet mismatch/unauthenticated reads returned 403/401.
+The temporary service was stopped and its own fixture ledger removed. No owner
+session, production secret, external emails, wallet signatures or transactions
+were used. Recent active-service logs showed startup without renewed 429 entries
+in the inspected window; this is not a guarantee about future public-RPC quotas.
+Owner should reload to validate their own session and holdings; that specific
+owner flow remains unobserved.
