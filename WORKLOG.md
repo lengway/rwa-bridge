@@ -204,3 +204,15 @@ new-deposit gate. SMTP was disabled for fixtures; no actual emails or transactio
 were sent. Browser demo launch reached 'Sandbox session connected' and the real
 email login screen in its iframe, with no horizontal overflow. Core HTTP smoke
 still passes 14/14. Deployment and external checks follow after activation.
+
+Activated release `29b1a261848f89f81f58db6ce43e1d7623ecd8f8` on the authorized
+VPS; previous `27b4e79` retained for rollback. VPS lint/typecheck, 60 tests and
+production build passed; 14 HTTP checks passed both before and after activation.
+External HTTPS checks passed for eight public surfaces plus sandbox bootstrap,
+validation, wrong-origin rejection and no user-auth elevation. Public browser
+`/widget-demo` launch reached 'Sandbox session connected' and the real email
+sign-in screen inside `/widget`, without alerts or horizontal overflow. Console
+contains expected signed-out `/api/auth/session` 401 responses, not evidence of
+a completed authenticated flow. Owner email login and signed deposit/reload/
+withdrawal remain unverified; no real KYC/bank funding or production cross-site
+authentication is claimed. API billing/spend remains unavailable.
