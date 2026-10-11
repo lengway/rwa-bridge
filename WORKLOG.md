@@ -339,3 +339,15 @@ dialogs and close expanded disclosures first. Local lint/typecheck/build and
 **71 tests** passed. Real browser keypress now closes the widget and removes its
 iframe; a synthetic `role=dialog` fixture confirms Escape does not tear down an
 approval-like screen. This fixture does not claim an actual wallet approval test.
+
+Final active presentation release is `00d0451785b3e771ae79ae421d0341beec6d01ff`;
+prior `1aca098` retained. VPS lint/typecheck, **71 tests**, production build and
+14 pre/post activation HTTP checks passed. External HTTPS smoke passed 10 reads.
+Public `/widget-demo` browser shows Forma Bank and the sample-data labels, launches
+Plain to the real email login with 'Connected to Plain', has no overflow/alerts,
+and a real Escape key from its iframe closes/removes the widget. Public dashboard
+screenshot inspected. Console checks of local demo showed only expected signed-out
+session 401s. No login code, wallet approval or transaction was submitted; actual
+authenticated signing in the bank widget and cross-site browser support remain
+unverified. Recent nginx portfolio requests returned 200, consistent with the
+earlier PDA wallet-read correction; no owner session was read or impersonated.
