@@ -169,6 +169,20 @@ symlink and restart the old release; old releases and the original worktree are
 retained. Runtime secrets and the ledger stay in `/home/plain/shared` and are
 never rewritten by this script. See `WORKLOG.md` for actual verification status.
 
+## Mock onboarding and widget foundation
+
+Email login now leads to a short **mock-only** account setup before new deposits.
+No document, full name, birth date, passport or identity image is requested or
+stored. `MOCK_COMPLETED` never means real KYC or real-money eligibility. Existing
+portfolio access, withdrawals and confirmations remain available.
+
+Try the labeled [sandbox partner widget](https://plain.lengway.me/widget-demo).
+The browser SDK is `/plain-widget.js`; integration scope is **widget only**.
+Only `demo-bank` is registered, with signed short-lived sandbox bootstrap
+sessions, exact origin/source checks and no user-authentication privileges.
+No real bank, identity provider or payment rail is connected. See
+[widget integration and browser limitations](docs/widget-integration.md).
+
 ## Legacy routes
 
 Historic app-controlled Devnet positions remain exit-only for reconciliation.

@@ -10,6 +10,7 @@ import { isCrossmintConfigured } from "@/lib/config";
 import { useAuth } from "@/lib/useAuth";
 import { useDevnet } from "@/lib/useDevnet";
 import { Input } from "@/components/ui/input";
+import { MockOnboardingGate } from "@/components/app/mock-onboarding-gate";
 
 const tabs = [
   { href: "/home", label: "Home", icon: House },
@@ -47,7 +48,19 @@ function presentEnglishError(message: string | null | undefined, fallback: strin
   return /[А-Яа-яЁё]/.test(message) ? fallback : message;
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, embedded = false }: { children: React.ReactNode; embedded?: boolean }) {
+  const { status } = useAuth();
+  const pathname = usePathname();
+  if (status === "loading") return <AuthLoader />;
+  if (status === "signed-out") return <SignInScreen />;
+  // Mock setup can load while wallet initialization continues in the background.
+  // Existing positions, exits and confirmations must remain accessible.
+  return <MockOnboardingGate allowExit={!embedded && ["/portfolio", "/activity", "/profile"].includes(pathname)}>
+    <ConnectedAppShell embedded={embedded}>{children}</ConnectedAppShell>
+  </MockOnboardingGate>;
+}
+
+function ConnectedAppShell({ children, embedded }: { children: React.ReactNode; embedded: boolean }) {
   const { status, walletAddress, walletError } = useAuth();
   if (status === "signed-in" && walletError) return <WalletConnectionError message={walletError} />;
   if (status === "loading" || (status === "signed-in" && isCrossmintConfigured && !walletAddress)) return <AuthLoader />;
@@ -62,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
     );
   }
-  return <SignedInShell>{children}</SignedInShell>;
+  return <SignedInShell embedded={embedded}>{children}</SignedInShell>;
 }
 
 function AuthLoader() {
@@ -220,7 +233,7 @@ function SignInScreen() {
   );
 }
 
-function SignedInShell({ children }: { children: React.ReactNode }) {
+function SignedInShell({ children, embedded }: { children: React.ReactNode; embedded: boolean }) {
   const pathname = usePathname();
   const bankEmbed = useBankEmbed();
   const { portfolioError, refreshPortfolio } = useDevnet();
@@ -246,7 +259,7 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-muted/40">
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background shadow-sm ring-1 ring-border/60">
-        {pathname !== "/portfolio" ? (
+        {!embedded && pathname !== "/portfolio" ? (
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-5 backdrop-blur">
             {isDetail ? (
               <Link
@@ -270,7 +283,7 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
           </div> : null}
           {children}
         </main>
-        <nav
+        {!embedded ? <nav
           aria-label="Primary navigation"
           className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t bg-background/95 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur"
         >
@@ -290,7 +303,7 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </div>
-        </nav>
+        </nav> : null}
       </div>
     </div>
   );

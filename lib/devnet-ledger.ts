@@ -2,6 +2,7 @@ import "server-only";
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { isMockIdentityProfile, type MockIdentityProfile } from "@/lib/mock-identity";
 import { createHash, timingSafeEqual } from "node:crypto";
 import {
   assertOrderTransition,
@@ -224,6 +225,7 @@ export type AuthCodeRequestResult =
 export type AuthCodeVerificationResult = "verified" | "invalid" | "expired" | "locked" | "missing";
 
 type EmailLedgerRecord = {
+  mockIdentity?: MockIdentityProfile;
   walletAddress?: string;
   receiptsEnabled?: boolean;
   welcomeSent?: boolean;
@@ -431,6 +433,33 @@ export function linkEmailWallet(email: string, walletAddress: string) {
 
 export function getEmailWalletAddress(email: string) {
   return exclusive(async () => (await readLedgerFile()).emails[emailKey(email)]?.walletAddress ?? null);
+}
+
+export function getMockIdentityProfile(email: string) {
+  return exclusive(async () => {
+    const profile = (await readLedgerFile()).emails[emailKey(email)]?.mockIdentity;
+    return isMockIdentityProfile(profile) ? profile : null;
+  });
+}
+
+export function saveMockIdentityProfile(email: string, profile: MockIdentityProfile) {
+  if (!isMockIdentityProfile(profile)) throw new Error("Invalid mock profile.");
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const key = emailKey(email);
+    ledger.emails[key] = { ...ledger.emails[key], mockIdentity: profile };
+    await writeLedgerFile(ledger);
+    return profile;
+  });
+}
+
+export function clearMockIdentityProfile(email: string) {
+  return exclusive(async () => {
+    const ledger = await readLedgerFile();
+    const record = ledger.emails[emailKey(email)];
+    if (record) delete record.mockIdentity;
+    await writeLedgerFile(ledger);
+  });
 }
 
 export function setEmailPreferences(email: string, receiptsEnabled: boolean) {

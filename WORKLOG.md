@@ -181,3 +181,26 @@ a fresh checkout. Changed the documented `npm run typecheck` to execute
   overflow and does not request disabled FX/yield reference endpoints. Previous
   code release `ac002f4` is retained for rollback. No owner transaction was signed,
   sent, or asserted successful by this implementation session.
+
+## Mock onboarding / widget foundation
+
+User approved mock KYC, partner mock identity reuse, and **widget-only** integration.
+Implemented minimal country/declarations stored in the existing user's ledger;
+status is `MOCK_COMPLETED`, `identityVerified` always false. No raw identity
+documents or personal identity fields are accepted. The new-deposit server gate
+does not gate historical withdrawals or existing action reconciliation.
+
+Added `/widget-demo`, `/widget`, dependency-free `/plain-widget.js`, origin-bound
+10-minute sandbox bootstrap, CSP allowlist and source/origin-checked messaging.
+The token cannot authorize a user or spending; actual email auth and user wallet
+signatures remain required. Only demo-bank exists; no real bank/provider is
+connected. Cross-site cookies/webviews/signing are explicitly not production-
+validated; same-origin demo plus first-party fallback is the supported example.
+
+Actual local checks: lint/typegen/typecheck/build/diff pass, **60 tests pass**.
+Isolated HTTP fixtures verify signed-token validation, wrong-origin rejection,
+no user-auth elevation, strict mock-only input, profile save/reset and the
+new-deposit gate. SMTP was disabled for fixtures; no actual emails or transactions
+were sent. Browser demo launch reached 'Sandbox session connected' and the real
+email login screen in its iframe, with no horizontal overflow. Core HTTP smoke
+still passes 14/14. Deployment and external checks follow after activation.

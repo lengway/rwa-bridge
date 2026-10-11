@@ -21,8 +21,9 @@ import { Button } from "@/components/ui/button";
 import { formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import type { YieldStrategy } from "@/lib/yields";
+import type { KaminoLendConfirmation } from "@/components/app/kamino-lend-contract";
 
-export function EarnDetail({ strategy, initialAction }: { strategy: YieldStrategy; initialAction?: "deposit" | "withdraw" }) {
+export function EarnDetail({ strategy, initialAction, onConfirmed }: { strategy: YieldStrategy; initialAction?: "deposit" | "withdraw"; onConfirmed?: (confirmation: KaminoLendConfirmation) => void }) {
   const { positions, cashUsd, hydrated } = useAppStore();
   const [amount, setAmount] = useState(1000);
   const [investOpen, setInvestOpen] = useState(false);
@@ -108,6 +109,7 @@ export function EarnDetail({ strategy, initialAction }: { strategy: YieldStrateg
           open={kaminoOpen}
           onOpenChange={setKaminoOpen}
           initialAction={kaminoAction}
+          onConfirmed={onConfirmed}
         />
       ) : (
         <>
