@@ -329,3 +329,13 @@ is claimed. Screenshots inspected. Core HTTP smoke passed 14 checks; five
 authenticated reads of the previously failing public PDA target returned 200 in
 0.394 seconds on the isolated local instance. No email or transactions sent.
 Deployment/public checks follow separately; owner signing remains unverified.
+
+Presentation release `1aca098` activated after VPS lint/typecheck, 69 tests,
+production build and 14 pre/post activation HTTP checks passed. Follow-up browser
+checking found that a real Escape key while focus was inside the iframe did not
+dismiss the outer native dialog. Added origin-checked close messaging for Escape
+on ordinary widget screens, but explicitly defer to active wallet/transaction
+dialogs and close expanded disclosures first. Local lint/typecheck/build and
+**71 tests** passed. Real browser keypress now closes the widget and removes its
+iframe; a synthetic `role=dialog` fixture confirms Escape does not tear down an
+approval-like screen. This fixture does not claim an actual wallet approval test.

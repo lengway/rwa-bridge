@@ -7,6 +7,7 @@ import { KAMINO_LEND } from "@/lib/yields";
 import { WidgetSessionProvider, type WidgetSession } from "@/lib/widget-context";
 import type { KaminoLendConfirmation } from "@/components/app/kamino-lend-contract";
 import { DemoBadge } from "@/components/app/demo-badge";
+import { widgetEscapeAction } from "@/lib/widget-keyboard";
 
 const NAMESPACE = "plain-widget";
 const VERSION = 1;
@@ -141,6 +142,29 @@ export default function WidgetPage() {
     // settlement instruction, user authentication, or real KYC approval.
     window.parent.postMessage({ namespace: NAMESPACE, version: VERSION, type: "action-confirmed",
       network: "devnet", action: confirmation.action, actionId: confirmation.actionId, signature: confirmation.signature }, origin);
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      // Let wallet approval and transaction drawers handle their own dismissal.
+      // Never turn an Escape inside those flows into a host/frame teardown.
+      const expandedDetails = document.querySelectorAll<HTMLDetailsElement>("details[open]");
+      const choice = widgetEscapeAction({ defaultPrevented: event.defaultPrevented,
+        hasModal: !!document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open]'),
+        hasExpandedDetails: expandedDetails.length > 0 });
+      if (choice === "IGNORE") return;
+      if (choice === "COLLAPSE_DETAILS") {
+        expandedDetails.forEach((details) => { details.open = false; });
+        event.preventDefault();
+        return;
+      }
+      event.preventDefault();
+      window.parent.postMessage({ namespace: NAMESPACE, version: VERSION, type: "close" }, session.parentOrigin);
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
   }, [session]);
 
   if (!embedded) {
