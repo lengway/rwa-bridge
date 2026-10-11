@@ -19,10 +19,9 @@ export function EarnList() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">Kamino Lend on Solana Devnet.</p>
+        <p className="text-sm text-muted-foreground">Put your USDC to work.</p>
         <p className="text-xs leading-5 text-muted-foreground">
-          Transactions use the pinned Devnet reserve and are signed by your connected wallet. Devnet tokens and
-          positions have no monetary value.
+          Explore lending strategies. You approve every transaction from your wallet.
         </p>
       </div>
       <div className="space-y-3">
@@ -33,7 +32,7 @@ export function EarnList() {
       <Card className="flex-row items-start gap-3 rounded-2xl p-4">
         <ShieldAlert className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <p className="text-xs leading-5 text-muted-foreground">
-          SOLANA DEVNET · NO MONETARY VALUE. Not a bank deposit. Reserve liquidity and protocol rates can change;
+          Not a bank deposit. Reserve liquidity and protocol rates can change;
           returns are not guaranteed.
         </p>
       </Card>
@@ -72,13 +71,12 @@ function YieldCard({ strategy }: { strategy: YieldStrategy }) {
           </div>
           <RiskBadge strategy={strategy} />
         </div>
-        <p className="text-sm text-muted-foreground">{presentDevnetCopy(strategy.description)}</p>
+         <p className="text-sm text-muted-foreground">{strategy.id === "kamino-lend" ? "Supply USDC, receive cUSDC, and withdraw when reserve liquidity is available." : presentDevnetCopy(strategy.description)}</p>
       </Link>
       <div className="space-y-1 border-t pt-3 text-xs leading-5 text-muted-foreground">
-        <p>Source / mode: {presentDevnetCopy(gateway.sourceLabel)}.</p>
-        <p>{presentDevnetCopy(gateway.yield.sourceNote)}</p>
+        {strategy.id !== "kamino-lend" ? <><p>Source / mode: {presentDevnetCopy(gateway.sourceLabel)}.</p><p>{presentDevnetCopy(gateway.yield.sourceNote)}</p></> : null}
         {canInvest ? (
-          <p>WALLET-SIGNED ON-CHAIN: the server simulates the exact Devnet transaction; your connected wallet signs and submits it.</p>
+          <p>Your wallet signs the transaction after a passing simulation.</p>
         ) : (
           <p>New deposits are currently unavailable.</p>
         )}

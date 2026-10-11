@@ -69,6 +69,7 @@ function ActivityRow({
   item: ActivityItem;
 }) {
   const isInflow = item.type === "topup" || item.type === "withdraw";
+  const primary = item.title.startsWith("Kamino Lend ·");
   const Icon = item.type === "topup"
     ? CreditCard
     : item.type === "invest"
@@ -91,7 +92,7 @@ function ActivityRow({
         <p className="mt-1 text-xs text-muted-foreground">
           {time}{item.method ? ` · ${presentDevnetCopy(methodLabel(item.method))}` : ""}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">{presentDevnetCopy(item.note ?? "SOLANA DEVNET · NO MONETARY VALUE")}</p>
+        {!primary || item.note ? <p className="mt-1 text-xs text-muted-foreground">{presentDevnetCopy(item.note ?? "Historic test-token activity")}</p> : null}
         {item.explorerUrl ? (
           <a
             href={item.explorerUrl}
@@ -104,7 +105,7 @@ function ActivityRow({
         ) : null}
       </div>
       <span className={`shrink-0 text-sm font-medium tabular-nums ${isInflow ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"}`}>
-        {isInflow ? "+" : "−"}{formatQuantity(item.amountUsd)} TEST UNITS
+        {isInflow ? "+" : "−"}{formatQuantity(item.amountUsd)} {primary ? "USDC" : "TEST QUOTE"}
       </span>
     </Card>
   );

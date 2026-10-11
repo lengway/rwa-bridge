@@ -6,6 +6,7 @@ import { EarnDetail } from "@/components/app/earn-screens";
 import { KAMINO_LEND } from "@/lib/yields";
 import { WidgetSessionProvider, type WidgetSession } from "@/lib/widget-context";
 import type { KaminoLendConfirmation } from "@/components/app/kamino-lend-contract";
+import { DemoBadge } from "@/components/app/demo-badge";
 
 const NAMESPACE = "plain-widget";
 const VERSION = 1;
@@ -146,8 +147,9 @@ export default function WidgetPage() {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
         <section className="w-full max-w-lg space-y-3 rounded-3xl border bg-background p-7 text-center shadow-sm">
-          <h1 className="text-xl font-semibold">Sandbox widget setup needed</h1>
-          <p className="text-sm leading-6 text-muted-foreground">This page is an embeddable sandbox surface. Start it from the labeled demo page or integrate the Plain Widget SDK.</p>
+          <DemoBadge />
+          <h1 className="text-xl font-semibold">Open Plain from your bank</h1>
+          <p className="text-sm leading-6 text-muted-foreground">This screen opens inside a partner app. Try the <a className="underline" href="/widget-demo">bank demo</a> or connect the Plain Widget SDK.</p>
         </section>
       </main>
     );
@@ -155,21 +157,17 @@ export default function WidgetPage() {
 
   return (
     <div className="min-h-dvh bg-muted/40">
-      <aside role="note" className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-center text-xs leading-5 text-amber-950">
-        <strong>Sandbox widget</strong> · Mock identity only · No real money. This is not KYC and no bank or government identity has been verified.
-      </aside>
       <WidgetSessionProvider session={session}>
         {session ? (
           <>
-            <p className="mx-auto max-w-md px-4 pt-3 text-center text-xs leading-5 text-muted-foreground">
-              Cross-site cookies or embedded webviews can block sign-in. If that happens, use the <a className="underline" href="/earn/kamino-lend" target="_blank" rel="noreferrer">first-party app</a> directly; this is not an automatic OAuth workaround.
-            </p>
             <AppShell embedded><EarnDetail strategy={KAMINO_LEND} onConfirmed={onConfirmed} /></AppShell>
+            <p className="mx-auto max-w-md px-4 pb-4 text-center text-xs leading-5 text-muted-foreground">Having trouble signing in? <a className="underline" href="/earn/kamino-lend" target="_blank" rel="noreferrer">Open Plain in a new tab</a>. Some browsers block embedded sign-in.</p>
           </>
         ) : (
-          <main className="flex min-h-[calc(100dvh-3.5rem)] items-center justify-center px-5 py-8">
+          <main className="flex min-h-dvh items-center justify-center px-5 py-8">
+            <DemoBadge />
             <section className="w-full max-w-md space-y-3 rounded-2xl border bg-background p-6 text-center shadow-sm">
-              <h1 className="text-lg font-semibold">Connect sandbox session</h1>
+              <h1 className="text-lg font-semibold">Connecting to Plain</h1>
               {error ? <p role="alert" className="text-sm leading-6 text-muted-foreground">{error}</p> : embedded && embedOrigin === EMBEDDED_WITHOUT_ORIGIN ? <p role="alert" className="text-sm leading-6 text-muted-foreground">This embed could not verify its parent page origin. Open the first-party app instead.</p> : <p className="text-sm leading-6 text-muted-foreground">Waiting for the host page to initialize this sandbox widget.</p>}
               {error && embedOrigin !== EMBEDDED_WITHOUT_ORIGIN ? <button type="button" className="min-h-11 rounded-lg border px-4 text-sm font-medium" onClick={() => { setError(null); signalReady(); }}>Retry connection</button> : null}
               {error || embedOrigin === EMBEDDED_WITHOUT_ORIGIN ? <a className="block text-sm underline" href="/earn/kamino-lend" target="_blank" rel="noreferrer">Open the first-party app</a> : null}

@@ -67,14 +67,11 @@ export function HomeScreen() {
         ) : null}
         {hydrated && portfolioReady && positionValues.length === 0 && holdingValues.length === 0 ? (
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
-            <p className="font-medium">No Devnet positions yet</p>
-            <p className="text-sm text-muted-foreground">Explore a Solana Devnet strategy or app test asset to see it in your portfolio.</p>
-            <div className="grid w-full grid-cols-2 gap-2 pt-1">
+             <p className="font-medium">Start earning with USDC</p>
+             <p className="text-sm text-muted-foreground">Choose an Earn strategy and approve a deposit from your wallet.</p>
+             <div className="w-full pt-1">
               <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/earn" />}>
                 Explore Earn
-              </Button>
-              <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/assets/office-building" />}>
-                View test asset
               </Button>
             </div>
           </Card>

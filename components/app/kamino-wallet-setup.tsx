@@ -20,15 +20,15 @@ export function KaminoWalletSetup({ walletAddress, snapshot, loading, error, onR
   return (
     <Card className="gap-3 rounded-2xl p-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold">Your test wallet</h3>
+        <h3 className="text-sm font-semibold">Your wallet</h3>
         <Button variant="ghost" size="sm" onClick={onRefresh} disabled={loading} aria-label="Refresh wallet balances">
           <RefreshCw className={loading ? "animate-spin" : ""} />{loading ? "Checking…" : "Refresh"}
         </Button>
       </div>
       <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/40 p-3">
-        <div><p className="text-xs text-muted-foreground">Devnet USDC</p><p className="mt-1 text-sm font-semibold tabular-nums">
+        <div><p className="text-xs text-muted-foreground">USDC</p><p className="mt-1 text-sm font-semibold tabular-nums">
           {snapshot ? formatAtomicAmount(snapshot.liquidityAmountAtomic, 6) : "—"}</p></div>
-        <div><p className="text-xs text-muted-foreground">Devnet SOL · fees</p><p className="mt-1 text-sm font-semibold tabular-nums">
+        <div><p className="text-xs text-muted-foreground">SOL · network fees</p><p className="mt-1 text-sm font-semibold tabular-nums">
           {snapshot ? formatAtomicAmount(snapshot.solBalanceLamports, 9) : "—"}</p></div>
       </div>
       {error ? <p role="alert" className="text-xs leading-5 text-destructive">{error}</p> : null}

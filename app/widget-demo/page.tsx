@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { DemoBankScreen } from "@/components/app/demo-bank-screen";
 
 type WidgetEvent = { type: "ready" | "initialized" | "close" | "error" | "action-confirmed"; message?: string; action?: "deposit" | "withdraw"; signature?: string };
-type WidgetController = { retry: () => void; destroy: () => void };
+type WidgetController = { iframe: HTMLIFrameElement; retry: () => void; destroy: () => void };
 type PlainWidgetSdk = {
   mount: (options: {
     container: HTMLElement;
@@ -29,8 +31,9 @@ function loadSdk() {
     const script = document.createElement("script");
     script.src = "/plain-widget.js";
     script.async = true;
-    script.onload = () => window.PlainWidget ? resolve() : reject(new Error("Widget SDK did not initialize."));
-    script.onerror = () => reject(new Error("Widget SDK could not be loaded."));
+    const timeout = window.setTimeout(() => { script.remove(); reject(new Error("Widget SDK timed out. Please retry.")); }, 15_000);
+    script.onload = () => { window.clearTimeout(timeout); if (window.PlainWidget) resolve(); else reject(new Error("Widget SDK did not initialize.")); };
+    script.onerror = () => { window.clearTimeout(timeout); script.remove(); reject(new Error("Widget SDK could not be loaded.")); };
     document.head.appendChild(script);
   }).catch((error: unknown) => {
     sdkLoadPromise = null;
@@ -42,17 +45,31 @@ function loadSdk() {
 export default function WidgetDemoPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<WidgetController | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const attemptRef = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState("No sandbox session is active.");
+  const [status, setStatus] = useState("Ready to connect.");
 
-  useEffect(() => () => controllerRef.current?.destroy(), []);
+  useEffect(() => () => { attemptRef.current++; controllerRef.current?.destroy(); }, []);
+
+  const closePlain = () => {
+    attemptRef.current++;
+    controllerRef.current?.destroy();
+    controllerRef.current = null;
+    setBusy(false);
+    setError(null);
+    setStatus("Ready to connect.");
+    dialogRef.current?.close();
+  };
 
   const startDemo = async () => {
     if (busy || !containerRef.current) return;
+    if (!dialogRef.current?.open) dialogRef.current?.showModal();
+    const attempt = ++attemptRef.current;
     setBusy(true);
     setError(null);
-    setStatus("Requesting a sandbox session…");
+    setStatus("Connecting to Plain…");
     controllerRef.current?.destroy();
     controllerRef.current = null;
 
@@ -64,6 +81,7 @@ export default function WidgetDemoPage() {
         signal: AbortSignal.timeout(15_000),
       });
       const result: unknown = await response.json().catch(() => null);
+      if (attempt !== attemptRef.current) return;
       if (!response.ok || !result || typeof result !== "object") throw new Error("Sandbox bootstrap is unavailable. Please try again.");
       const bootstrap = result as Record<string, unknown>;
       if (bootstrap.mode !== "SANDBOX" || bootstrap.identityVerified !== false || typeof bootstrap.sessionToken !== "string" ||
@@ -72,6 +90,7 @@ export default function WidgetDemoPage() {
       }
 
       await loadSdk();
+      if (attempt !== attemptRef.current) return;
       if (!containerRef.current || !window.PlainWidget) throw new Error("Widget mount is unavailable. Please retry.");
       controllerRef.current = window.PlainWidget.mount({
         container: containerRef.current,
@@ -79,41 +98,42 @@ export default function WidgetDemoPage() {
         partnerId: "demo-bank",
         sessionToken: bootstrap.sessionToken,
         onEvent: (event) => {
-          if (event.type === "ready") setStatus("Widget ready; validating sandbox session…");
-          if (event.type === "initialized") setStatus("Sandbox session connected. Mock identity only.");
-          if (event.type === "error") setStatus("Sandbox connection failed. Retry below.");
-          if (event.type === "close") setStatus("Sandbox widget closed.");
+          if (attempt !== attemptRef.current) return;
+          if (event.type === "ready") setStatus("Connecting to Plain…");
+          if (event.type === "initialized") setStatus("Connected to Plain.");
+          if (event.type === "error") { setError(event.message ?? "Could not connect to Plain."); setStatus("Connection failed."); }
+          if (event.type === "close") closePlain();
           if (event.type === "action-confirmed") setStatus(`Devnet ${event.action} confirmed in the widget. This is not bank settlement or real-money eligibility.`);
         },
       });
-      setStatus("Sandbox session requested. Waiting for the widget…");
+      controllerRef.current.iframe.style.minHeight = "0";
+      controllerRef.current.iframe.style.height = "100%";
+      controllerRef.current.iframe.title = "Plain Earn";
+      setStatus("Connecting to Plain…");
     } catch (startError) {
+      if (attempt !== attemptRef.current) return;
       setError(startError instanceof Error ? startError.message : "We couldn't start the sandbox demo.");
-      setStatus("No sandbox session is active.");
+      setStatus("Connection failed.");
     } finally {
-      setBusy(false);
+      if (attempt === attemptRef.current) setBusy(false);
     }
   };
 
   return (
-    <main className="min-h-dvh bg-muted/40 px-4 py-8 sm:py-12">
-      <section className="mx-auto max-w-3xl space-y-6 rounded-3xl border bg-background p-5 shadow-sm sm:p-8">
-        <header className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Partner integration preview</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Demo Bank · sandbox widget</h1>
-          <div role="note" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
-            <strong>Mock organization only.</strong> This demo is a sandbox integration preview. Identity attributes are simulated; no KYC, bank connection, real money, or production partner API is involved.
-          </div>
-          <p className="text-sm leading-6 text-muted-foreground">Click to request a short-lived sandbox session and mount the widget. The session token stays in memory and is never added to a URL or browser storage.</p>
-        </header>
-
-        <button type="button" onClick={() => void startDemo()} disabled={busy} className="min-h-12 rounded-xl bg-primary px-5 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60">
-          {busy ? "Starting sandbox…" : "Launch sandbox widget"}
-        </button>
-        {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-        <p role="status" aria-live="polite" className="text-sm text-muted-foreground">{status}</p>
-        <div ref={containerRef} className="min-h-8 overflow-hidden rounded-xl border bg-muted/20" />
-      </section>
-    </main>
+    <>
+      <DemoBankScreen onOpenPlain={() => void startDemo()} />
+      <dialog ref={dialogRef} aria-labelledby="plain-bank-dialog-title" onCancel={(event) => { event.preventDefault(); closePlain(); }}
+        className="fixed inset-0 m-auto h-[min(900px,calc(100dvh-2rem))] max-h-none w-[min(480px,calc(100vw-1rem))] max-w-none overflow-hidden rounded-2xl border bg-background p-0 text-foreground shadow-2xl backdrop:bg-slate-950/50">
+        <div className="flex h-full flex-col">
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
+            <div><h2 id="plain-bank-dialog-title" className="text-sm font-semibold">Plain</h2><p role="status" aria-live="polite" className="mt-0.5 text-[11px] text-muted-foreground">{status}</p></div>
+            <button type="button" aria-label="Close Plain" onClick={closePlain} className="inline-flex size-10 items-center justify-center rounded-full hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><X className="size-4" /></button>
+          </header>
+          {error ? <div className="shrink-0 space-y-2 border-b p-4"><p role="alert" className="text-sm text-destructive">{error}</p><button type="button" disabled={busy} onClick={() => void startDemo()} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">Try again</button></div> : null}
+          <div ref={containerRef} className="min-h-0 flex-1" />
+          <p className="shrink-0 border-t px-4 py-2.5 text-center text-[11px] text-muted-foreground">Bank account balances are sample data. Plain uses your separate wallet.</p>
+        </div>
+      </dialog>
+    </>
   );
 }

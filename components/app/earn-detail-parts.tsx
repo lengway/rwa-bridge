@@ -19,7 +19,7 @@ export function displayStrategyName(strategy: YieldStrategy) {
 }
 
 export function displayStrategyTicker(strategy: YieldStrategy) {
-  if (strategy.id === "kamino-lend") return "Devnet USDC";
+  if (strategy.id === "kamino-lend") return "USDC";
   return strategy.id === "ondo-usdy" ? "Legacy position" : strategy.ticker;
 }
 
@@ -61,18 +61,16 @@ export function GatewayDisclosureBadges({
   const canInvest = canInvestInStrategy(strategy);
   const canRedeem = canRedeemStrategy(strategy);
   return (
-    <div className="flex flex-wrap items-center gap-1.5" aria-label="Devnet status and disclosures">
-      <Badge variant="secondary">SOLANA DEVNET</Badge>
+    <div className="flex flex-wrap items-center gap-1.5" aria-label="Strategy availability">
       {!primaryOnly ? (
         <>
-          {gateway.fundingKind === "ONCHAIN" ? <Badge variant="outline">WALLET-SIGNED</Badge> : <Badge variant="outline">FUNDING UNAVAILABLE</Badge>}
-          {gateway.yieldKind === "PROTOCOL_VARIABLE" ? <Badge variant="outline">VARIABLE PROTOCOL RATE</Badge> : <Badge variant="outline">RATE UNAVAILABLE</Badge>}
+          {gateway.fundingKind === "ONCHAIN" ? <Badge variant="outline">Wallet approval</Badge> : <Badge variant="outline">Funding unavailable</Badge>}
+          {gateway.yieldKind === "PROTOCOL_VARIABLE" ? <Badge variant="outline">Variable rate</Badge> : <Badge variant="outline">Rate unavailable</Badge>}
         </>
       ) : null}
-      <Badge variant="outline">NO MONETARY VALUE</Badge>
       {includeAvailability ? (
         <Badge variant={canInvest ? "secondary" : "outline"}>
-          {canInvest ? "DEVNET AVAILABLE" : canRedeem ? "EXIT ONLY" : "UNAVAILABLE"}
+          {canInvest ? "Available" : canRedeem ? "Exit only" : "Unavailable"}
         </Badge>
       ) : null}
     </div>
@@ -108,14 +106,14 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
         </div>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
           {hasVariableProtocolRate
-            ? "Variable protocol rate: rate and liquidity depend on current reserve conditions. No numeric rate is shown; the rate is not guaranteed."
+             ? "Your USDC is supplied to Kamino Lend. The rate changes with reserve demand, and returns are not guaranteed."
             : hasIllustrativeApy
             ? "Illustrative yield: a Devnet-only estimate, not actual earnings or an amount credited to your balance."
             : "No numeric rate is shown or promised for this route."}
         </p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{presentDevnetCopy(gateway.yield.sourceNote)}</p>
+        {strategy.id !== "kamino-lend" ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{presentDevnetCopy(gateway.yield.sourceNote)}</p> : null}
       </div>
-      <p className="text-sm leading-6">{presentDevnetCopy(strategy.description)}</p>
+      <p className="text-sm leading-6">{strategy.id === "kamino-lend" ? "Supply USDC to a lending reserve. Receive cUSDC representing your position and withdraw USDC when reserve liquidity is available." : presentDevnetCopy(strategy.description)}</p>
     </section>
   );
 }

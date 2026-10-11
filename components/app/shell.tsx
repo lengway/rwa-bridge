@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/useAuth";
 import { useDevnet } from "@/lib/useDevnet";
 import { Input } from "@/components/ui/input";
 import { MockOnboardingGate } from "@/components/app/mock-onboarding-gate";
+import { DemoBadge } from "@/components/app/demo-badge";
 
 const tabs = [
   { href: "/home", label: "Home", icon: House },
@@ -51,13 +52,13 @@ function presentEnglishError(message: string | null | undefined, fallback: strin
 export function AppShell({ children, embedded = false }: { children: React.ReactNode; embedded?: boolean }) {
   const { status } = useAuth();
   const pathname = usePathname();
-  if (status === "loading") return <AuthLoader />;
-  if (status === "signed-out") return <SignInScreen />;
+  if (status === "loading") return <><DemoBadge /><AuthLoader /></>;
+  if (status === "signed-out") return <><DemoBadge /><SignInScreen /></>;
   // Mock setup can load while wallet initialization continues in the background.
   // Existing positions, exits and confirmations must remain accessible.
-  return <MockOnboardingGate allowExit={!embedded && ["/portfolio", "/activity", "/profile"].includes(pathname)}>
+  return <><DemoBadge /><MockOnboardingGate allowExit={!embedded && ["/portfolio", "/activity", "/profile"].includes(pathname)}>
     <ConnectedAppShell embedded={embedded}>{children}</ConnectedAppShell>
-  </MockOnboardingGate>;
+  </MockOnboardingGate></>;
 }
 
 function ConnectedAppShell({ children, embedded }: { children: React.ReactNode; embedded: boolean }) {
@@ -271,7 +272,6 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
               </Link>
             ) : null}
             <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h1>
-            <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">Devnet</span>
           </header>
         ) : null}
         <main

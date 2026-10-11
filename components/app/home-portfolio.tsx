@@ -48,20 +48,20 @@ function PositionCard({ item }: { item: PositionItem }) {
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{displayStrategyName(strategy)}</span>
           <span className="mt-1 block text-xs text-muted-foreground">
-            {formatQuantity(position.shares ?? 0)} {displayStrategyTicker(strategy)} · {presentDevnetCopy(strategy.gateway.yield.label)}
+            {formatQuantity(position.shares ?? 0)} {strategy.id === "kamino-lend" ? "cUSDC" : displayStrategyTicker(strategy)} · {strategy.id === "kamino-lend" ? "Lending position" : presentDevnetCopy(strategy.gateway.yield.label)}
           </span>
         </span>
         <span className="text-right">
           <span className="block font-medium tabular-nums">
-            {formatQuantity(position.valueUsd ?? position.principal)} TEST QUOTE
+             {formatQuantity(position.valueUsd ?? position.principal)} {strategy.id === "kamino-lend" ? "USDC" : "TEST QUOTE"}
           </span>
           <span className="mt-1 block text-xs tabular-nums text-muted-foreground">
-            NO MONETARY VALUE
+             Estimated value
           </span>
         </span>
       </Link>
       <p className="px-4 pb-3 text-xs text-muted-foreground">
-        {presentDevnetCopy(strategy.gateway.yield.sourceNote)} {earned !== 0 ? "Historic display carry is excluded from this balance." : ""}
+        {strategy.id === "kamino-lend" ? "Withdrawals depend on reserve liquidity." : presentDevnetCopy(strategy.gateway.yield.sourceNote)} {earned !== 0 ? "Historic display carry is excluded from this balance." : ""}
       </p>
     </Card>
   );
@@ -103,18 +103,18 @@ export function PromoCard() {
     <Card className="gap-3 rounded-2xl border-emerald-600/20 bg-emerald-500/5 p-5">
       <Link href={`/earn/${strategy.slug}`} className="block space-y-3">
         <div className="flex items-center justify-between">
-          <Badge variant="secondary" className="font-normal text-emerald-700 dark:text-emerald-300">SOLANA DEVNET</Badge>
+           <Badge variant="secondary" className="font-normal text-emerald-700 dark:text-emerald-300">Earn with USDC</Badge>
           <ArrowDownToLine className="size-4 text-emerald-700 dark:text-emerald-300" />
         </div>
         <div>
           <h2 className="font-semibold">{displayStrategyName(strategy)}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            USER-SIGNED ON-CHAIN · The server validates the route and simulates the transaction; your connected wallet signs it on Solana Devnet.
+            Supply USDC to a lending reserve. Your wallet stays in control of every deposit and withdrawal.
           </p>
         </div>
       </Link>
       <div className="space-y-1 text-xs text-muted-foreground">
-        <p>VARIABLE PROTOCOL RATE · NO MONETARY VALUE.</p>
+        <p>Variable rate · Withdrawals depend on liquidity.</p>
       </div>
     </Card>
   );

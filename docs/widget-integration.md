@@ -6,7 +6,9 @@ are collected. `identityVerified` is always `false`.
 
 ## Surfaces
 
-- `/widget-demo`: labeled mock organization, SDK mount/destroy example.
+- `/widget-demo`: fictional Forma Bank dashboard; its **Plain** button opens
+  the actual SDK widget in a dismissible dialog. Bank account/card/activity
+  amounts are labeled sample data and never change the Plain wallet balance.
 - `/widget`: embedded Earn surface, real app email authentication and existing
   user-signed Devnet transaction flow.
 - `/plain-widget.js`: dependency-free browser SDK.
@@ -84,3 +86,18 @@ block authentication/signing on another origin even when CSP admits its frame.
 The widget exposes a first-party app link as fallback. Production federation,
 popup signing or a reviewed same-site hosting arrangement requires a separate
 design and validation; this sandbox does not claim those integrations work.
+
+## Product presentation
+
+The app and bank preview carry a persistent corner **Demo · Devnet** control.
+Opening it explains test-token value, mock-only identity and disconnected bank
+payments. Primary UI uses actual asset/protocol names: USDC, cUSDC, SOL and
+Kamino Lend. Aggregate amounts are labeled USD estimates, not guaranteed income;
+cUSDC units and estimated withdrawable USDC stay distinct. Historic app tokens
+retain their actual names and are not relabeled as USDC or live securities.
+
+Explicit test-token / no-monetary-value acknowledgement remains before signing.
+Mock identity consent remains before saving onboarding selections. Neither the
+new bank UI nor its sample USD balance is a fiat funding adapter. Closing the
+dialog destroys its iframe/listener; stale bootstrap results cannot mount into
+a closed or newer dialog. SDK tokens still stay out of URLs and storage.

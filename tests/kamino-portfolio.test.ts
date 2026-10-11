@@ -30,6 +30,8 @@ test("actual Kamino balances and verified history feed the common portfolio cont
   assert.equal(result.positions[0].earnedCarryUsd, 0);
   assert.equal(result.holdings[1].mint, route.collateralMint);
   assert.equal(result.holdings[1].tokenAccount, "collateral-ata");
+  assert.equal(result.holdings[0].ticker, "USDC");
+  assert.equal(result.holdings[1].ticker, "Kamino cUSDC");
   assert.equal(result.history[0].type, "withdraw");
   assert.equal(result.history[0].amountUsd, 0.1);
   assert.equal(result.history[0].explorerUrl, "https://explorer.solana.com/tx/withdraw-signature?cluster=devnet");

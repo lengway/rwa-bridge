@@ -16,15 +16,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { OFFICE_ASSET } from "@/lib/assets";
 import { formatQuantity } from "@/lib/format";
+import { KAMINO_LEND_DEVNET } from "@/lib/kamino-lend-devnet-config";
 import { useAppStore } from "@/lib/store";
 import { useDevnet, type DevnetPortfolio } from "@/lib/useDevnet";
 
 type DisplayHolding = DevnetPortfolio["holdings"][number];
 
 const allocationNames = [
-  { id: "cash", name: "Available Devnet units", color: "bg-sky-500" },
+  { id: "cash", name: "Available balance", color: "bg-sky-500" },
   { id: "kzte", name: "Legacy KZTE · Devnet only", color: "bg-rose-500" },
-  { id: "kamino-lend", name: "Kamino Lend · Devnet position", color: "bg-emerald-500" },
+  { id: "kamino-lend", name: "Kamino Lend", color: "bg-emerald-500" },
   { id: "ondo-usdy", name: "Legacy Devnet position · exit only", color: "bg-emerald-500" },
   { id: "kz-bond-demo", name: "Archived Devnet position · exit only", color: "bg-amber-500" },
   { id: "demo-office", name: "OFFICE · app Devnet token", color: "bg-violet-500" },
@@ -80,7 +81,7 @@ export function PortfolioScreen() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Portfolio</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Local Solana Devnet assets and activity history
+            Your balances, positions and activity
           </p>
         </div>
         <Button variant="outline" size="icon" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
@@ -90,9 +91,9 @@ export function PortfolioScreen() {
 
       <Card className="gap-4 rounded-2xl p-5">
         <div>
-          <p className="text-sm text-muted-foreground">Local Devnet summary</p>
-          <p className="mt-1 text-3xl font-semibold tabular-nums">{isReady ? formatQuantity(totalValue) : devnet.portfolioError ? "Unavailable" : "…"} DEVNET UNITS</p>
-          <p className="mt-1 text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. Check Kamino Lend’s variable rate on the strategy page; it is not part of this local summary.</p>
+          <p className="text-sm text-muted-foreground">Estimated portfolio value</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums">{isReady ? `$${formatQuantity(totalValue)}` : devnet.portfolioError ? "Unavailable" : "…"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">USD estimate. Position values can change; returns are not guaranteed.</p>
         </div>
         {allocationTotal > 0 ? (
           <div className="space-y-3">
@@ -107,7 +108,7 @@ export function PortfolioScreen() {
                   <span className={`size-2 shrink-0 rounded-full ${item.color}`} />
                   <span className="min-w-0 flex-1 text-muted-foreground">{item.name}</span>
                   <span className="shrink-0 text-right font-medium tabular-nums">
-                    {formatQuantity(item.value)} DEVNET UNITS · {allocationTotal > 0 ? `${formatQuantity(item.value / allocationTotal * 100, 1)}%` : "0%"}
+                    ${formatQuantity(item.value)} · {allocationTotal > 0 ? `${formatQuantity(item.value / allocationTotal * 100, 1)}%` : "0%"}
                   </span>
                 </div>
               ))}
@@ -115,7 +116,7 @@ export function PortfolioScreen() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {isReady ? "This summary updates after a Devnet transaction." : devnet.portfolioError ? "Allocation is unavailable. Holdings are not shown as zero." : "Allocation will appear when portfolio data is available."}
+            {isReady ? "Add USDC or open an Earn position to see your allocation." : devnet.portfolioError ? "Allocation is unavailable. Holdings are not shown as zero." : "Allocation will appear when portfolio data is available."}
           </p>
         )}
       </Card>
@@ -131,7 +132,7 @@ export function PortfolioScreen() {
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
             <Wallet className="size-6 text-muted-foreground" />
             <p className="font-medium">No holdings yet</p>
-            <p className="text-sm text-muted-foreground">Open Kamino Lend to check the available Devnet route.</p>
+            <p className="text-sm text-muted-foreground">Explore Kamino Lend to start earning with USDC.</p>
             <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Open Kamino Lend</Button>
           </Card>
         ) : null}
@@ -200,6 +201,7 @@ export function PortfolioScreen() {
 }
 
 function HoldingRow({ holding }: { holding: DisplayHolding }) {
+  const primary = holding.productId === "kamino-lend" || holding.mint === KAMINO_LEND_DEVNET.liquidityMint;
   const name = holding.kind === "asset" ? "OFFICE · app Devnet token" : presentPortfolioCopy(holding.name);
   return (
     <Card className="gap-3 rounded-2xl p-4 transition-colors hover:bg-muted/40">
@@ -214,13 +216,13 @@ function HoldingRow({ holding }: { holding: DisplayHolding }) {
           </span>
         </span>
         <span className="text-right">
-          <span className="block font-semibold tabular-nums">{formatQuantity(holding.valueUsd)} DEVNET UNITS</span>
+          <span className="block font-semibold tabular-nums">{primary ? `${formatQuantity(holding.valueUsd)} USDC` : `${formatQuantity(holding.valueUsd)} TEST QUOTE`}</span>
           {holding.kind === "vault" ? (
             <span className="mt-1 block text-xs text-muted-foreground">Check the position’s exit terms</span>
-          ) : <span className="mt-1 block text-xs text-muted-foreground">NO MONETARY VALUE</span>}
+          ) : <span className="mt-1 block text-xs text-muted-foreground">{primary ? "Available" : "Test token"}</span>}
         </span>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Devnet position · check exit availability" : "App Devnet token · NO MONETARY VALUE"}</span></div>
+      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Estimated position value · withdrawals depend on liquidity" : primary ? "USDC wallet balance" : "Historic test token"}</span></div>
     </Card>
   );
 }
@@ -233,7 +235,7 @@ function WalletCard({ portfolio, onCopy }: { portfolio: DevnetPortfolio | null; 
       <div className="flex items-center gap-2">
         <Wallet className="size-4 text-muted-foreground" />
         <h3 className="font-semibold">Solana wallet</h3>
-        <Badge variant="secondary" className="ml-auto">{portfolio.wallet.network}</Badge>
+        <Badge variant="secondary" className="ml-auto">Solana</Badge>
       </div>
       <div className="flex items-center gap-2 rounded-xl bg-muted/60 p-3">
         <span className="min-w-0 flex-1 truncate font-mono text-xs">{shortAddress(address)}</span>
@@ -274,16 +276,17 @@ function HoldingDetails({
   onCopy: (value: string, label: string) => void;
 }) {
   const name = holding.kind === "asset" ? "OFFICE · app Devnet token" : presentPortfolioCopy(holding.name);
+  const primary = holding.productId === "kamino-lend" || holding.mint === KAMINO_LEND_DEVNET.liquidityMint;
   const canInvest = holding.kind === "cash";
   const canWithdraw = holding.kind === "vault";
   const canBuy = holding.kind === "asset" || holding.kind === "cash";
   const canExchange = legacyFiatAdaptersEnabled && (holding.kind === "cash" || holding.kind === "kzte");
   const exchangeDirection = holding.kind === "kzte" ? "kzte-to-usd" : "usd-to-kzte";
   return (
-    <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${presentPortfolioCopy(holding.ticker)} · ${formatQuantity(holding.valueUsd)} DEVNET UNITS · NO MONETARY VALUE`}>
+    <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${presentPortfolioCopy(holding.ticker)} · Estimated value: ${formatQuantity(holding.valueUsd)} ${primary ? "USDC" : "TEST QUOTE"}`}>
       <div className="space-y-4">
           <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
-            <span className="text-muted-foreground">{holding.kind === "vault" ? "Devnet position status" : "Token status"}</span><span className="font-medium">{holding.kind === "vault" ? "Check exit terms" : "NO MONETARY VALUE"}</span>
+            <span className="text-muted-foreground">{holding.kind === "vault" ? "Position status" : "Token status"}</span><span className="font-medium">{holding.kind === "vault" ? "Check exit terms" : primary ? "Available" : "Test token"}</span>
           </div>
         {holding.kind === "kzte" ? (
           <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">

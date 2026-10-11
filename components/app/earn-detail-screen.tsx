@@ -63,7 +63,7 @@ export function EarnDetail({ strategy, initialAction, onConfirmed }: { strategy:
           Test-token redemption is not currently supported for this position. Wait until a compatible exit route is confirmed before starting a transaction.
         </p>
       ) : null}
-      <DetailActionBar amount={isKaminoLend ? "Devnet USDC" : hydrated ? `${formatQuantity(cashUsd)} TEST QUOTE` : "…"}>
+      <DetailActionBar amount={isKaminoLend ? "USDC" : hydrated ? `${formatQuantity(cashUsd)} TEST QUOTE` : "…"}>
         {isKaminoLend ? (
           <Button
             variant="outline"

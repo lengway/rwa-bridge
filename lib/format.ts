@@ -32,12 +32,12 @@ export function formatEarningsMoney(usd: number, currency: "USD" | "KZT" = "USD"
 
 export function formatApy(apy: number) {
   if (!Number.isFinite(apy)) return "—";
-  return new Intl.NumberFormat("ru-RU", { style: "percent", maximumFractionDigits: 2 }).format(apy);
+  return new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(apy);
 }
 
 export function formatQuantity(value: number, maximumFractionDigits = 6) {
   if (!Number.isFinite(value)) return "—";
-  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits }).format(value);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(value);
 }
 
 export function formatActivityDay(timestamp: number, now = Date.now()) {

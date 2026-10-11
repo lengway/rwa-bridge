@@ -11,9 +11,9 @@ export function ExplainerSections({ strategy }: { strategy: YieldStrategy }) {
   const gateway = strategy.gateway;
   const steps = gateway.provider === "KAMINO"
     ? [
-        "Choose an amount of Devnet USDC. Card, KZT, and other fiat payments are not supported.",
-        "The server loads the pinned Kamino Lend reserve, checks the route, and simulates the exact transaction before asking for a signature.",
-        "Sign and submit the prepared transaction with your connected wallet. Completion is shown only after the Devnet confirmation is verified.",
+        "Choose how much USDC to supply. Card and bank payments are not connected.",
+        "Plain checks reserve liquidity and simulates the transaction. You review the amount and network fee.",
+        "Approve with your wallet. Once confirmed, your cUSDC position appears in your portfolio; withdraw USDC when liquidity is available.",
       ]
     : [
         "New deposits to historic Devnet positions are disabled.",
@@ -51,7 +51,7 @@ export function RiskSection({ strategy }: { strategy: YieldStrategy }) {
           <p className="text-sm leading-5">{presentDevnetCopy(strategy.riskLabel)}</p>
           <p className="text-sm leading-5">
             {isKamino
-              ? "Devnet tokens and positions have no monetary value. Reserve liquidity, fees, and the protocol rate can change; withdrawals may depend on reserve conditions. This is not a bank deposit or an offer to invest real funds. Returns are not guaranteed."
+              ? "Reserve liquidity, fees and the protocol rate can change. Withdrawals depend on reserve conditions. This is not a bank deposit, and returns are not guaranteed."
               : "Historic Devnet tokens and records have no monetary value. This is not a current provider position, bank deposit, investment product, or offer."}
           </p>
         </div>
@@ -65,7 +65,7 @@ export function EligibilitySection({ strategy }: { strategy: YieldStrategy }) {
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Availability</h2>
       <Card className="gap-2 rounded-2xl p-4">
-        <p className="text-sm leading-5">{presentDevnetCopy(strategy.eligibilityLabel)}</p>
+        <p className="text-sm leading-5">{strategy.id === "kamino-lend" ? "Complete account setup, connect your wallet and hold USDC plus SOL for fees. Real-money access is not enabled in this demo." : presentDevnetCopy(strategy.eligibilityLabel)}</p>
         {strategy.gateway.availabilityReason ? <p className="text-xs text-muted-foreground">{strategy.gateway.availabilityReason}</p> : null}
       </Card>
     </section>

@@ -326,7 +326,7 @@ export function MockOnboardingGate({
       <>
         {!isComplete ? (
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 border-b border-amber-500/20 bg-amber-500/5 px-4 py-2 text-xs leading-5 text-foreground sm:px-6">
-            <span>Complete demo setup before adding new funds.</span>
+            <span>Complete account setup before adding new funds.</span>
             <Link href="/home" className="inline-flex shrink-0 items-center gap-1 font-medium underline underline-offset-4">
               Complete setup <ArrowRight aria-hidden="true" className="size-3" />
             </Link>
@@ -347,9 +347,9 @@ export function MockOnboardingGate({
             <ShieldCheck aria-hidden="true" className="size-5" />
           </div>
           <div className="space-y-1.5">
-            <CardTitle className="text-xl">Set up your demo profile</CardTitle>
+            <CardTitle className="text-xl">Set up your account</CardTitle>
             <CardDescription className="leading-5">
-              This is a bounded mock onboarding step, not identity verification or approval.
+              A few details to get started. In this demo, no documents are checked and your identity is not verified.
             </CardDescription>
           </div>
         </CardHeader>
@@ -366,7 +366,7 @@ export function MockOnboardingGate({
           ) : activeOnboarding?.phase === "loading" || !activeOnboarding ? (
             <div className="flex items-center gap-3 rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground" role="status">
               <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-              Checking your demo setup…
+              Checking your account setup…
             </div>
           ) : activeOnboarding.phase === "error" ? (
             <div className="space-y-4 rounded-xl border border-destructive/25 bg-destructive/5 p-4">
@@ -390,9 +390,9 @@ export function MockOnboardingGate({
               {widgetValid ? (
                 <div className="space-y-4">
                   <div className="rounded-xl border bg-muted/30 p-4">
-                    <p className="text-sm font-medium">Demo bank profile ready</p>
+                    <p className="text-sm font-medium">Bank profile ready</p>
                     <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                      Your partner demo session supplies Kazakhstan and an adult self-attestation. No extra country or age form is needed; no documents are checked, and this is not real KYC or real-money eligibility.
+                      The sample bank profile supplies Kazakhstan and an adult declaration. No repeated form is needed. These are mock attributes, not verified KYC.
                     </p>
                   </div>
                   <label htmlFor={widgetConsentId} className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm leading-5">
@@ -409,7 +409,7 @@ export function MockOnboardingGate({
                   {activeOnboarding.error ? <p role="alert" className="text-sm text-destructive">{activeOnboarding.error}</p> : null}
                   <Button className="w-full" onClick={() => void submit()} disabled={!activeForm.consentAccepted || activeOnboarding.saving}>
                     {activeOnboarding.saving ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : null}
-                    {activeOnboarding.saving ? "Saving demo setup…" : "Continue with demo bank profile"}
+                    {activeOnboarding.saving ? "Saving…" : "Continue with bank profile"}
                   </Button>
                 </div>
               ) : (
@@ -471,10 +471,6 @@ export function MockOnboardingGate({
                       <span>I understand this is mock-only, not real KYC or real-money eligibility, and I consent to storing the demo country and declarations.</span>
                     </label>
                   </div>
-                  <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-sm leading-5">
-                    <p className="font-medium">No documents checked</p>
-                    <p className="mt-1 text-muted-foreground">This is not real KYC, an actual approval, or evidence of real-money eligibility.</p>
-                  </div>
                   <StoredDataNote />
                   {activeOnboarding.error ? <p role="alert" className="text-sm text-destructive">{activeOnboarding.error}</p> : null}
                   <Button
@@ -489,7 +485,7 @@ export function MockOnboardingGate({
                     }
                   >
                     {activeOnboarding.saving ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : null}
-                    {activeOnboarding.saving ? "Saving demo setup…" : "Save demo setup"}
+                    {activeOnboarding.saving ? "Saving…" : "Continue"}
                   </Button>
                 </div>
               )}

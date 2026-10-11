@@ -549,12 +549,12 @@ export function KaminoLendDrawer({
       <DrawerFrame
         open={open}
         onOpenChange={changeOpen}
-        title="Kamino Lend · Solana Devnet"
+        title="Kamino Lend"
         description="Transaction confirmed on Devnet."
       >
         <DrawerSuccess
           amount={0}
-          amountLabel={`${completedActionLabel} ${formatAtomicAmount(confirmedAmountAtomic ?? prepared?.amountAtomic ?? amountAtomic ?? "0", reserve?.decimals ?? 6)} Devnet USDC`}
+          amountLabel={`${completedActionLabel} ${formatAtomicAmount(confirmedAmountAtomic ?? prepared?.amountAtomic ?? amountAtomic ?? "0", reserve?.decimals ?? 6)} USDC`}
           sentence={confirmation.action === "deposit"
             ? "Liquidity supplied to the selected Kamino Lend reserve."
             : "Liquidity withdrawn from the selected Kamino Lend reserve."}
@@ -575,12 +575,12 @@ export function KaminoLendDrawer({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      title="Kamino Lend · Solana Devnet"
-      description="On-chain supply and withdrawal through a verified Devnet route."
+      title="Kamino Lend"
+      description="Supply or withdraw USDC with your wallet."
     >
       <div className="space-y-5">
         <div className="flex flex-wrap gap-1.5" aria-label="Network and protocol details">
-          <Badge variant="secondary">SOLANA DEVNET</Badge>
+          <Badge variant="secondary">USDC</Badge>
           <Badge variant="outline">KAMINO LEND</Badge>
           <Badge variant="outline">USER-SIGNED</Badge>
         </div>
@@ -676,7 +676,7 @@ export function KaminoLendDrawer({
             {market.wallet ? (
               <Card className="gap-2 rounded-xl border-muted-foreground/15 bg-muted/30 p-3 text-xs leading-5">
                 <p>
-                  Wallet balance: <span className="font-medium text-foreground">{formatAtomicAmount(market.wallet.liquidityBalanceAtomic, reserve.decimals)} Devnet USDC</span>
+                  Wallet balance: <span className="font-medium text-foreground">{formatAtomicAmount(market.wallet.liquidityBalanceAtomic, reserve.decimals)} USDC</span>
                 </p>
                 <p className="text-muted-foreground">
                   Kamino collateral: {formatAtomicAmount(market.wallet.collateralBalanceAtomic, reserve.decimals)} cToken. The exact withdrawal amount will be checked before signing.
@@ -714,7 +714,7 @@ export function KaminoLendDrawer({
                 <p className="text-xs text-destructive">Amount exceeds the current route limit.</p>
               ) : null}
               {!exceedsMaximum && exceedsWalletMaximum ? <p className="text-xs text-destructive">Amount exceeds your current balance or available withdrawal estimate. Refresh balances to check again.</p> : null}
-              {action === "withdraw" && walletSnapshot ? <p className="text-xs text-muted-foreground">Estimated position: {formatAtomicAmount(walletSnapshot.estimatedUnderlyingAmountAtomic, 6)} Devnet USDC. The server rechecks liquidity before signing.</p> : null}
+              {action === "withdraw" && walletSnapshot ? <p className="text-xs text-muted-foreground">Estimated position: {formatAtomicAmount(walletSnapshot.estimatedUnderlyingAmountAtomic, 6)} USDC. The server rechecks liquidity before signing.</p> : null}
               {amount && !amountAtomic ? (
                 <p className="text-xs text-destructive">Enter a positive amount with up to {reserve.decimals} decimal places.</p>
               ) : null}

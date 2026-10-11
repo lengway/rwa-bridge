@@ -300,3 +300,32 @@ session was not impersonated. The last observed owner-origin nginx portfolio
 requests were 500 **before** this activation; post-activation owner UI remains
 to be confirmed by refresh. Local same-address HTTP test also passed in 3.442
 seconds and deterministic PDA fixture in 0.619 seconds. No transactions sent.
+
+## Product copy and demo bank presentation
+
+Owner requested natural product terminology with one corner demo marker, and a
+demo bank with a Plain button. Implemented compact expandable Demo · Devnet
+disclosure across landing, account/setup/app and widget. Primary labels now use
+USDC, SOL, cUSDC, deposits/withdrawals and estimated portfolio value instead of
+repeated DEVNET UNITS/NO MONETARY VALUE banners. cUSDC balances remain separate
+from estimated USDC value; no APY or credited earnings invented. Actual historic
+test tokens retain their identity. Mock identity consent and explicit Devnet /
+no-value acknowledgement before wallet signing remain; execution guardrails,
+exact values, 1 USDC cap and authenticated wallet scoping are unchanged.
+
+`/widget-demo` is now fictional Forma Bank with sample bank account/card/activity
+data and two Plain entry buttons. Plain opens through the existing signed
+sandbox SDK in a native dialog. Bank/card controls that are not connected stay
+disabled; sample bank balances never fund or update the user's Plain wallet.
+Closing/canceling destroys the frame; stale async bootstraps are ignored. No
+external provider, paid tooling or real bank integration was added.
+
+Actual local checks: lint/typecheck/build/diff pass, **69 tests pass**. Browser
+verified desktop dashboard, Plain dialog reaching real email sign-in, close /
+reopen with exactly one iframe, cancel-handler cleanup, and no token in frame
+URL. A 375px nested viewport verified bank layout and 359px dialog with 357px
+widget viewport, without horizontal overflow; no physical mobile wallet flow
+is claimed. Screenshots inspected. Core HTTP smoke passed 14 checks; five
+authenticated reads of the previously failing public PDA target returned 200 in
+0.394 seconds on the isolated local instance. No email or transactions sent.
+Deployment/public checks follow separately; owner signing remains unverified.

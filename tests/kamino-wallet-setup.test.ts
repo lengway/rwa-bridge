@@ -12,8 +12,8 @@ test("wallet setup shows verified test balances with distinct asset units", () =
     walletAddress: props.walletAddress, liquidityAmountAtomic: "250000", collateralAmountAtomic: "0",
     estimatedUnderlyingAmountAtomic: "0", solBalanceLamports: "10000000",
   } }));
-  assert.match(html, /Devnet USDC/);
-  assert.match(html, /Devnet SOL/);
+  assert.match(html, />USDC</);
+  assert.match(html, /SOL · network fees/);
   assert.match(html, /0\.25/);
   assert.match(html, /0\.01/);
   assert.match(html, /https:\/\/faucet\.circle\.com\//);

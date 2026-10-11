@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DemoBadge } from "@/components/app/demo-badge";
 
 type KaminoMarketStatus = {
   ready?: boolean;
@@ -22,7 +23,7 @@ const DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 const questions = [
   { question: "How do I sign in?", answer: "Enter your email. A Solana wallet is created automatically." },
-  { question: "How do I supply to Kamino Lend?", answer: "Choose an amount of Devnet USDC. The app prepares and checks the route; only your wallet can sign the transaction on Solana Devnet." },
+  { question: "How do I supply to Kamino Lend?", answer: "Choose an amount of USDC. Plain checks and simulates the transaction; you approve it with your wallet. The lending position is represented by cUSDC." },
   { question: "What rate applies?", answer: "The rate is set by the Kamino Lend protocol and may change. It is not a yield guarantee or a fixed APR." },
   { question: "Where can I verify activity?", answer: "After the transaction is confirmed, you can view it, the market, and the reserve in Solana Explorer." },
   { question: "Is this a financial product?", answer: "No. This is Solana Devnet: Devnet USDC and positions have no monetary value." },
@@ -31,6 +32,7 @@ const questions = [
 export default function LandingPage() {
   return (
     <main className="min-h-dvh bg-muted/40">
+      <DemoBadge />
       <div className="mx-auto max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
         <header className="flex items-center justify-between">
           <Link href="/" className="text-base font-semibold tracking-tight">Plain</Link>
@@ -39,12 +41,12 @@ export default function LandingPage() {
         <section className="grid gap-8 py-12 sm:grid-cols-[1.2fr_0.8fr] sm:items-center sm:py-20">
           <div className="space-y-6">
             <div className="space-y-4">
-              <Badge variant="secondary">SOLANA DEVNET · Universal Earn Gateway</Badge>
+              <Badge variant="secondary">Earn, made simple</Badge>
               <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-6xl">
-                Kamino Lend on Solana Devnet
+                Put your USDC to work.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Sign in with email, get an automatically created Solana wallet, and sign on-chain transactions yourself. The Kamino Lend route runs on Devnet, where the protocol rate can change.
+                Sign in with email, explore lending strategies and approve transactions from your wallet. Supply USDC, track your position and withdraw when liquidity is available.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -52,20 +54,20 @@ export default function LandingPage() {
                 Open app <ArrowRight />
               </Button>
               <Button variant="outline" size="lg" nativeButton={false} render={<Link href="/earn" />}>
-                View Devnet strategy
+                Explore Earn
               </Button>
             </div>
           </div>
 
           <Card className="gap-4 rounded-3xl p-5 sm:p-7">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Devnet status</span>
+              <span className="text-sm text-muted-foreground">Your first strategy</span>
               <ChartNoAxesCombined className="size-4 text-emerald-700 dark:text-emerald-400" />
             </div>
             <div className="grid gap-3">
-              <ProductMetric label="Route" value="KAMINO LEND · USER-SIGNED" />
-              <ProductMetric label="Rate" value="VARIABLE PROTOCOL RATE" />
-              <ProductMetric label="Environment" value="DEVNET · NO MONETARY VALUE" />
+              <ProductMetric label="Protocol" value="Kamino Lend" />
+              <ProductMetric label="Rate" value="Variable" />
+              <ProductMetric label="Assets" value="Supply USDC · Receive cUSDC" />
             </div>
           </Card>
         </section>
@@ -74,27 +76,27 @@ export default function LandingPage() {
           <SectionHeading eyebrow="How it works" title="Your Kamino Lend flow" description="Sign in with email, get an automatically created Solana wallet, and verify your confirmed on-chain transaction." />
           <div className="grid gap-3 sm:grid-cols-3">
             <ValueCard icon={<ShieldCheck />} title="Sign in with email" text="A Solana wallet is created automatically; no seed phrase is needed." />
-            <ValueCard icon={<ChartNoAxesCombined />} title="Get Devnet USDC" text="You also need SOL on Solana Devnet for transaction fees. No bank card, KZT transfer, or fiat payment is involved." />
+            <ValueCard icon={<ChartNoAxesCombined />} title="Add USDC" text="Use your wallet balance to supply USDC. Keep SOL for network fees; card and bank payments are not connected." />
             <ValueCard icon={<Building2 />} title="Sign the transaction" text="The app checks the market and reserve, then your wallet signs a supply or withdrawal on Kamino Lend." />
           </div>
         </section>
 
         <section className="space-y-5 py-8">
-          <SectionHeading eyebrow="Strategy" title="One verifiable Devnet route" description="Kamino Lend uses a pinned market and reserve. Bank, KZT, and off-ramp transactions are not part of this route." />
+          <SectionHeading eyebrow="Strategy" title="Start with Kamino Lend" description="A lending reserve with a variable rate. You stay in control of every transaction." />
           <div className="grid gap-3 sm:grid-cols-1">
-            <ProductCard title="Kamino Lend" ticker="DEVNET USDC" label="SOLANA DEVNET" detail="User-signed on-chain supply and withdrawal in a pinned Kamino Lend reserve. The protocol rate can change; Devnet USDC has no monetary value." href="/earn/kamino-lend" />
+            <ProductCard title="Kamino Lend" ticker="USDC" label="Lending" detail="Supply USDC and receive cUSDC representing your position. The protocol rate changes with reserve conditions; returns are not guaranteed." href="/earn/kamino-lend" />
           </div>
         </section>
 
-        <NetworkAssets />
+        <details className="my-8 rounded-2xl border p-4"><summary className="cursor-pointer text-sm font-medium">Network and contract details</summary><NetworkAssets /></details>
 
         <section className="my-8 grid gap-5 rounded-3xl border bg-card p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:p-8">
           <div className="space-y-2">
-            <Badge variant="secondary">Integration status</Badge>
-            <h2 className="text-2xl font-semibold tracking-tight">Kamino Lend Devnet connected</h2>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">The app builds and simulates a transaction for the pinned Kamino Lend market. Only your wallet signs and submits it. Bank, KZT, and off-ramp transactions are not part of this route.</p>
+            <Badge variant="secondary">For banks and partner apps</Badge>
+            <h2 className="text-2xl font-semibold tracking-tight">Plain, inside your app.</h2>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">See the embedded Earn experience in a fictional bank. Open Plain without leaving the bank interface; account balances remain separate from the user&apos;s wallet.</p>
           </div>
-          <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/earn" />}>View Devnet strategy <ArrowRight /></Button>
+          <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/widget-demo" />}>Try the bank demo <ArrowRight /></Button>
         </section>
 
         <section className="space-y-5 py-8">
@@ -116,13 +118,13 @@ export default function LandingPage() {
         <section className="my-8 flex flex-col gap-4 rounded-3xl border bg-card p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div>
             <h2 className="text-xl font-semibold">Open the app</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Sign in with email and explore the Solana Devnet route. It has no monetary value.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Sign in with email and explore Earn.</p>
           </div>
           <Button size="lg" nativeButton={false} render={<Link href="/home" />}>Get started <ArrowRight /></Button>
         </section>
 
         <footer className="border-t py-5 text-xs leading-5 text-muted-foreground">
-          Solana Devnet only. NO MONETARY VALUE. Not investment advice.
+          Plain · Not a bank deposit. Returns are not guaranteed. Not investment advice.
         </footer>
       </div>
     </main>

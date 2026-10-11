@@ -8,5 +8,5 @@ test("failed initial portfolio read shows unavailable, not perpetual skeletons o
   const html = renderToStaticMarkup(createElement(BalanceCard, { total: 0, cashUsd: 0, earnings: 0, hydrated: false, unavailable: true }));
   assert.match(html, /Balance unavailable/);
   assert.match(html, /positions have not been changed/);
-  assert.doesNotMatch(html, /data-slot="skeleton"|0 DEVNET UNITS/);
+  assert.doesNotMatch(html, /data-slot="skeleton"|\$0|0 USDC/);
 });

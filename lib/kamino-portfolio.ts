@@ -42,12 +42,12 @@ export function buildKaminoPortfolio(position: Position, actions: readonly Confi
       name, ticker, mint, tokenAccount, balance, priceUsd: value / balance, valueUsd: value,
       mintExplorerUrl: addressUrl(mint), tokenAccountExplorerUrl: addressUrl(tokenAccount) });
   };
-  add("cash", route.liquidityMint, position.liquidityTokenAccount, cash, cash, "Devnet USDC", "Devnet USDC · no monetary value");
-  add("vault", route.collateralMint, position.collateralTokenAccount, collateral, underlying, "Kamino cUSDC", "Kamino Lend · estimated Devnet position");
+  add("cash", route.liquidityMint, position.liquidityTokenAccount, cash, cash, "USDC", "USDC");
+  add("vault", route.collateralMint, position.collateralTokenAccount, collateral, underlying, "Kamino cUSDC", "Kamino Lend");
   const history: DevnetPortfolio["history"] = actions.map((action): DevnetPortfolio["history"][number] => ({
     id: action.actionId,
     type: action.action === "deposit" ? "invest" : "withdraw",
-    title: action.action === "deposit" ? "Kamino Lend · Devnet deposit finalized" : "Kamino Lend · Devnet withdrawal finalized",
+    title: action.action === "deposit" ? "Kamino Lend · Deposit confirmed" : "Kamino Lend · Withdrawal confirmed",
     amountUsd: displayAmount(action.actualLiquidityAmountAtomic),
     at: action.createdAt,
     signature: action.signature,
