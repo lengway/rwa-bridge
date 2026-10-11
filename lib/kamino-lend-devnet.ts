@@ -33,7 +33,6 @@ import {
 } from "@solana/web3.js";
 import {
   getAccount,
-  getAssociatedTokenAddress,
   getMint,
   TOKEN_PROGRAM_ID,
   TokenAccountNotFoundError,
@@ -41,6 +40,7 @@ import {
 import { KaminoActionStore } from "@/lib/kamino-action-store";
 import { createReadCoalescer } from "@/lib/read-coalescer";
 import { advancePortfolioReadGeneration, portfolioReadGeneration } from "@/lib/portfolio-read-generation";
+import { kaminoWalletTokenAccount } from "@/lib/kamino-token-account";
 import { assertKaminoReceiptIdentity, verifyKaminoTokenDeltas } from "@/lib/kamino-action-verification";
 import { SOLANA_DEVNET_GENESIS_HASH } from "@/lib/rwa-demo";
 import {
@@ -392,7 +392,7 @@ async function userTokenBalanceAtomic({
   mint: PublicKey;
   owner: PublicKey;
 }) {
-  const ata = await getAssociatedTokenAddress(mint, owner, false, TOKEN_PROGRAM_ID);
+  const ata = kaminoWalletTokenAccount(mint, owner);
   try {
     return (await getAccount(connection, ata, "confirmed", TOKEN_PROGRAM_ID)).amount;
   } catch (cause) {
@@ -550,8 +550,8 @@ async function readKaminoLendDevnetPosition(walletAddress: string) {
     mint: KAMINO_LEND_DEVNET.liquidityMint,
     collateralMint: KAMINO_LEND_DEVNET.collateralMint,
     decimals: KAMINO_LEND_DEVNET.decimals,
-    liquidityTokenAccount: (await getAssociatedTokenAddress(publicKey(KAMINO_LEND_DEVNET.liquidityMint, "liquidity mint"), owner)).toBase58(),
-    collateralTokenAccount: (await getAssociatedTokenAddress(publicKey(KAMINO_LEND_DEVNET.collateralMint, "collateral mint"), owner)).toBase58(),
+    liquidityTokenAccount: kaminoWalletTokenAccount(publicKey(KAMINO_LEND_DEVNET.liquidityMint, "liquidity mint"), owner).toBase58(),
+    collateralTokenAccount: kaminoWalletTokenAccount(publicKey(KAMINO_LEND_DEVNET.collateralMint, "collateral mint"), owner).toBase58(),
     collateralAmountAtomic: collateralAmount.toString(10),
     liquidityAmountAtomic: liquidityAmount.toString(10),
     solBalanceLamports: solBalance,

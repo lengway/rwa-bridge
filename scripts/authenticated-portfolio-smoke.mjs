@@ -7,7 +7,9 @@ const base = process.argv[2] ?? "http://127.0.0.1:3204";
 const url = new URL(base);
 assert.ok(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname));
 assert.ok(["3203", "3204"].includes(url.port), "Only isolated fixture ports are allowed");
-const wallet = "11111111111111111111111111111111";
+// Optional public read target. Still binds only the isolated fixture account.
+const wallet = process.argv[3] ?? "11111111111111111111111111111111";
+assert.match(wallet, /^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 const secret = "plain-portfolio-read-fixture-no-prod-secret";
 const now = Math.floor(Date.now() / 1000);
 const raw = Buffer.from(JSON.stringify({ email: "portfolio-read@example.invalid", iat: now, exp: now + 300 })).toString("base64url");
