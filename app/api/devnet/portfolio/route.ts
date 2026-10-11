@@ -19,6 +19,11 @@ import { getKztRateForOperation, readKztRate } from "@/lib/market-server";
 import { getKaminoLendDevnetHistory, getKaminoLendDevnetPosition, KAMINO_LEND_DEVNET } from "@/lib/kamino-lend-devnet";
 import { kaminoLendErrorResponse, requireKaminoLendSession } from "@/lib/kamino-lend-api";
 import { buildKaminoPortfolio } from "@/lib/kamino-portfolio";
+import { createReadCoalescer } from "@/lib/read-coalescer";
+import { portfolioReadGeneration } from "@/lib/portfolio-read-generation";
+
+const portfolioReads = createReadCoalescer<Awaited<ReturnType<typeof buildPrimaryPortfolio>>>(10_000, 10_000);
+const legacyReads = createReadCoalescer<PortfolioResponse>(60_000, 30_000);
 
 type Holding = {
   kind: "cash" | "kzte" | "vault" | "asset";
@@ -224,7 +229,10 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     };
   });
 
-  const rawHistory = await getWalletTransactionHistory(walletAddress, tokenAccounts, labels);
+  // Do not scan unrelated Kamino accounts as legacy history. A new wallet
+  // without legacy holdings/history needs no transaction-history RPC fan-out.
+  const legacyAccounts = tokenAccounts.filter((account) => knownMints.has(account.mint));
+  const rawHistory = legacyAccounts.length ? await getWalletTransactionHistory(walletAddress, legacyAccounts, labels) : [];
   const history = rawHistory.slice();
   const historyBySignature = new Map(history.map((item) => [item.signature, item]));
   const mergedSignatures = new Set<string>();
@@ -314,7 +322,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     .slice(0, 20);
   const usdHolding = holdings.find((holding) => holding.kind === "cash");
   let unassignedDepositsUsd = 0;
-  if (ledger.deposits.length === 0) {
+  if (ledger.deposits.length === 0 && (usdHolding?.balance ?? 0) > 0) {
     const usedSignatures = new Set([
       ...ledger.withdrawals.map((item) => item.signature),
       ...ledger.purchases.flatMap((item) => [item.paymentSignature, item.mintSignature]),
@@ -346,6 +354,35 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
   };
 }
 
+async function buildPrimaryPortfolio(walletAddress: string) {
+  const [position, history] = await Promise.all([
+    getKaminoLendDevnetPosition(walletAddress),
+    getKaminoLendDevnetHistory(walletAddress),
+  ]);
+  const value = buildKaminoPortfolio(position, history);
+  if (isConfigured()) {
+    try {
+      // Legacy history is supplemental and must not hold the real Kamino
+      // balance hostage. A timed-out job remains coalesced until it settles.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const legacy = await Promise.race([
+        legacyReads(walletAddress, () => buildPortfolio(walletAddress)),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Legacy read timed out")), 4_000); }),
+      ]).finally(() => { if (timer) clearTimeout(timer); });
+      const primaryMints = new Set<string>([KAMINO_LEND_DEVNET.liquidityMint, KAMINO_LEND_DEVNET.collateralMint]);
+      const legacyHoldings = legacy.holdings.filter((holding) => !primaryMints.has(holding.mint));
+      value.holdings.push(...legacyHoldings);
+      value.positions.push(...legacy.positions);
+      value.totalValueUsd += legacyHoldings.reduce((total, holding) => total + holding.valueUsd, 0);
+      const signatures = new Set(value.history.map((row) => row.signature));
+      value.history = [...value.history, ...legacy.history.filter((row) => !signatures.has(row.signature))]
+        .sort((left, right) => right.at - left.at).slice(0, 20);
+      value.activity = value.history;
+    } catch { value.legacyUnavailable = true; }
+  }
+  return value;
+}
+
 export async function GET(request: Request) {
   const walletAddress = new URL(request.url).searchParams.get("wallet");
   if (!isValidWalletAddress(walletAddress)) {
@@ -354,29 +391,7 @@ export async function GET(request: Request) {
   if (process.env.ENABLE_KAMINO_LEND_DEVNET === "true") {
     try {
       await requireKaminoLendSession(request, walletAddress);
-      const [position, history] = await Promise.all([
-        getKaminoLendDevnetPosition(walletAddress),
-        getKaminoLendDevnetHistory(walletAddress),
-      ]);
-      const value = buildKaminoPortfolio(position, history);
-      // Historic exit-only holdings remain visible where legacy configuration
-      // exists, but they are not prerequisites for the primary Kamino route.
-      if (isConfigured()) {
-        try {
-          const legacy = await buildPortfolio(walletAddress);
-          const primaryMints = new Set<string>([KAMINO_LEND_DEVNET.liquidityMint, KAMINO_LEND_DEVNET.collateralMint]);
-          const legacyHoldings = legacy.holdings.filter((holding) => !primaryMints.has(holding.mint));
-          value.holdings.push(...legacyHoldings);
-          value.positions.push(...legacy.positions);
-          value.totalValueUsd += legacyHoldings.reduce((total, holding) => total + holding.valueUsd, 0);
-          const signatures = new Set(value.history.map((row) => row.signature));
-          value.history = [...value.history, ...legacy.history.filter((row) => !signatures.has(row.signature))]
-            .sort((left, right) => right.at - left.at).slice(0, 20);
-          value.activity = value.history;
-        } catch {
-          value.legacyUnavailable = true;
-        }
-      }
+      const value = await portfolioReads(`${walletAddress}:${portfolioReadGeneration()}`, () => buildPrimaryPortfolio(walletAddress));
       return NextResponse.json(value, { headers: { "Cache-Control": "no-store" } });
     } catch (cause) {
       return kaminoLendErrorResponse(cause);

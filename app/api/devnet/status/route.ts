@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import { createReadCoalescer } from "@/lib/read-coalescer";
 import {
   assertLegacyDevnetWriteAllowed,
   devnetConfig,
@@ -16,7 +17,12 @@ function hasStagingCrossmintWalletKey() {
   return (process.env.NEXT_PUBLIC_CROSSMINT_API_KEY ?? "").startsWith("ck_staging_");
 }
 
+const statusReads = createReadCoalescer<Awaited<ReturnType<typeof readStatus>>>(60_000, 10_000);
 export async function GET() {
+  return NextResponse.json(await statusReads("status", readStatus), { headers: { "Cache-Control": "no-store" } });
+}
+
+async function readStatus() {
   let treasury: string | null = null;
   let kzteReserve: number | null = null;
   let kzteSupply: number | null = null;
@@ -46,7 +52,7 @@ export async function GET() {
       }
     }
   }
-  return NextResponse.json({
+  return {
     configured,
     legacyFaucetEnabled: configured && process.env.ENABLE_LEGACY_DEVNET_FAUCET === "true",
     usdMint: configured ? devnetConfig.usdMint || null : null,
@@ -58,5 +64,5 @@ export async function GET() {
     kzteSupply,
     treasury,
     treasuryOwner: configured ? devnetConfig.authority?.publicKey.toBase58() ?? null : null,
-  });
+  };
 }

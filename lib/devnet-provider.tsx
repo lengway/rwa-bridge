@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createReadCoalescer } from "@/lib/read-coalescer";
 import { useAuth } from "@/lib/useAuth";
 import {
   DevnetContext,
@@ -46,7 +47,7 @@ export function DevnetProvider({
     void loadStatus();
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadStatus();
-    }, 15_000);
+    }, 60_000);
     const handleVisibility = () => {
       if (document.visibilityState === "visible") void loadStatus();
     };
@@ -103,9 +104,11 @@ function DevnetRuntime({
   const loggedInAddress = authStatus === "logged-in" ? walletAddress : null;
   const [portfolioState, setPortfolioState] = useState<{ walletAddress: string; portfolio: DevnetPortfolio } | null>(null);
   const [portfolioFailure, setPortfolioFailure] = useState<{ walletAddress: string; error: string } | null>(null);
+  const [requestReads] = useState(() => createReadCoalescer<void>(0, 0));
 
   const refreshPortfolio = useCallback(async () => {
     if (!loggedInAddress) return;
+    return requestReads(loggedInAddress, async () => {
     try {
       const response = await fetch(`/api/devnet/portfolio?wallet=${encodeURIComponent(loggedInAddress)}`, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
       if (!response.ok) throw new Error("Could not load the Devnet portfolio. The latest data may be stale; do not treat an unavailable balance as zero.");
@@ -125,7 +128,8 @@ function DevnetRuntime({
       setPortfolioFailure({ walletAddress: loggedInAddress, error: cause instanceof Error && cause.message.startsWith("Could not")
         ? cause.message : "The portfolio is temporarily unavailable. Check your connection and refresh." });
     }
-  }, [loggedInAddress]);
+    });
+  }, [loggedInAddress, requestReads]);
 
   const refresh = refreshPortfolio;
 
@@ -136,7 +140,7 @@ function DevnetRuntime({
     const initialRefresh = window.setTimeout(() => void refresh(), 0);
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void refreshPortfolio();
-    }, 15_000);
+    }, 60_000);
     const handleVisibility = () => {
       if (document.visibilityState === "visible") void refreshPortfolio();
     };

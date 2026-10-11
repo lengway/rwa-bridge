@@ -39,6 +39,8 @@ import {
   TokenAccountNotFoundError,
 } from "@solana/spl-token";
 import { KaminoActionStore } from "@/lib/kamino-action-store";
+import { createReadCoalescer } from "@/lib/read-coalescer";
+import { advancePortfolioReadGeneration, portfolioReadGeneration } from "@/lib/portfolio-read-generation";
 import { assertKaminoReceiptIdentity, verifyKaminoTokenDeltas } from "@/lib/kamino-action-verification";
 import { SOLANA_DEVNET_GENESIS_HASH } from "@/lib/rwa-demo";
 import {
@@ -441,27 +443,16 @@ function publicResponse(prepared: PreparedKaminoAction, serializedTransaction: s
 
 export async function getKaminoLendDevnetMarketStatus(walletAddress?: string) {
   try {
-    const loaded = await loadVerifiedKaminoLend();
+    const loaded = await loadReadOnlyKaminoLend();
     let wallet: { address: string; liquidityBalanceAtomic: string; collateralBalanceAtomic: string } | undefined;
     const owner = walletAddress === undefined ? undefined : publicKey(walletAddress, "walletAddress");
     if (owner) {
       try {
-        const [liquidityBalance, collateralBalance] = await Promise.all([
-          userTokenBalanceAtomic({
-            connection: loaded.connection,
-            mint: publicKey(KAMINO_LEND_DEVNET.liquidityMint, "liquidity mint"),
-            owner,
-          }),
-          userTokenBalanceAtomic({
-            connection: loaded.connection,
-            mint: publicKey(KAMINO_LEND_DEVNET.collateralMint, "collateral mint"),
-            owner,
-          }),
-        ]);
+        const position = await getKaminoLendDevnetPosition(owner.toBase58());
         wallet = {
           address: owner.toBase58(),
-          liquidityBalanceAtomic: liquidityBalance.toString(10),
-          collateralBalanceAtomic: collateralBalance.toString(10),
+          liquidityBalanceAtomic: position.liquidityAmountAtomic,
+          collateralBalanceAtomic: position.collateralAmountAtomic,
         };
       } catch {
         // Wallet balances are supplemental UI data. A transient token-account
@@ -506,8 +497,20 @@ export async function getKaminoLendDevnetMarketStatus(walletAddress?: string) {
  * use the application portfolio or any cached client value.
  */
 export async function getKaminoLendDevnetPosition(walletAddress: string) {
+  const config = readConfig();
+  return positionReads(`${config.rpcUrl}:${walletAddress}:${portfolioReadGeneration()}`, () => readKaminoLendDevnetPosition(walletAddress));
+}
+
+const marketReads = createReadCoalescer<VerifiedKaminoLend>(30_000, 10_000);
+const positionReads = createReadCoalescer<Awaited<ReturnType<typeof readKaminoLendDevnetPosition>>>(10_000, 10_000);
+function loadReadOnlyKaminoLend() {
+  const config = readConfig();
+  return marketReads(`${config.rpcUrl}:${config.maxAmountAtomic}`, () => loadVerifiedKaminoLend(config));
+}
+
+async function readKaminoLendDevnetPosition(walletAddress: string) {
   const owner = publicKey(walletAddress, "walletAddress");
-  const loaded = await loadVerifiedKaminoLend();
+  const loaded = await loadReadOnlyKaminoLend();
   const currentLedgerInstant = await getCurrentLedgerInstant(loaded.rpc, "confirmed");
   const collateralAmount = await userTokenBalanceAtomic({
     connection: loaded.connection,
@@ -833,6 +836,7 @@ export async function confirmKaminoLendDevnetAction({
     prepared.status = "CONFIRMED";
     prepared.result = result;
     await preparedActions.put(prepared);
+    advancePortfolioReadGeneration();
     return result;
   });
 }

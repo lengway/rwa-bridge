@@ -42,9 +42,11 @@ export function HomeScreen() {
         total={total}
         cashUsd={cashUsd}
         earnings={unrealizedEarnings}
-        hydrated={displayHydrated}
+        hydrated={displayHydrated && portfolioReady}
+        unavailable={!portfolioReady && !!devnet.portfolioError}
       />
       <QuickActions />
+      {devnet.portfolio?.legacyUnavailable ? <p role="status" className="text-sm text-muted-foreground">Kamino balances are loaded. Historic test assets could not be loaded and are excluded from this summary; they have not been deleted.</p> : null}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">

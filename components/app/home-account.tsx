@@ -45,18 +45,20 @@ export function BalanceCard({
   cashUsd,
   earnings,
   hydrated,
+  unavailable = false,
 }: {
   total: number;
   cashUsd: number;
   earnings: number;
   hydrated: boolean;
+  unavailable?: boolean;
 }) {
   return (
     <Card className="gap-5 rounded-2xl border-emerald-600/20 bg-card p-5 ring-1 ring-emerald-600/10 dark:border-emerald-400/20 dark:ring-emerald-400/10">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">Devnet portfolio summary</p>
-          {hydrated ? (
+          {unavailable ? <p className="mt-2 text-xl font-medium">Balance unavailable</p> : hydrated ? (
             <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">
               {formatQuantity(total)} DEVNET UNITS
             </p>
@@ -66,14 +68,14 @@ export function BalanceCard({
       </div>
       <div className="flex items-center justify-between gap-4 border-t pt-4 text-sm">
         <span className="text-muted-foreground">Available on Solana Devnet</span>
-        {hydrated ? (
+        {unavailable ? <span className="text-muted-foreground">Unavailable</span> : hydrated ? (
           <span className="font-medium tabular-nums">{formatQuantity(cashUsd)} DEVNET UNITS</span>
         ) : <Skeleton className="h-4 w-20" />}
       </div>
       <p className="-mt-3 text-xs text-muted-foreground">
         SOLANA DEVNET · NO MONETARY VALUE. Kamino Lend has variable protocol yield and protocol risk; its position appears here after a wallet-signed transaction.
       </p>
-      {hydrated && earnings !== 0 ? <p className="text-xs text-muted-foreground">Historic local earnings are not included in this summary.</p> : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
+      {unavailable ? <p className="text-xs text-muted-foreground">The network read failed. Your wallet and positions have not been changed.</p> : hydrated && earnings !== 0 ? <p className="text-xs text-muted-foreground">Historic local earnings are not included in this summary.</p> : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
     </Card>
   );
 }

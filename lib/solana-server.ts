@@ -22,6 +22,7 @@ import {
 } from "@solana/spl-token";
 import { formatAtomicToDecimal, parseDecimalToAtomic } from "@/lib/earn-gateway";
 import { SOLANA_DEVNET_GENESIS_HASH } from "@/lib/rwa-demo";
+import { boundedMap } from "@/lib/bounded-map";
 
 /** The app-controlled Devnet demo mints all use this explicit SPL precision. */
 export const DEVNET_DEMO_TOKEN_DECIMALS = 6;
@@ -593,13 +594,13 @@ export async function getWalletTransactionHistory(
   assetLabels: Record<string, { ticker: string; name: string; kind: "cash" | "kzte" | "vault" | "asset"; priceUsd: number }>,
 ) {
   const walletAccounts = new Set(tokenAccounts.map((item) => item.tokenAccount));
-  const signatureGroups = await Promise.all(tokenAccounts.map(async ({ tokenAccount }) => {
+  const signatureGroups = await boundedMap(tokenAccounts, async ({ tokenAccount }) => {
     try {
       return await connection.getSignaturesForAddress(new PublicKey(tokenAccount), { limit: 50 }, "confirmed");
     } catch {
       return [];
     }
-  }));
+  });
   const candidates = new Map<string, { signature: string; blockTime: number | null }>();
   for (const signatureInfo of signatureGroups.flat()) {
     if (!signatureInfo.err && !candidates.has(signatureInfo.signature)) {
@@ -610,7 +611,7 @@ export async function getWalletTransactionHistory(
     }
   }
   const latest = [...candidates.values()].sort((left, right) => (right.blockTime ?? 0) - (left.blockTime ?? 0)).slice(0, 20);
-  const rows = await Promise.all(latest.map(async (item) => {
+  const rows = await boundedMap(latest, async (item) => {
     const transaction = await connection.getParsedTransaction(item.signature, {
       maxSupportedTransactionVersion: 0,
       commitment: "confirmed",
@@ -683,7 +684,7 @@ export async function getWalletTransactionHistory(
       signature: item.signature,
       explorerUrl: explorerUrl(item.signature),
     };
-  }));
+  });
 
   return rows.filter((item): item is NonNullable<typeof item> => item !== null)
     .sort((left, right) => right.at - left.at);
