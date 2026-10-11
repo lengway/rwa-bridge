@@ -265,3 +265,38 @@ were used. Recent active-service logs showed startup without renewed 429 entries
 in the inspected window; this is not a guarantee about future public-RPC quotas.
 Owner should reload to validate their own session and holdings; that specific
 owner flow remains unobserved.
+
+## Embedded wallet root-cause correction
+
+Owner reported the failure persisted after `841fbf7`. Nginx portfolio access
+records showed **500**, not a session rejection or current RPC quota error.
+Reproduced the failure against the owner's public wallet address using a separate
+fixture session/ledger on the VPS; the previous ordinary-key fixture had passed.
+A direct read exposed `TokenOwnerOffCurveError` at the ATA derivation: the
+embedded smart-wallet address is off-curve, and the reader passed
+`allowOwnerOffCurve=false` (or omitted it) at three sites.
+
+`f5e485e` replaces those sites with a single canonical SPL ATA helper admitting
+PDA owners. This is address derivation only: session scoping, account program,
+user signing and verified settlement remain unchanged. Added regression tests
+for a deterministic PDA and an ordinary public key; 66 tests, lint/typecheck,
+build and diff check passed. Direct live-Devnet reading of the owner's **public**
+address now succeeds locally with a valid EMPTY position and token-account
+addresses; no owner authentication, wallet signatures or transactions used.
+The reusable smoke now accepts a public read target and defaults to a PDA so this
+specific class of regression is not hidden by an ordinary-key fixture again.
+VPS deployment and same-address HTTP verification follow after activation.
+
+Activated `f5e485e42c5871f33cf2bc3e3375a0f20e50120f` at 17:43 UTC; previous
+`841fbf7` retained. VPS lint/typecheck, 66 tests and production build passed,
+as did 14 HTTP checks before/after activation and 10 external HTTPS read checks.
+The exact previously failing public wallet read target now passed five concurrent
+authenticated HTTP reads in **1.188 seconds** from an isolated instance of the
+activated VPS build, with wallet mismatch/unauthenticated requests still 403/401.
+Before this correction the same-address fixture returned 500; this is a
+reproduced before/after result, not inference from the ordinary-key fixture.
+The temporary service and its own fixture ledger were cleaned up. Owner production
+session was not impersonated. The last observed owner-origin nginx portfolio
+requests were 500 **before** this activation; post-activation owner UI remains
+to be confirmed by refresh. Local same-address HTTP test also passed in 3.442
+seconds and deterministic PDA fixture in 0.619 seconds. No transactions sent.
