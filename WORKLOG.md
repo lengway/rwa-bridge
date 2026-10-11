@@ -82,6 +82,11 @@ system npm 9.2.0 peer-resolution incompatibility with the npm 11 lockfile. Resto
 explicit npm 11 tooling (pinned to local 11.19.1) rather than mutating dependencies
 or the lockfile. Both failures occurred before activating the new release.
 
+The next clean VPS install succeeded (2033 packages), lint passed, then typecheck
+found missing generated `LayoutProps` globals because `.next` does not exist in
+a fresh checkout. Changed the documented `npm run typecheck` to execute
+`next typegen` before `tsc`, rather than relying on local build leftovers.
+
 ## Release constraints
 
 - Current patches are not deployed.
