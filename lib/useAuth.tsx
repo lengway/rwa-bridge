@@ -13,6 +13,8 @@ type AuthContextValue = {
   email: string | null;
   walletAddress: string | null;
   wallet: Wallet<Chain> | null;
+  walletError: string | null;
+  retryWallet: () => void;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
 };
@@ -30,6 +32,12 @@ export function AuthProvider({
   const [email, setEmail] = useState<string | null>(null);
   const [jwt, setJwt] = useState<string | null>(null);
   const [wallet, setWallet] = useState<Wallet<Chain> | null>(null);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [walletAttempt, setWalletAttempt] = useState(0);
+  const retryWallet = useCallback(() => {
+    setWalletError(null);
+    setWalletAttempt((attempt) => attempt + 1);
+  }, []);
 
   const refreshSession = useCallback(async () => {
     try {
@@ -39,6 +47,7 @@ export function AuthProvider({
         setEmail(null);
         setJwt(null);
         setWallet(null);
+        setWalletError(null);
         return false;
       }
       const result = await response.json() as { email?: unknown; jwt?: unknown };
@@ -96,6 +105,7 @@ export function AuthProvider({
       setJwt(null);
       setEmail(null);
       setWallet(null);
+      setWalletError(null);
       setStatus("signed-out");
     }
     if (requestError) throw requestError;
@@ -106,14 +116,16 @@ export function AuthProvider({
     email,
     walletAddress: wallet?.address ?? null,
     wallet,
+    walletError,
+    retryWallet,
     signOut,
     refreshSession,
-  }), [email, refreshSession, signOut, status, wallet]);
+  }), [email, refreshSession, retryWallet, signOut, status, wallet, walletError]);
 
   return (
     <AuthContext.Provider value={value}>
       {crossmintEnabled
-        ? <CrossmintWalletBridge jwt={jwt} email={email} onWallet={setWallet}>{children}</CrossmintWalletBridge>
+        ? <CrossmintWalletBridge jwt={jwt} email={email} attempt={walletAttempt} onWallet={setWallet} onError={setWalletError}>{children}</CrossmintWalletBridge>
         : children}
     </AuthContext.Provider>
   );
@@ -122,12 +134,16 @@ export function AuthProvider({
 function CrossmintWalletBridge({
   jwt,
   email,
+  attempt,
   onWallet,
+  onError,
   children,
 }: {
   jwt: string | null;
   email: string | null;
+  attempt: number;
   onWallet: (wallet: Wallet<Chain> | null) => void;
+  onError: (error: string | null) => void;
   children: React.ReactNode;
 }) {
   const { crossmint, setJwt } = useCrossmint();
@@ -149,17 +165,43 @@ function CrossmintWalletBridge({
 
     const recoveryEmail = email;
     let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      cancelled = true;
+      onError("Кошелёк не ответил вовремя. Повторите подключение; новая транзакция не отправлялась.");
+    }, 30_000);
+    async function acceptWallet(loaded: Wallet<Chain>) {
+      if (cancelled) return;
+      // Do not expose a usable wallet before the server has acknowledged its
+      // session binding; all Earn APIs depend on that durable association.
+      const response = await fetch("/api/me/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: loaded.address }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const result = await response.json().catch(() => null) as { ok?: unknown; error?: unknown } | null;
+      if (!response.ok || result?.ok !== true) {
+        throw new Error(typeof result?.error === "string" ? result.error : "Не удалось связать кошелёк с сессией. Повторите подключение.");
+      }
+      if (!cancelled) {
+        onError(null);
+        onWallet(loaded);
+      }
+    }
     async function loadWallet() {
-      const wallets = CrossmintWallets.from(crossmint);
       try {
+        const wallets = CrossmintWallets.from(crossmint);
         // The raw SDK call preserves WalletNotAvailableError; useWallet maps errors into UI state.
         await wallets.getWallet({ chain: walletChain });
+        if (cancelled) return;
         const existing = await getWalletRef.current({ chain: walletChain });
         if (!existing) throw new Error("Не удалось загрузить кошелёк.");
-        if (!cancelled) onWallet(existing);
+        await acceptWallet(existing);
       } catch (error) {
+        if (cancelled) return;
         if (!(error instanceof WalletNotAvailableError)) {
-          console.error("Plain: wallet could not be loaded.");
+          onError(error instanceof Error && error.message.startsWith("Не удалось")
+            ? error.message : "Не удалось подключить кошелёк. Проверьте соединение и повторите попытку.");
           return;
         }
         try {
@@ -168,16 +210,18 @@ function CrossmintWalletBridge({
             recoveryMethods: [{ type: "email", email: recoveryEmail }],
           });
           if (!created) throw new Error("Не удалось создать кошелёк.");
-          if (!cancelled) onWallet(created);
+          await acceptWallet(created);
         } catch {
-          console.error("Plain: wallet could not be created.");
+          if (!cancelled) onError("Не удалось создать или подключить кошелёк. Повторите попытку.");
         }
+      } finally {
+        window.clearTimeout(timeout);
       }
     }
 
     void loadWallet();
-    return () => { cancelled = true; };
-  }, [crossmint, email, jwt, onWallet, setJwt]);
+    return () => { cancelled = true; window.clearTimeout(timeout); };
+  }, [attempt, crossmint, email, jwt, onError, onWallet, setJwt]);
 
   return children;
 }

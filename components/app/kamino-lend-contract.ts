@@ -39,6 +39,7 @@ export type PreparedKaminoLendAction = Readonly<{
   serializedTransaction: string;
   blockhash: string;
   lastValidBlockHeight: number;
+  expiresAt: number;
   transactionMessageDigest: string;
   market: string;
   reserve: string;
@@ -143,6 +144,7 @@ export function normalizePreparedKaminoLendAction(
   const serializedTransaction = readSerializedTransaction(source.serializedTransaction);
   const blockhash = readAddress(source.blockhash);
   const lastValidBlockHeight = readNonNegativeSafeInteger(source.lastValidBlockHeight);
+  const expiresAt = readNonNegativeSafeInteger(source.expiresAt);
   const transactionMessageDigest = readMessageDigest(source.transactionMessageDigest);
   const market = readAddress(source.market);
   const reserve = readAddress(source.reserve);
@@ -150,7 +152,7 @@ export function normalizePreparedKaminoLendAction(
   const collateralAmountAtomic = readAtomic(source.collateralAmountAtomic);
   const simulation = asRecord(source.simulation);
 
-  if (!actionId || !serializedTransaction || !blockhash || lastValidBlockHeight === null || !transactionMessageDigest
+  if (!actionId || !serializedTransaction || !blockhash || lastValidBlockHeight === null || expiresAt === null || expiresAt === 0 || !transactionMessageDigest
     || !market || !reserve || !amountAtomic || !simulation
     || simulation.ok !== true || simulation.err !== null) {
     return null;
@@ -166,6 +168,7 @@ export function normalizePreparedKaminoLendAction(
     serializedTransaction,
     blockhash,
     lastValidBlockHeight,
+    expiresAt,
     transactionMessageDigest,
     market,
     reserve,

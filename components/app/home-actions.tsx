@@ -9,7 +9,7 @@ export function QuickActions() {
       <QuickAction label="Пополнить" icon={<Plus />} href="/earn/kamino-lend" />
       <QuickAction label="Вложить" icon={<ArrowDownToLine />} href="/earn/kamino-lend" />
       <QuickAction label="Купить долю" icon={<ShoppingBag />} href="/assets" />
-      <QuickAction label="Вывести" icon={<ArrowUpFromLine />} href="/earn/kamino-lend" />
+      <QuickAction label="Вывести" icon={<ArrowUpFromLine />} href="/earn/kamino-lend?action=withdraw" />
     </section>
   );
 }

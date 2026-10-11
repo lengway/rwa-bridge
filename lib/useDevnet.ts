@@ -18,6 +18,7 @@ export type DevnetStatus = {
 
 export type DevnetBalance = { usd: number; assetUnits: number };
 export type DevnetPortfolio = {
+  legacyUnavailable?: boolean;
   positions: Array<{
     productId: string;
     principalUsd: number;
@@ -87,6 +88,7 @@ export type DevnetState = {
   treasuryOwner: string | null;
   onchain: DevnetBalance | null;
   portfolio: DevnetPortfolio | null;
+  portfolioError: string | null;
   refresh: () => Promise<void>;
   refreshPortfolio: () => Promise<void>;
 };
@@ -105,6 +107,7 @@ const defaultState: DevnetState = {
   treasuryOwner: null,
   onchain: null,
   portfolio: null,
+  portfolioError: null,
   refresh: async () => undefined,
   refreshPortfolio: async () => undefined,
 };

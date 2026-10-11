@@ -76,14 +76,8 @@ function CrossmintDevnetRuntime({
   children: React.ReactNode;
 }) {
   const { status: authStatus, walletAddress } = useAuth();
-  useEffect(() => {
-    if (authStatus !== "signed-in" || !walletAddress) return;
-    void fetch("/api/me/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ walletAddress }),
-    }).catch(() => undefined);
-  }, [authStatus, walletAddress]);
+  // AuthProvider exposes the wallet only after /api/me/session acknowledges
+  // its binding. Do not race portfolio/Earn requests with an unobserved POST.
   return (
     <DevnetRuntime
       status={status}
@@ -108,12 +102,13 @@ function DevnetRuntime({
 }) {
   const loggedInAddress = authStatus === "logged-in" ? walletAddress : null;
   const [portfolioState, setPortfolioState] = useState<{ walletAddress: string; portfolio: DevnetPortfolio } | null>(null);
+  const [portfolioFailure, setPortfolioFailure] = useState<{ walletAddress: string; error: string } | null>(null);
 
   const refreshPortfolio = useCallback(async () => {
     if (!loggedInAddress) return;
     try {
-      const response = await fetch(`/api/devnet/portfolio?wallet=${encodeURIComponent(loggedInAddress)}`, { cache: "no-store" });
-      if (!response.ok) return;
+      const response = await fetch(`/api/devnet/portfolio?wallet=${encodeURIComponent(loggedInAddress)}`, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
+      if (!response.ok) throw new Error("Не удалось загрузить портфель из Devnet. Последние данные могут быть устаревшими; не считайте недоступный баланс нулевым.");
       const value = await response.json() as DevnetPortfolio;
       if (Array.isArray(value.positions)
         && Array.isArray(value.holdings)
@@ -121,9 +116,14 @@ function DevnetRuntime({
         && Array.isArray(value.history)
         && value.wallet?.address === loggedInAddress) {
         setPortfolioState({ walletAddress: loggedInAddress, portfolio: value });
+        setPortfolioFailure(null);
+      } else {
+        throw new Error("Получены неполные данные портфеля. Повторите загрузку.");
       }
-    } catch {
+    } catch (cause) {
       // Retain the last confirmed portfolio during transient RPC failures.
+      setPortfolioFailure({ walletAddress: loggedInAddress, error: cause instanceof Error && cause.message.startsWith("Не удалось")
+        ? cause.message : "Портфель временно недоступен. Проверьте соединение и повторите загрузку." });
     }
   }, [loggedInAddress]);
 
@@ -151,6 +151,7 @@ function DevnetRuntime({
   const portfolio = portfolioState?.walletAddress === loggedInAddress
     ? portfolioState.portfolio
     : null;
+  const portfolioError = portfolioFailure?.walletAddress === loggedInAddress ? portfolioFailure.error : null;
   const onchain = useMemo<DevnetBalance | null>(() => portfolio ? {
     usd: portfolio.cashUsd,
     assetUnits: portfolio.holdings
@@ -171,9 +172,10 @@ function DevnetRuntime({
     treasuryOwner: status?.treasuryOwner ?? null,
     onchain,
     portfolio,
+    portfolioError,
     refresh,
     refreshPortfolio,
-  }), [loggedInAddress, onchain, portfolio, refresh, refreshPortfolio, status?.assetMint, status?.kzteMint, status?.kzteReserve, status?.kzteSupply, status?.legacyFaucetEnabled, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
+  }), [loggedInAddress, onchain, portfolio, portfolioError, refresh, refreshPortfolio, status?.assetMint, status?.kzteMint, status?.kzteReserve, status?.kzteSupply, status?.legacyFaucetEnabled, status?.treasury, status?.treasuryOwner, status?.usdMint, status?.vaultKzgbMint, status?.vaultUsdyMint]);
 
   return <DevnetContext.Provider value={value}>{children}</DevnetContext.Provider>;
 }

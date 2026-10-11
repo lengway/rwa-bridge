@@ -22,13 +22,13 @@ import { formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import type { YieldStrategy } from "@/lib/yields";
 
-export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
+export function EarnDetail({ strategy, initialAction }: { strategy: YieldStrategy; initialAction?: "deposit" | "withdraw" }) {
   const { positions, cashUsd, hydrated } = useAppStore();
   const [amount, setAmount] = useState(1000);
   const [investOpen, setInvestOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
-  const [kaminoOpen, setKaminoOpen] = useState(false);
-  const [kaminoAction, setKaminoAction] = useState<"deposit" | "withdraw">("deposit");
+  const [kaminoOpen, setKaminoOpen] = useState(strategy.gateway.provider === "KAMINO" && initialAction !== undefined);
+  const [kaminoAction, setKaminoAction] = useState<"deposit" | "withdraw">(initialAction ?? "deposit");
   const position = positions[strategy.id];
   const currentEarned = position?.earnedCarryUsd ?? 0;
   const currentPosition = position
@@ -73,7 +73,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
               setKaminoAction("withdraw");
               setKaminoOpen(true);
             }}
-            disabled={!hydrated || !canRedeem}
+            disabled={!canRedeem}
           >
             {canRedeem ? "Вывести" : "Вывод недоступен"}
           </Button>
@@ -99,7 +99,7 @@ export function EarnDetail({ strategy }: { strategy: YieldStrategy }) {
               setInvestOpen(true);
             }
           }}
-          disabled={!hydrated || !canInvest}
+          disabled={(!isKaminoLend && !hydrated) || !canInvest}
         >
           <ArrowRight />{canInvest ? isKaminoLend ? "Пополнить Kamino" : "Открыть Solana Devnet" : "Недоступно"}
         </Button>

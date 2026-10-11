@@ -124,6 +124,7 @@ export function PortfolioScreen() {
           <span className="text-xs text-muted-foreground">{displayHoldings.length}</span>
         </div>
         {!isReady ? <p className="text-sm text-muted-foreground">Загружаем данные из Solana…</p> : null}
+        {devnet.portfolio?.legacyUnavailable ? <p role="alert" className="text-sm text-destructive">Legacy-позиции сейчас не удалось загрузить. Они не считаются нулевыми; повторите обновление перед погашением.</p> : null}
         {isReady && displayHoldings.length === 0 ? (
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
             <Wallet className="size-6 text-muted-foreground" />

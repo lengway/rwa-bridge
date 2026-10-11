@@ -31,6 +31,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  kaminoPendingActionStorageKey,
+  validateKaminoPendingAction,
+  type KaminoPendingAction,
+} from "@/lib/kamino-pending-action";
 import { useAuth } from "@/lib/useAuth";
 import { useDevnet } from "@/lib/useDevnet";
 
@@ -63,8 +68,12 @@ export function KaminoLendDrawer({
   const [amount, setAmount] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [prepared, setPrepared] = useState<PreparedKaminoLendAction | null>(null);
-  const [pendingSignature, setPendingSignature] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<KaminoPendingAction | null>(null);
+  const [recoveryWallet, setRecoveryWallet] = useState<string | null>(null);
+  const [recoveryStatus, setRecoveryStatus] = useState<"loading" | "ready" | "blocked" | "unavailable">("loading");
+  const [recoveryIssue, setRecoveryIssue] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<KaminoLendConfirmation | null>(null);
+  const [confirmedAmountAtomic, setConfirmedAmountAtomic] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,6 +86,9 @@ export function KaminoLendDrawer({
   const exceedsMaximum = Boolean(amountAtomic && reserve?.maximumAmountAtomic
     && BigInt(amountAtomic) > BigInt(reserve.maximumAmountAtomic));
   const marketReady = market?.ready === true && market.market !== null && reserve !== null;
+  const recoveryReady = recoveryWallet === activeWalletAddress && recoveryStatus === "ready";
+  const recoveryBlocked = recoveryWallet === activeWalletAddress && recoveryStatus === "blocked";
+  const currentPendingAction = pendingAction?.walletAddress === activeWalletAddress ? pendingAction : null;
   const actionLabel = action === "deposit" ? "Пополнить резерв" : "Вывести из резерва";
   const inputLabel = action === "deposit" ? "Сумма для пополнения" : "Сумма для вывода";
   const canPrepare = marketReady
@@ -86,16 +98,78 @@ export function KaminoLendDrawer({
     && !exceedsMaximum
     && accepted
     && !prepared
-    && !pendingSignature
+    && recoveryReady
+    && !currentPendingAction
     && !busy;
 
   const resetPreparedAction = useCallback(() => {
     setPrepared(null);
-    setPendingSignature(null);
     setConfirmation(null);
+    setConfirmedAmountAtomic(null);
     setNotice(null);
     setError(null);
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setRecoveryWallet(null);
+      setRecoveryStatus("loading");
+      setRecoveryIssue(null);
+      setPendingAction(null);
+      setPrepared(null);
+      setConfirmation(null);
+      setConfirmedAmountAtomic(null);
+
+      if (!activeWalletAddress) {
+        setRecoveryWallet(null);
+        setRecoveryStatus("ready");
+        return;
+      }
+
+      try {
+        const stored = window.localStorage.getItem(kaminoPendingActionStorageKey(activeWalletAddress));
+        if (stored === null) {
+          setRecoveryWallet(activeWalletAddress);
+          setRecoveryStatus("ready");
+          return;
+        }
+
+        let value: unknown;
+        try {
+          value = JSON.parse(stored);
+        } catch {
+          setRecoveryIssue("Сохранённые данные восстановления повреждены. Перед новой операцией подтвердите очистку с предупреждением.");
+          setRecoveryWallet(activeWalletAddress);
+          setRecoveryStatus("blocked");
+          return;
+        }
+
+        const result = validateKaminoPendingAction(value, activeWalletAddress);
+        if (result.kind === "valid") {
+          setPendingAction(result.pending);
+          setAction(result.pending.action);
+          setAmount("");
+          setAccepted(true);
+          setRecoveryWallet(activeWalletAddress);
+          setRecoveryStatus("ready");
+        } else if (result.kind === "empty") {
+          setRecoveryWallet(activeWalletAddress);
+          setRecoveryStatus("ready");
+        } else {
+          setRecoveryIssue(result.kind === "wallet-mismatch"
+            ? "Сохранённое действие принадлежит другому кошельку и не будет восстановлено. Подтвердите очистку перед новой операцией."
+            : "Сохранённые данные восстановления некорректны. Подтвердите очистку перед новой операцией.");
+          setRecoveryWallet(activeWalletAddress);
+          setRecoveryStatus("blocked");
+        }
+      } catch {
+        setRecoveryIssue("Не удалось прочитать localStorage. Восстановление недоступно; операции подписи заблокированы.");
+        setRecoveryWallet(activeWalletAddress);
+        setRecoveryStatus("unavailable");
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeWalletAddress]);
 
   const loadMarket = useCallback(async (signal?: AbortSignal) => {
     setBusy("loading");
@@ -134,10 +208,9 @@ export function KaminoLendDrawer({
   }, [loadMarket, open]);
 
   const confirmSubmittedAction = useCallback(async (
-    actionToConfirm: PreparedKaminoLendAction,
-    signature: string,
+    actionToConfirm: Pick<KaminoPendingAction, "action" | "actionId" | "amountAtomic"> & { signature: string },
+    actionWalletAddress: string,
   ) => {
-    if (!activeWalletAddress) return;
     setBusy("confirming");
     setError(null);
     try {
@@ -146,8 +219,8 @@ export function KaminoLendDrawer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           actionId: actionToConfirm.actionId,
-          walletAddress: activeWalletAddress,
-          signature,
+          walletAddress: actionWalletAddress,
+          signature: actionToConfirm.signature,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -156,20 +229,56 @@ export function KaminoLendDrawer({
         setNotice("Транзакция отправлена в Solana Devnet. Подтверждение ещё обрабатывается — повторите проверку через несколько секунд.");
         return;
       }
-      if (!response.ok) throw new KaminoDrawerError(readKaminoApiError(payload, "Не удалось подтвердить транзакцию в Kamino Lend."), response.status);
+      if (!response.ok) {
+        if (isVerifiedTransactionFailure(payload)) {
+          try {
+            window.localStorage.removeItem(kaminoPendingActionStorageKey(actionWalletAddress));
+            if (activeWalletAddress === actionWalletAddress) {
+              setPendingAction(null);
+              setRecoveryStatus("ready");
+              setRecoveryIssue(null);
+              setPrepared(null);
+            }
+            setNotice(null);
+            setError("Сервер подтвердил, что транзакция завершилась ошибкой в Devnet. Можно подготовить новую операцию.");
+          } catch {
+            setRecoveryIssue("Транзакция завершилась ошибкой, но localStorage не удалось очистить. Повторите проверку или перезагрузите страницу перед новой операцией.");
+            setError("Транзакция завершилась ошибкой; не удалось очистить локальные данные восстановления.");
+          }
+          return;
+        }
+        throw new KaminoDrawerError(readKaminoApiError(payload, "Не удалось подтвердить транзакцию в Kamino Lend."), response.status);
+      }
 
       const nextConfirmation = normalizeKaminoLendConfirmation(
         payload,
         actionToConfirm.action,
         actionToConfirm.actionId,
-        signature,
+        actionToConfirm.signature,
       );
       if (!nextConfirmation) {
         throw new KaminoDrawerError("Сервер ещё не подтвердил завершение транзакции. Повторите проверку, не создавая новую операцию.", 502);
       }
 
-      setConfirmation(nextConfirmation);
-      setNotice(null);
+      let recoveryCleared = true;
+      try {
+        window.localStorage.removeItem(kaminoPendingActionStorageKey(actionWalletAddress));
+      } catch {
+        recoveryCleared = false;
+        if (activeWalletAddress === actionWalletAddress) {
+          setRecoveryIssue("Операция подтверждена, но localStorage не удалось очистить. Не отправляйте новую операцию до проверки восстановления.");
+        }
+      }
+      if (activeWalletAddress === actionWalletAddress) {
+        setConfirmation(nextConfirmation);
+        setConfirmedAmountAtomic(actionToConfirm.amountAtomic);
+        setNotice(null);
+        if (recoveryCleared) {
+          setPendingAction(null);
+          setRecoveryStatus("ready");
+          setRecoveryIssue(null);
+        }
+      }
       void devnet.refreshPortfolio();
       void loadMarket();
       onConfirmed?.(nextConfirmation);
@@ -184,7 +293,8 @@ export function KaminoLendDrawer({
   }, [activeWalletAddress, devnet, loadMarket, onConfirmed]);
 
   const prepareAction = async () => {
-    if (!marketReady || !amountAtomic || !activeWalletAddress || !wallet || !accepted || exceedsMaximum || busy) return;
+    if (!marketReady || !amountAtomic || !activeWalletAddress || !wallet || !accepted || exceedsMaximum || busy
+      || !recoveryReady || currentPendingAction || recoveryBlocked) return;
     setBusy("preparing");
     setError(null);
     setNotice(null);
@@ -210,31 +320,114 @@ export function KaminoLendDrawer({
   };
 
   const signAndSendPreparedAction = async () => {
-    if (!prepared || !wallet || !activeWalletAddress || busy) return;
+    if (!prepared || !wallet || !activeWalletAddress || busy || !recoveryReady || currentPendingAction) return;
+    if (prepared.expiresAt <= Date.now()) {
+      setPrepared(null);
+      setNotice(null);
+      setError("Срок подготовки истёк. Подготовьте свежую транзакцию; эта транзакция не отправлялась.");
+      return;
+    }
+    const actionWalletAddress = activeWalletAddress;
+    const awaitingSignature: KaminoPendingAction = {
+      stage: "awaiting-signature",
+      actionId: prepared.actionId,
+      action: prepared.action,
+      walletAddress: actionWalletAddress,
+      amountAtomic: prepared.amountAtomic,
+    };
+    try {
+      // Re-read before signing: another tab may have started an operation
+      // after this drawer's initial recovery check. Never overwrite its record.
+      const stored = window.localStorage.getItem(kaminoPendingActionStorageKey(actionWalletAddress));
+      if (stored !== null) {
+        const recovered = validateKaminoPendingAction(JSON.parse(stored), actionWalletAddress);
+        if (recovered.kind === "valid") setPendingAction(recovered.pending);
+        else setRecoveryStatus("blocked");
+        setRecoveryIssue("Другая вкладка сохранила операцию. Проверьте её статус перед новой отправкой.");
+        setPrepared(null);
+        return;
+      }
+      window.localStorage.setItem(
+        kaminoPendingActionStorageKey(actionWalletAddress),
+        JSON.stringify(awaitingSignature),
+      );
+    } catch {
+      setRecoveryIssue("Не удалось сохранить данные восстановления в localStorage. Подпись и отправка заблокированы.");
+      setRecoveryStatus("unavailable");
+      setError("Сначала включите доступ к локальному хранилищу; транзакция не отправлялась.");
+      return;
+    }
+    setPendingAction(awaitingSignature);
+    setRecoveryIssue(null);
     setBusy("signing");
     setError(null);
+    setNotice(null);
     try {
       const result = await SolanaWallet.from(wallet).sendTransaction({
         serializedTransaction: prepared.serializedTransaction,
       });
       if (!result.hash) throw new KaminoDrawerError("Кошелёк не вернул подпись транзакции.", 502);
-      setPendingSignature(result.hash);
+      const signedPending: KaminoPendingAction = { ...awaitingSignature, stage: "signature", signature: result.hash };
+      if (validateKaminoPendingAction(signedPending, actionWalletAddress).kind !== "valid") {
+        setNotice("Кошелёк вернул подпись неизвестного формата. Проверьте кошелёк и Solana Explorer вручную; отправка заблокирована.");
+        setError("Не удалось сохранить пригодную для проверки подпись. Не создавайте новую операцию до ручной проверки.");
+        return;
+      }
+      try {
+        window.localStorage.setItem(
+          kaminoPendingActionStorageKey(actionWalletAddress),
+          JSON.stringify(signedPending),
+        );
+      } catch {
+        setRecoveryIssue("Получена подпись, но localStorage не удалось обновить. Не отправляйте операцию повторно; проверка выполняется по этой подписи.");
+      }
+      if (activeWalletAddress === actionWalletAddress) setPendingAction(signedPending);
       setNotice("Транзакция отправлена. Проверяем подтверждение в Solana Devnet.");
-      await confirmSubmittedAction(prepared, result.hash);
+      await confirmSubmittedAction(signedPending, actionWalletAddress);
     } catch (requestError) {
-      setError(userFacingError(requestError, "Не удалось подписать или отправить транзакцию. Проверьте кошелёк перед повторной попыткой."));
+      const rejection = isLikelyUserRejection(requestError);
+      setNotice("Статус отправки неизвестен. Проверьте кошелёк и Solana Explorer вручную; новая отправка заблокирована до явного подтверждения очистки.");
+      setError(rejection
+        ? "Кошелёк сообщил об отмене, но отправку нельзя подтвердить. Проверьте кошелёк/Explorer перед сбросом."
+        : "Не удалось получить подпись. Транзакция могла быть отправлена; проверьте кошелёк/Explorer перед сбросом.");
     } finally {
       setBusy(null);
     }
   };
 
   const verifyPendingConfirmation = async () => {
-    if (!prepared || !pendingSignature || busy) return;
-    await confirmSubmittedAction(prepared, pendingSignature);
+    if (!currentPendingAction || currentPendingAction.stage !== "signature" || !activeWalletAddress || busy) return;
+    if (!currentPendingAction.signature) return;
+    await confirmSubmittedAction({ ...currentPendingAction, signature: currentPendingAction.signature }, activeWalletAddress);
+  };
+
+  const acknowledgeUnknownSend = () => {
+    if (!activeWalletAddress || busy || (!currentPendingAction && !recoveryBlocked)) return;
+    const confirmed = window.confirm(
+      "Статус транзакции неизвестен. Сначала проверьте кошелёк и Solana Explorer. Очистка удалит данные восстановления и позволит создать новую операцию, что может привести к дублированию, если транзакция всё же отправилась. Продолжить?",
+    );
+    if (!confirmed) return;
+    try {
+      window.localStorage.removeItem(kaminoPendingActionStorageKey(activeWalletAddress));
+      setPendingAction(null);
+      setPrepared(null);
+      setConfirmation(null);
+      setConfirmedAmountAtomic(null);
+      setRecoveryWallet(activeWalletAddress);
+      setRecoveryStatus("ready");
+      setRecoveryIssue(null);
+      setNotice(null);
+      setError(null);
+      setAccepted(false);
+      setAmount("");
+    } catch {
+      setRecoveryIssue("Не удалось очистить localStorage. Новые операции остаются заблокированы.");
+      setRecoveryStatus("unavailable");
+    }
   };
 
   const changeAction = (nextAction: KaminoLendAction) => {
-    if (nextAction === action || busy || prepared || pendingSignature) return;
+    if (nextAction === action || busy || prepared || currentPendingAction || !recoveryReady) return;
     setAction(nextAction);
     setAmount("");
     setAccepted(false);
@@ -242,13 +435,13 @@ export function KaminoLendDrawer({
   };
 
   const changeAmount = (value: string) => {
-    if (busy || prepared || pendingSignature) return;
+    if (busy || prepared || currentPendingAction || !recoveryReady) return;
     setAmount(value);
     setError(null);
   };
 
   const changeOpen = (nextOpen: boolean) => {
-    if (!nextOpen && !pendingSignature && !busy) resetPreparedAction();
+    if (!nextOpen && !currentPendingAction && !busy) resetPreparedAction();
     onOpenChange(nextOpen);
   };
 
@@ -263,11 +456,11 @@ export function KaminoLendDrawer({
       >
         <DrawerSuccess
           amount={0}
-          amountLabel={`${completedActionLabel} ${formatAtomicAmount(prepared?.amountAtomic ?? amountAtomic ?? "0", reserve.decimals)}`}
+          amountLabel={`${completedActionLabel} ${formatAtomicAmount(confirmedAmountAtomic ?? prepared?.amountAtomic ?? amountAtomic ?? "0", reserve.decimals)}`}
           sentence={confirmation.action === "deposit"
             ? "Ликвидность внесена в выбранный резерв Kamino Lend."
             : "Ликвидность выведена из выбранного резерва Kamino Lend."}
-          note="SOLANA DEVNET · Тестовые токены и позиции не имеют денежной стоимости."
+          note={recoveryIssue ?? "SOLANA DEVNET · Тестовые токены и позиции не имеют денежной стоимости."}
           explorerUrl={confirmation.explorerUrl}
           onDone={() => {
             resetPreparedAction();
@@ -294,6 +487,50 @@ export function KaminoLendDrawer({
           <Badge variant="outline">USER-SIGNED</Badge>
         </div>
 
+        {activeWalletAddress && recoveryStatus === "loading" ? <LoadingLine label="Проверяем локальное восстановление…" /> : null}
+        {recoveryIssue ? (
+          <Card className="gap-2 rounded-xl border-amber-500/30 bg-amber-500/5 p-3">
+            <p className="text-sm font-medium">Восстановление операции требует внимания</p>
+            <p className="text-xs leading-5 text-muted-foreground">{recoveryIssue}</p>
+          </Card>
+        ) : null}
+
+        {currentPendingAction ? (
+          <Card className="gap-3 rounded-xl border-amber-500/30 bg-amber-500/5 p-3">
+            <div>
+              <p className="text-sm font-medium">
+                {currentPendingAction.stage === "signature" ? "Операция ожидает подтверждения" : "Статус отправки неизвестен"}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {currentPendingAction.action === "deposit" ? "Пополнение" : "Вывод"} · {currentPendingAction.amountAtomic} atomic units
+                {currentPendingAction.stage === "signature"
+                  ? " · повторная отправка отключена; можно только проверить подтверждение"
+                  : " · проверьте кошелёк и Solana Explorer вручную; повторная отправка отключена"}
+              </p>
+            </div>
+            {currentPendingAction.stage === "signature" ? <a className="break-all text-xs underline" target="_blank" rel="noopener noreferrer"
+              href={`https://explorer.solana.com/tx/${currentPendingAction.signature}?cluster=devnet`}>Открыть отправленную транзакцию в Explorer</a> : null}
+            {currentPendingAction.stage === "signature" ? (
+              <Button className="w-full" onClick={() => void verifyPendingConfirmation()} disabled={Boolean(busy || !recoveryReady)}>
+                {busy === "confirming" ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
+                {busy === "confirming" ? "Проверяем подтверждение…" : "Повторить только проверку"}
+              </Button>
+            ) : (
+              <Button variant="outline" className="w-full" onClick={acknowledgeUnknownSend} disabled={Boolean(busy)}>
+                Я проверил кошелёк/Explorer — очистить и сбросить
+              </Button>
+            )}
+          </Card>
+        ) : null}
+
+        {recoveryBlocked ? (
+          <Button variant="outline" className="w-full" onClick={acknowledgeUnknownSend} disabled={Boolean(busy)}>
+            Подтвердить очистку повреждённых данных
+          </Button>
+        ) : null}
+        {notice ? <Notice>{notice}</Notice> : null}
+        {error ? <p className="text-xs leading-5 text-destructive">{error}</p> : null}
+
         {busy === "loading" && !market ? <LoadingLine label="Проверяем маршрут Kamino Lend…" /> : null}
 
         {!market && busy !== "loading" ? (
@@ -309,14 +546,14 @@ export function KaminoLendDrawer({
             <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Действие Kamino Lend">
               <ActionTab
                 active={action === "deposit"}
-                disabled={Boolean(busy || prepared || pendingSignature)}
+                disabled={Boolean(busy || prepared || currentPendingAction || !recoveryReady)}
                 icon={<ArrowDownToLine />}
                 label="Пополнить"
                 onClick={() => changeAction("deposit")}
               />
               <ActionTab
                 active={action === "withdraw"}
-                disabled={Boolean(busy || prepared || pendingSignature)}
+                disabled={Boolean(busy || prepared || currentPendingAction || !recoveryReady)}
                 icon={<ArrowUpFromLine />}
                 label="Вывести"
                 onClick={() => changeAction("withdraw")}
@@ -353,7 +590,7 @@ export function KaminoLendDrawer({
                 placeholder="0"
                 value={amount}
                 onChange={(event) => changeAmount(event.target.value)}
-                disabled={Boolean(busy || prepared || pendingSignature)}
+                disabled={Boolean(busy || prepared || currentPendingAction || !recoveryReady)}
                 className="h-12 text-xl font-semibold tabular-nums"
               />
               {exceedsMaximum ? (
@@ -373,7 +610,7 @@ export function KaminoLendDrawer({
               <Checkbox
                 checked={accepted}
                 onCheckedChange={(checked) => setAccepted(checked === true)}
-                disabled={Boolean(busy || prepared || pendingSignature)}
+                disabled={Boolean(busy || prepared || currentPendingAction || !recoveryReady)}
                 className="mt-0.5"
               />
               <span>
@@ -385,9 +622,6 @@ export function KaminoLendDrawer({
               <PreparedActionReview prepared={prepared} reserve={reserve} walletAddress={activeWalletAddress} />
             ) : null}
 
-            {notice ? <Notice>{notice}</Notice> : null}
-            {error ? <p className="text-xs leading-5 text-destructive">{error}</p> : null}
-
             {!activeWalletAddress || !wallet ? (
               <Card className="gap-2 rounded-xl border-amber-500/30 bg-amber-500/5 p-3">
                 <p className="text-sm font-medium">Подключите Solana-кошелёк</p>
@@ -395,22 +629,17 @@ export function KaminoLendDrawer({
               </Card>
             ) : null}
 
-            {pendingSignature && prepared ? (
-              <Button className="w-full" onClick={() => void verifyPendingConfirmation()} disabled={Boolean(busy)}>
-                {busy === "confirming" ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}
-                {busy === "confirming" ? "Проверяем подтверждение…" : "Проверить подтверждение"}
-              </Button>
-            ) : prepared ? (
-              <Button className="w-full" onClick={() => void signAndSendPreparedAction()} disabled={Boolean(busy || !wallet)}>
+            {prepared && !currentPendingAction ? (
+              <Button className="w-full" onClick={() => void signAndSendPreparedAction()} disabled={Boolean(busy || !wallet || !recoveryReady)}>
                 {busy === "signing" ? <LoaderCircle className="animate-spin" /> : <ShieldCheck />}
                 {busy === "signing" ? "Ожидаем подпись…" : `${actionLabel} и подписать`}
               </Button>
-            ) : (
+            ) : !prepared && !currentPendingAction ? (
               <Button className="w-full" onClick={() => void prepareAction()} disabled={!canPrepare}>
                 {busy === "preparing" ? <LoaderCircle className="animate-spin" /> : <CheckCircle2 />}
                 {busy === "preparing" ? "Симулируем операцию…" : "Подготовить транзакцию"}
               </Button>
-            )}
+            ) : null}
           </>
         ) : null}
       </div>
@@ -557,6 +786,11 @@ function userFacingError(error: unknown, fallback: string) {
 function isLikelyUserRejection(error: unknown) {
   const message = error instanceof Error ? error.message : "";
   return /reject|declin|cancel|denied|abort/i.test(message);
+}
+
+function isVerifiedTransactionFailure(value: unknown) {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    && (value as Record<string, unknown>).code === "TRANSACTION_FAILED";
 }
 
 function isAbortError(error: unknown) {

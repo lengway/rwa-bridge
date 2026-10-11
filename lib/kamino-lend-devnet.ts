@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
+import path from "node:path";
 import BN from "bn.js";
 import bs58 from "bs58";
 import {
@@ -35,7 +36,10 @@ import {
   getAssociatedTokenAddress,
   getMint,
   TOKEN_PROGRAM_ID,
+  TokenAccountNotFoundError,
 } from "@solana/spl-token";
+import { KaminoActionStore } from "@/lib/kamino-action-store";
+import { assertKaminoReceiptIdentity, verifyKaminoTokenDeltas } from "@/lib/kamino-action-verification";
 import { SOLANA_DEVNET_GENESIS_HASH } from "@/lib/rwa-demo";
 import {
   KAMINO_LEND_DEVNET,
@@ -56,7 +60,6 @@ const BPF_LOADER_UPGRADEABLE_PROGRAM_ID = new PublicKey("BPFLoaderUpgradeab1e111
 const COMPUTE_BUDGET_PROGRAM_ID = "ComputeBudget111111111111111111111111111111";
 const ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 const PREPARED_ACTION_TTL_MS = 90_000;
-const PREPARED_ACTION_LIMIT = 512;
 
 type KaminoLendDevnetConfig = {
   rpcUrl: string;
@@ -82,6 +85,8 @@ type PreparedKaminoAction = {
   blockhash: string;
   lastValidBlockHeight: number;
   expiresAt: number;
+  createdAt: number;
+  signature?: string;
   kaminoInstructionDigests: string[];
   status: "PREPARED" | "CONFIRMED" | "FAILED";
   result?: ConfirmedKaminoLendAction;
@@ -103,8 +108,10 @@ type ConfirmedKaminoLendAction = {
   actualCollateralAmountAtomic: string;
 };
 
-const preparedActions = new Map<string, PreparedKaminoAction>();
-const confirmingActionIds = new Set<string>();
+const preparedActions = new KaminoActionStore<PreparedKaminoAction>(
+  process.env.KAMINO_ACTION_STORE_PATH
+    || `${process.env.DEMO_LEDGER_PATH || path.join(process.cwd(), ".demo-ledger.json")}.kamino`,
+);
 
 function error(code: string, message: string): never {
   throw new KaminoLendDevnetError(code, message);
@@ -368,17 +375,6 @@ function assertSafePreparedTransaction(
   }
 }
 
-function trimPreparedActions(now = Date.now()) {
-  for (const [id, prepared] of preparedActions) {
-    if (prepared.expiresAt < now && prepared.status !== "CONFIRMED") preparedActions.delete(id);
-  }
-  while (preparedActions.size >= PREPARED_ACTION_LIMIT) {
-    const first = preparedActions.keys().next().value;
-    if (!first) break;
-    preparedActions.delete(first);
-  }
-}
-
 async function userTokenBalanceAtomic({
   connection,
   mint,
@@ -391,20 +387,10 @@ async function userTokenBalanceAtomic({
   const ata = await getAssociatedTokenAddress(mint, owner, false, TOKEN_PROGRAM_ID);
   try {
     return (await getAccount(connection, ata, "confirmed", TOKEN_PROGRAM_ID)).amount;
-  } catch {
-    return BigInt(0);
+  } catch (cause) {
+    if (cause instanceof TokenAccountNotFoundError) return BigInt(0);
+    error("BALANCE_UNAVAILABLE", "Unable to read the wallet token balance from Devnet. Try again before submitting.");
   }
-}
-
-function balanceDeltaAtomic(
-  balances: readonly { mint: string; owner?: string; uiTokenAmount: { amount: string } }[] | null | undefined,
-  owner: string,
-  mint: string,
-) {
-  return (balances ?? []).reduce((total, balance) => {
-    if (balance.owner !== owner || balance.mint !== mint || !/^\d+$/.test(balance.uiTokenAmount.amount)) return total;
-    return total + BigInt(balance.uiTokenAmount.amount);
-  }, BigInt(0));
 }
 
 function signatureLooksValid(value: unknown): value is string {
@@ -516,6 +502,14 @@ export async function getKaminoLendDevnetPosition(walletAddress: string) {
     mint: publicKey(KAMINO_LEND_DEVNET.collateralMint, "collateral mint"),
     owner,
   });
+  const [liquidityAmount, solBalance] = await Promise.all([
+    userTokenBalanceAtomic({
+      connection: loaded.connection,
+      mint: publicKey(KAMINO_LEND_DEVNET.liquidityMint, "liquidity mint"),
+      owner,
+    }),
+    loaded.connection.getBalance(owner, "confirmed"),
+  ]);
   const exchangeRate = loaded.reserve.getEstimatedCollateralExchangeRate(
     currentLedgerInstant,
     loaded.market.state.referralFeeBps,
@@ -541,10 +535,20 @@ export async function getKaminoLendDevnetPosition(walletAddress: string) {
     mint: KAMINO_LEND_DEVNET.liquidityMint,
     collateralMint: KAMINO_LEND_DEVNET.collateralMint,
     decimals: KAMINO_LEND_DEVNET.decimals,
+    liquidityTokenAccount: (await getAssociatedTokenAddress(publicKey(KAMINO_LEND_DEVNET.liquidityMint, "liquidity mint"), owner)).toBase58(),
+    collateralTokenAccount: (await getAssociatedTokenAddress(publicKey(KAMINO_LEND_DEVNET.collateralMint, "collateral mint"), owner)).toBase58(),
     collateralAmountAtomic: collateralAmount.toString(10),
+    liquidityAmountAtomic: liquidityAmount.toString(10),
+    solBalanceLamports: solBalance,
     estimatedUnderlyingAmountAtomic: estimatedUnderlyingAtomic,
     state: collateralAmount > BigInt(0) ? "OPEN" as const : "EMPTY" as const,
   };
+}
+
+export async function getKaminoLendDevnetHistory(walletAddress: string) {
+  const actions = await preparedActions.list(walletAddress);
+  return actions.filter((action) => action.status === "CONFIRMED" && action.result)
+    .map((action) => ({ ...action.result!, createdAt: action.createdAt }));
 }
 
 export async function prepareKaminoLendDevnetAction({
@@ -669,7 +673,7 @@ export async function prepareKaminoLendDevnetAction({
     error("SIMULATION_FAILED", "Kamino transaction simulation failed. Refresh balances and try again.");
   }
 
-  trimPreparedActions();
+  const createdAt = Date.now();
   const prepared: PreparedKaminoAction = {
     id: randomUUID(),
     action,
@@ -679,11 +683,12 @@ export async function prepareKaminoLendDevnetAction({
     messageDigest: messageDigest(transaction),
     blockhash: latestBlockhash.blockhash,
     lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-    expiresAt: Date.now() + PREPARED_ACTION_TTL_MS,
+    expiresAt: createdAt + PREPARED_ACTION_TTL_MS,
+    createdAt,
     kaminoInstructionDigests: expectedKaminoInstructionDigests,
     status: "PREPARED",
   };
-  preparedActions.set(prepared.id, prepared);
+  await preparedActions.put(prepared);
   return publicResponse(prepared, serializedTransaction, {
     unitsConsumed: simulation.value.unitsConsumed ?? null,
   });
@@ -704,39 +709,31 @@ export async function confirmKaminoLendDevnetAction({
   walletAddress: string;
   signature: unknown;
 }) {
-  if (typeof actionId !== "string" || !/^[0-9a-f-]{36}$/i.test(actionId)) {
+  if (typeof actionId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actionId)) {
     error("INVALID_ACTION", "actionId is invalid.");
   }
   if (!signatureLooksValid(signature)) error("INVALID_SIGNATURE", "Transaction signature is invalid.");
-  const prepared = preparedActions.get(actionId);
-  if (!prepared || prepared.action !== action) {
-    error("ACTION_NOT_FOUND", "Prepared Kamino action was not found.");
-  }
-  if (prepared.walletAddress !== walletAddress) {
-    error("WALLET_MISMATCH", "Prepared Kamino action belongs to another wallet.");
-  }
-  if (prepared.status === "CONFIRMED" && prepared.result) return prepared.result;
-  if (prepared.status === "FAILED") error("TRANSACTION_FAILED", "Prepared Kamino transaction has already failed on-chain.");
-  if (prepared.expiresAt < Date.now()) {
-    preparedActions.delete(prepared.id);
-    error("ACTION_EXPIRED", "Prepared Kamino transaction has expired. Prepare a new transaction.");
-  }
-  if (confirmingActionIds.has(prepared.id)) {
-    return { confirmed: false as const, status: "PENDING" as const, actionId: prepared.id };
-  }
-
-  confirmingActionIds.add(prepared.id);
-  try {
+  return preparedActions.withLock(actionId, async () => {
+    const prepared = await preparedActions.get(actionId);
+    if (!prepared || prepared.action !== action) {
+      error("ACTION_NOT_FOUND", "Prepared Kamino action was not found.");
+    }
+    if (prepared.walletAddress !== walletAddress) {
+      error("WALLET_MISMATCH", "Prepared Kamino action belongs to another wallet.");
+    }
+    if (prepared.signature && prepared.signature !== signature) {
+      error("TRANSACTION_MISMATCH", "This action is already bound to another verified transaction signature.");
+    }
+    if (prepared.status === "CONFIRMED" && prepared.result) return prepared.result;
+    if (prepared.status === "FAILED") error("TRANSACTION_FAILED", "Prepared Kamino transaction has already failed on-chain.");
+    // Preparation expiry prevents signing stale payloads, not reconciliation of
+    // a transaction already sent. Keep the digest durable until it is verified.
     const loaded = await loadVerifiedKaminoLend();
     const status = (await loaded.connection.getSignatureStatuses([signature], {
       searchTransactionHistory: true,
     })).value[0];
     if (!status) {
       return { confirmed: false as const, status: "PENDING" as const, actionId: prepared.id };
-    }
-    if (status.err) {
-      prepared.status = "FAILED";
-      error("TRANSACTION_FAILED", "Kamino transaction failed on-chain.");
     }
     // A wallet-provider return or a merely processed/confirmed signature is
     // not a completion signal. Keep the action pending until the exact wire
@@ -757,57 +754,43 @@ export async function confirmKaminoLendDevnetAction({
     if (!rawTransaction || !parsedTransaction) {
       return { confirmed: false as const, status: "PENDING" as const, actionId: prepared.id };
     }
-    if (rawTransaction.meta?.err || parsedTransaction.meta?.err) {
-      prepared.status = "FAILED";
-      error("TRANSACTION_FAILED", "Kamino transaction failed on-chain.");
-    }
     const rawMessage = rawTransaction.transaction.message as { serialize?: () => Uint8Array };
     if (typeof rawMessage.serialize !== "function") {
       error("TRANSACTION_MISMATCH", "Confirmed transaction message could not be verified.");
     }
-    const confirmedDigest = createHash("sha256").update(rawMessage.serialize()).digest("hex");
-    if (confirmedDigest !== prepared.messageDigest) {
-      error("TRANSACTION_MISMATCH", "Confirmed transaction does not match the prepared Kamino transaction.");
-    }
-
     const transaction = rawTransaction.transaction;
     const staticKeys = extractStaticAccountKeys(transaction);
-    const requiredAccounts = [
-      prepared.walletAddress,
-      KAMINO_LEND_DEVNET.market,
-      KAMINO_LEND_DEVNET.reserve,
-      KAMINO_LEND_DEVNET.liquidityMint,
-      KAMINO_LEND_DEVNET.collateralMint,
-      KAMINO_LEND_DEVNET.supplyVault,
-    ];
-    if (requiredAccounts.some((account) => !staticKeys.includes(account))) {
-      error("TRANSACTION_MISMATCH", "Confirmed transaction is missing a required Kamino account.");
-    }
-    if (!sameStringArray(compiledKaminoInstructionDigests(transaction), prepared.kaminoInstructionDigests)) {
-      error("TRANSACTION_MISMATCH", "Confirmed transaction does not contain the expected Kamino instruction.");
-    }
     const parsedWalletSigner = parsedTransaction.transaction.message.accountKeys.some(
       (key) => key.pubkey.toBase58() === prepared.walletAddress && key.signer,
     );
-    if (!parsedWalletSigner) {
-      error("TRANSACTION_MISMATCH", "Confirmed transaction was not signed by the prepared wallet.");
+    assertKaminoReceiptIdentity({
+      preparedDigest: prepared.messageDigest,
+      serializedMessage: rawMessage.serialize(),
+      expectedWallet: prepared.walletAddress,
+      staticKeys,
+      expectedInstructionDigests: prepared.kaminoInstructionDigests,
+      actualInstructionDigests: compiledKaminoInstructionDigests(transaction),
+      walletIsSigner: parsedWalletSigner,
+    });
+
+    // An arbitrary failed signature must never poison a different prepared
+    // action. Bind and persist only after the exact message and signer match.
+    prepared.signature = signature;
+    await preparedActions.put(prepared);
+    if (status.err || rawTransaction.meta?.err || parsedTransaction.meta?.err) {
+      prepared.status = "FAILED";
+      await preparedActions.put(prepared);
+      error("TRANSACTION_FAILED", "Kamino transaction failed on-chain.");
     }
 
-    const preLiquidity = balanceDeltaAtomic(parsedTransaction.meta?.preTokenBalances, prepared.walletAddress, KAMINO_LEND_DEVNET.liquidityMint);
-    const postLiquidity = balanceDeltaAtomic(parsedTransaction.meta?.postTokenBalances, prepared.walletAddress, KAMINO_LEND_DEVNET.liquidityMint);
-    const preCollateral = balanceDeltaAtomic(parsedTransaction.meta?.preTokenBalances, prepared.walletAddress, KAMINO_LEND_DEVNET.collateralMint);
-    const postCollateral = balanceDeltaAtomic(parsedTransaction.meta?.postTokenBalances, prepared.walletAddress, KAMINO_LEND_DEVNET.collateralMint);
-    const liquidityDelta = postLiquidity - preLiquidity;
-    const collateralDelta = postCollateral - preCollateral;
-    const requestedAmount = BigInt(prepared.amountAtomic);
-    const collateralAmount = prepared.collateralAmountAtomic === null ? null : BigInt(prepared.collateralAmountAtomic);
-    if (prepared.action === "deposit") {
-      if (liquidityDelta !== -requestedAmount || collateralDelta <= BigInt(0)) {
-        error("TRANSACTION_MISMATCH", "Confirmed Kamino deposit token deltas do not match the prepared action.");
-      }
-    } else if (collateralAmount === null || collateralDelta !== -collateralAmount || liquidityDelta < requestedAmount) {
-      error("TRANSACTION_MISMATCH", "Confirmed Kamino withdrawal token deltas do not match the prepared action.");
-    }
+    const deltas = verifyKaminoTokenDeltas({
+      action: prepared.action,
+      walletAddress: prepared.walletAddress,
+      amountAtomic: prepared.amountAtomic,
+      collateralAmountAtomic: prepared.collateralAmountAtomic,
+      preBalances: parsedTransaction.meta?.preTokenBalances,
+      postBalances: parsedTransaction.meta?.postTokenBalances,
+    });
 
     const result: ConfirmedKaminoLendAction = {
       confirmed: true,
@@ -821,13 +804,11 @@ export async function confirmKaminoLendDevnetAction({
       mint: KAMINO_LEND_DEVNET.liquidityMint,
       amountAtomic: prepared.amountAtomic,
       collateralAmountAtomic: prepared.collateralAmountAtomic,
-      actualLiquidityAmountAtomic: (prepared.action === "deposit" ? -liquidityDelta : liquidityDelta).toString(10),
-      actualCollateralAmountAtomic: (prepared.action === "deposit" ? collateralDelta : -collateralDelta).toString(10),
+      ...deltas,
     };
     prepared.status = "CONFIRMED";
     prepared.result = result;
+    await preparedActions.put(prepared);
     return result;
-  } finally {
-    confirmingActionIds.delete(prepared.id);
-  }
+  });
 }

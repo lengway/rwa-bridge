@@ -16,6 +16,9 @@ import { devnetConfig } from "@/lib/solana-server";
 import { VAULT_PRODUCTS, getVaultQuote } from "@/lib/vaults";
 import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
 import { getKztRateForOperation, readKztRate } from "@/lib/market-server";
+import { getKaminoLendDevnetHistory, getKaminoLendDevnetPosition, KAMINO_LEND_DEVNET } from "@/lib/kamino-lend-devnet";
+import { kaminoLendErrorResponse, requireKaminoLendSession } from "@/lib/kamino-lend-api";
+import { buildKaminoPortfolio } from "@/lib/kamino-portfolio";
 
 type Holding = {
   kind: "cash" | "kzte" | "vault" | "asset";
@@ -344,11 +347,42 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
 }
 
 export async function GET(request: Request) {
-  if (!isConfigured()) return unavailableResponse();
   const walletAddress = new URL(request.url).searchParams.get("wallet");
   if (!isValidWalletAddress(walletAddress)) {
     return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
   }
+  if (process.env.ENABLE_KAMINO_LEND_DEVNET === "true") {
+    try {
+      await requireKaminoLendSession(request, walletAddress);
+      const [position, history] = await Promise.all([
+        getKaminoLendDevnetPosition(walletAddress),
+        getKaminoLendDevnetHistory(walletAddress),
+      ]);
+      const value = buildKaminoPortfolio(position, history);
+      // Historic exit-only holdings remain visible where legacy configuration
+      // exists, but they are not prerequisites for the primary Kamino route.
+      if (isConfigured()) {
+        try {
+          const legacy = await buildPortfolio(walletAddress);
+          const primaryMints = new Set<string>([KAMINO_LEND_DEVNET.liquidityMint, KAMINO_LEND_DEVNET.collateralMint]);
+          const legacyHoldings = legacy.holdings.filter((holding) => !primaryMints.has(holding.mint));
+          value.holdings.push(...legacyHoldings);
+          value.positions.push(...legacy.positions);
+          value.totalValueUsd += legacyHoldings.reduce((total, holding) => total + holding.valueUsd, 0);
+          const signatures = new Set(value.history.map((row) => row.signature));
+          value.history = [...value.history, ...legacy.history.filter((row) => !signatures.has(row.signature))]
+            .sort((left, right) => right.at - left.at).slice(0, 20);
+          value.activity = value.history;
+        } catch {
+          value.legacyUnavailable = true;
+        }
+      }
+      return NextResponse.json(value, { headers: { "Cache-Control": "no-store" } });
+    } catch (cause) {
+      return kaminoLendErrorResponse(cause);
+    }
+  }
+  if (!isConfigured()) return unavailableResponse();
   const cached = readCachedDevnetPortfolio<PortfolioResponse>(walletAddress);
   if (cached) return NextResponse.json(cached);
 

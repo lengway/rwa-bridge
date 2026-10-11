@@ -1,12 +1,11 @@
 # Plain
 
-Plain is a Devnet-only Universal Earn gateway for one direct Kamino Lend route
-on Solana. It prepares a transaction for a pinned Kamino Lend USDC reserve,
-simulates it server-side, and asks the connected wallet to sign and submit it.
+Plain is a Solana Devnet-only app whose enabled Earn route supplies and redeems
+Devnet USDC through one pinned Kamino Lend reserve. The server prepares and
+simulates an unsigned transaction; the user's connected wallet signs and sends
+it. Devnet assets and positions have no monetary value.
 
-**Solana Devnet only. Devnet USDC and Devnet positions have no monetary value.**
-
-- Live app: https://plain.lengway.me
+- App: https://plain.lengway.me
 - Earn route: https://plain.lengway.me/earn/kamino-lend
 - [Implementation report](docs/earn-implementation-report.md)
 - [Provider and route evidence](docs/earn-provider-research.md)
@@ -26,48 +25,102 @@ simulates it server-side, and asks the connected wallet to sign and submit it.
 | Rate | Variable protocol rate; no fixed APR is shown or promised |
 | Per-action cap | 1 Devnet USDC by default, configurable only downward |
 
-The route never accepts fiat, provides an off-ramp, or uses Mainnet. It is not
-a bank account, investment product, or production availability claim.
+The route does not accept fiat, provide an off-ramp, or use Mainnet. It is not a
+bank account, investment product, or claim of production availability.
+
+## Sign-in and wallet configuration
+
+Copy `.env.example` to `.env.local`. Email-code sign-in requires
+`AUTH_SESSION_SECRET` and working SMTP settings (`SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASS`, and `MAIL_FROM`). The embedded wallet additionally
+requires the four `AUTH_JWT_*` settings below and Crossmint configuration. The
+example intentionally leaves secrets blank; create and supply your own values
+outside Git.
+
+```dotenv
+AUTH_SESSION_SECRET=
+AUTH_JWT_PRIVATE_KEY=
+AUTH_JWT_KID=
+AUTH_JWT_ISSUER=
+AUTH_JWT_AUDIENCE=
+```
+
+`AUTH_JWT_PRIVATE_KEY` must be an EC P-256 (prime256v1) private-key PEM. Encode
+PEM line breaks as literal `\n` in a single-line environment value; the server
+converts them back to newlines. Keep it private. `AUTH_JWT_ISSUER` and
+`AUTH_JWT_AUDIENCE` must match the trust configuration for the BYO JWT.
+
+The embedded wallet additionally requires a Crossmint **staging client key**
+with Wallets enabled:
+
+```dotenv
+NEXT_PUBLIC_CROSSMINT_API_KEY=
+```
+
+Configure the Crossmint staging client's BYO JWT/JWKS trust to match your issuer
+and audience and this app's `https://<your-app-origin>/.well-known/jwks.json`
+endpoint. Add the actual app origin to that client's permitted domains. These
+are owner-managed Crossmint console settings; this repository does not create
+them or prescribe a fake domain. A Crossmint key alone does not configure the
+trust relationship or enable a payment rail.
+
+## Kamino configuration and action storage
+
+For the Kamino route, configure these values in addition to sign-in and wallet
+configuration:
+
+```dotenv
+SOLANA_CLUSTER=devnet
+SOLANA_RPC_URL=https://api.devnet.solana.com
+ENABLE_KAMINO_LEND_DEVNET=true
+KAMINO_LEND_DEVNET_MAX_AMOUNT_ATOMIC=1000000
+KAMINO_ACTION_STORE_PATH=
+```
+
+The runtime checks the canonical Devnet genesis hash and requires an HTTPS RPC;
+Mainnet or another cluster fails closed. The cap is in atomic Devnet USDC and
+cannot exceed `1000000` (1 token).
+
+`KAMINO_ACTION_STORE_PATH` is an optional **base path**: the server appends `.d`
+and stores action records in that directory. If unset, the directory is
+`${DEMO_LEDGER_PATH || <cwd>/.demo-ledger.json}.kamino.d`. Keep this storage on
+stable persistent disk **outside versioned release directories** so prepared,
+pending, and verified action records remain available across releases. The
+file-backed queue supports a single Node.js process only; it is not safe for
+ephemeral serverless instances, multiple processes, or replicas sharing this
+directory. The 90-second preparation expiry prevents signing stale prepared
+payloads; it does not delete the record or prevent reconciliation of a
+transaction already sent. Keep records until their outcome can be verified.
+
+The Kamino portfolio reads the route's Devnet position and uses finalized,
+server-verified action receipts. Server accounting and receipts retain atomic
+integer strings; conversion to numbers is for the existing display model. The
+Kamino portfolio position and receipts are sourced from the Kamino route,
+not balances issued by the legacy app-controlled token authority. Historic
+legacy holdings may be added when that separate configuration exists, but are
+not a prerequisite for the Kamino position.
 
 ## Transaction lifecycle
 
 1. The browser requests a deposit or withdrawal for the authenticated wallet.
-2. The server verifies canonical Devnet, the exact program/market/reserve/mints,
-   active reserve state, wallet balance, and the configured cap.
-3. The server builds an unsigned v0 transaction through the Kamino SDK and
-   simulates it before returning a Base58 wire payload.
+2. The server verifies canonical Devnet, the pinned program/market/reserve/mints,
+   reserve state, wallet balance, and the configured cap.
+3. The server builds and simulates an unsigned v0 transaction before returning
+   its Base58 wire payload.
 4. The connected wallet is the only signer and sender.
-5. The server marks the action complete only after it is finalized and after
-   verifying the exact transaction message, Kamino instruction, signer, and
-   expected SPL-token deltas.
+5. The server reports completion only after finalization and verification of the
+   exact transaction message, Kamino instruction, signer, and expected
+   SPL-token deltas. A processed or confirmed-but-not-finalized signature stays
+   pending.
+6. The browser stores the public pending-action identity (and, after signing,
+   the signature) in wallet-scoped `localStorage` so it can restore confirmation
+   after reload. This is recovery metadata, not authorization; the server
+   verifies the session and transaction.
 
-The UI never turns a wallet-provider response or a merely processed signature
-into a success state.
+## Local commands
 
-## Required configuration
-
-Copy `.env.example` to `.env.local` and configure the following server-side
-values:
-
-```bash
-SOLANA_CLUSTER=devnet
-SOLANA_RPC_URL=https://api.devnet.solana.com
-ENABLE_KAMINO_LEND_DEVNET=true
-# Optional safety cap in atomic Devnet USDC; cannot exceed 1000000 (1 USDC).
-KAMINO_LEND_DEVNET_MAX_AMOUNT_ATOMIC=1000000
-```
-
-The runtime independently verifies the RPC genesis hash, so pointing these
-variables at Mainnet or another cluster fails closed. The RPC URL must be HTTPS.
-
-For the embedded wallet experience, also configure a staging Crossmint client
-key:
-
-```bash
-NEXT_PUBLIC_CROSSMINT_API_KEY=ck_staging_...
-```
-
-## Run and verify locally
+The repository defines these local install, lint, typecheck, test, build, and
+development commands:
 
 ```bash
 npm install
@@ -78,28 +131,42 @@ npm run build
 npm run dev
 ```
 
-Once the app is running with the configuration above, the read-only health
-surface is available at `/api/kamino/market`. It returns `ready: true` only if
-all pinned Devnet accounts and the reserve are verified at that moment.
+The public `/api/kamino/market` surface is a read-only market/reserve readiness
+check. A `ready: true` result is point-in-time read evidence only, not a wallet
+transaction, end-to-end smoke test, or deployment verification. The HTTP smoke
+script checks readiness and authentication/validation boundaries:
 
-Do not put a wallet private key, production credentials, Mainnet endpoint, or
-real payment credential into this project. A real on-chain action requires a
-wallet controlled by the user, Devnet SOL for fees, and Devnet USDC or Kamino
-collateral as appropriate.
+```bash
+node scripts/release-smoke.mjs http://127.0.0.1:3201
+node scripts/release-smoke.mjs https://plain.lengway.me
+```
+
+Remote smoke checks issue GET requests only. Local checks additionally send
+invalid or unauthenticated commands that must fail before any on-chain action.
+Neither substitutes for a user-approved signed deposit/withdrawal.
+
+An actual on-chain action requires a user-controlled wallet, Devnet SOL for
+fees, and Devnet USDC or Kamino collateral as appropriate. Do not put a wallet
+private key, production credential, Mainnet endpoint, or real payment
+credential in this project.
 
 ## Deploy
 
-The VPS checkout is `/home/plain/worktrees/rwa-bridge`. After committing the
-validated change, deploy from this repository with:
+The VPS runs `plain-web` through `/home/plain/app`. Deploy validated, committed
+`HEAD` to the authorized host (`stapp` currently resolves to `31.76.87.250`):
 
 ```bash
 scripts/deploy.sh stapp
 ```
 
-The deploy script pushes committed `HEAD`, pulls it on the VPS, installs from
-the lockfile, builds, and switches the running release only after the build
-succeeds. Runtime configuration lives outside Git at
-`/home/plain/shared/.env.local`.
+The script sends the commit to the VPS bare Git repository (not public GitHub),
+creates `/home/plain/releases/<commit>` as a separate worktree, installs from the
+lockfile, runs lint/typecheck/tests/build, and checks a production server on
+loopback port 3202. Only then does it atomically switch `/home/plain/app` and
+restart `plain-web` on port 3200. Failed post-switch checks restore the previous
+symlink and restart the old release; old releases and the original worktree are
+retained. Runtime secrets and the ledger stay in `/home/plain/shared` and are
+never rewritten by this script. See `WORKLOG.md` for actual verification status.
 
 ## Legacy routes
 

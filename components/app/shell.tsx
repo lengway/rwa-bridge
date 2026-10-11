@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useBankEmbed } from "@/lib/useBankEmbed";
 import { isCrossmintConfigured } from "@/lib/config";
 import { useAuth } from "@/lib/useAuth";
+import { useDevnet } from "@/lib/useDevnet";
 import { Input } from "@/components/ui/input";
 
 const tabs = [
@@ -27,7 +28,8 @@ const titles: Record<string, string> = {
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { status, walletAddress } = useAuth();
+  const { status, walletAddress, walletError } = useAuth();
+  if (status === "signed-in" && walletError) return <WalletConnectionError message={walletError} />;
   if (status === "loading" || (status === "signed-in" && isCrossmintConfigured && !walletAddress)) return <AuthLoader />;
   if (status === "signed-out") return <SignInScreen />;
   if (!isCrossmintConfigured) {
@@ -47,6 +49,23 @@ function AuthLoader() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/40" aria-label="Загрузка">
       <div className="size-8 animate-spin rounded-full border-2 border-muted-foreground/25 border-t-foreground" />
+    </main>
+  );
+}
+
+function WalletConnectionError({ message }: { message: string }) {
+  const { retryWallet, signOut } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
+      <section className="w-full max-w-md space-y-4 rounded-3xl border bg-background p-7 text-center shadow-sm">
+        <h1 className="text-2xl font-semibold tracking-tight">Кошелёк недоступен</h1>
+        <p role="alert" className="text-sm leading-6 text-muted-foreground">{error ?? message}</p>
+        <Button className="w-full" onClick={retryWallet}>Повторить подключение</Button>
+        <Button variant="outline" className="w-full" onClick={() => {
+          void signOut().catch(() => setError("Не удалось завершить сессию на сервере. Повторите выход после восстановления соединения."));
+        }}>Выйти</Button>
+      </section>
     </main>
   );
 }
@@ -184,6 +203,7 @@ function SignInScreen() {
 function SignedInShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bankEmbed = useBankEmbed();
+  const { portfolioError, refreshPortfolio } = useDevnet();
   const isEarnDetail = /^\/earn\/[^/]+/.test(pathname);
   const isAssetDetail = /^\/assets\/[^/]+/.test(pathname);
   const isDetail = isEarnDetail || isAssetDetail;
@@ -224,6 +244,10 @@ function SignedInShell({ children }: { children: React.ReactNode }) {
         <main
           className={`flex-1 px-4 pt-5 ${isDetail ? "pb-[calc(12rem_+_env(safe-area-inset-bottom))]" : "pb-28"}`}
         >
+          {portfolioError ? <div role="alert" className="mb-4 space-y-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
+            <p>{portfolioError}</p>
+            <Button variant="outline" size="sm" onClick={() => void refreshPortfolio()}>Обновить портфель</Button>
+          </div> : null}
           {children}
         </main>
         <nav

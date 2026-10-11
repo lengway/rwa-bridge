@@ -1,4 +1,23 @@
-# Задачи Plain
+# Текущий релиз Plain
+
+Текущий объём — Devnet-only маршрут Kamino Lend и его портфель. Исторический план Colosseum ниже сохранён для контекста, но не является требованиями этого релиза.
+
+## В работе
+
+- [ ] Завершить текущую интеграцию портфеля Kamino: основная позиция и балансы должны читаться из Kamino/Devnet, а история — включать только финализированные сервером проверенные receipts. Не делать legacy app-controlled token authority prerequisite для Kamino-позиции.
+- [ ] Проверить восстановление незавершённого действия после перезагрузки: wallet-scoped public identity/signature восстанавливаются из `localStorage`, но не дают авторизацию; повторная проверка идёт через сервер. Не удалять серверную запись лишь из-за истечения 90-секундного срока подготовки: уже отправленная транзакция должна оставаться доступной для reconciliation.
+- [ ] Подтвердить рабочий режим файлового action store: один стабильный Node.js процесс, постоянный каталог вне versioned releases; без ephemeral serverless или нескольких процессов/реплик.
+- [ ] Для окружения с email login задать `AUTH_SESSION_SECRET`, P-256 PEM `AUTH_JWT_PRIVATE_KEY` с escaped newlines, `AUTH_JWT_KID`, `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE` и SMTP-параметры. Для embedded wallet отдельно настроить Crossmint staging client/BYO JWT/JWKS и разрешённый origin владельцем Crossmint console.
+
+## Проверки и ограничения
+
+- [ ] Прогнать локальные `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` перед релизом.
+- [ ] Live transaction и deployment в этой сессии не проверялись. Публичная read-only проверка readiness `ready: true` была сделана только основной сессией и не заменяет транзакционную или deployment-проверку.
+- [ ] Любую Devnet-транзакцию или deploy выполнять отдельно, с одобрением владельца и фиксированием доступных доказательств; не считать read-only readiness подтверждением успешной операции.
+
+## Архив: исторический план Colosseum (не текущие требования релиза)
+
+### Прежний план Plain
 
 Дедлайн Colosseum: 12 октября 2026, 23:59 PDT (13 октября, 11:59 по Алматы).
 Цель: целиком рабочий продукт в Solana devnet на https://plain.lengway.me + материалы для сдачи.
