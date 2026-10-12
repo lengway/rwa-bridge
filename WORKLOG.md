@@ -384,3 +384,22 @@ owner's old submission draft is preserved and marked outdated; a private owner
 review checklist supplies factual corrections and questions, not generated
 application answers. Actual portal edits, pilot evidence, videos, owner-approved
 signed round trip and final Submit remain owner-dependent.
+
+Published `876fad4b708625e32377a9b7ccaa6682d58239be` to GitHub `main` by
+fast-forward from `170fe04`, and changed the repository to PUBLIC with the
+owner's explicit approval. Anonymous GitHub API/raw README checks confirmed
+public access, the matching main commit and current documentation. A final
+275-file tracked-tree scan found no known secret patterns. The untracked
+owner-owned RWA roadmap and private submission-review files were not published.
+
+Activated the same code release on the authorized VPS; previous `00d0451`
+retained. VPS lint/typecheck, **76 tests**, production build and 14 pre/post
+activation HTTP checks passed; external HTTPS smoke passed 10 reads. Local
+authenticated live-Devnet portfolio smoke for the known PDA target passed five
+concurrent requests in 0.597 seconds with a separate test session/ledger; no
+owner session or transactions used. Static rendering of the actual simple
+screen verified two primary buttons and no overflow using clearly labeled
+fixture balances; this is layout evidence, not an authenticated interactive or
+signed financial flow. No real-money fee implementation, new bank rail or
+claimed pilot/customer evidence was added. Owner-signed round trip remains
+unverified, including the embedded smart-wallet transaction path.
