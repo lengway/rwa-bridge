@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { StrategyRoadmap } from "@/components/app/strategy-roadmap";
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
@@ -29,6 +30,7 @@ export function EarnList() {
           <YieldCard key={strategy.id} strategy={strategy} />
         ))}
       </div>
+      <StrategyRoadmap />
       <Card className="flex-row items-start gap-3 rounded-2xl p-4">
         <ShieldAlert className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <p className="text-xs leading-5 text-muted-foreground">

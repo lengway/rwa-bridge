@@ -1,25 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import { AccountGreeting, BalanceCard } from "@/components/app/home-account";
-import { QuickActions } from "@/components/app/home-actions";
-import { HoldingsSection, PositionSection, PromoCard } from "@/components/app/home-portfolio";
-import { Button } from "@/components/ui/button";
+import {
+  HoldingsSection,
+  PositionSection,
+} from "@/components/app/home-portfolio";
 import { Card } from "@/components/ui/card";
 import { BRIDGE_ASSETS } from "@/lib/assets";
 import { useAppStore } from "@/lib/store";
 import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
-import { FundingStories } from "@/components/app/funding-stories";
 import { EarnJourney } from "@/components/app/earn-journey";
 
 export function HomeScreen() {
-  const {
-    cashUsd,
-    positions,
-    holdings,
-    hydrated,
-  } = useAppStore();
+  const { cashUsd, positions, holdings, hydrated } = useAppStore();
   const devnet = useDevnet();
   const displayHydrated = hydrated;
   const positionValues = ALL_YIELD_STRATEGIES.flatMap((strategy) => {
@@ -41,15 +35,18 @@ export function HomeScreen() {
     <div className="space-y-7">
       <AccountGreeting />
       <EarnJourney />
-      <BalanceCard
-        total={total}
-        cashUsd={cashUsd}
-        earnings={unrealizedEarnings}
-        hydrated={displayHydrated && portfolioReady}
-        unavailable={!portfolioReady && !!devnet.portfolioError}
-      />
-      <QuickActions />
-      <FundingStories />
+      <details className="rounded-2xl border p-4">
+        <summary className="cursor-pointer text-sm font-medium">
+          Balance details
+        </summary>
+        <BalanceCard
+          total={total}
+          cashUsd={cashUsd}
+          earnings={unrealizedEarnings}
+          hydrated={displayHydrated && portfolioReady}
+          unavailable={!portfolioReady && !!devnet.portfolioError}
+        />
+      </details>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
@@ -62,23 +59,17 @@ export function HomeScreen() {
                 Historic Devnet transfer found without an Earn action
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                It will not be credited or converted automatically. Contact a Solana Devnet operator to verify the transaction signature.
+                It will not be credited or converted automatically. Contact a
+                Solana Devnet operator to verify the transaction signature.
               </p>
             </div>
           </Card>
         ) : null}
-        {hydrated && portfolioReady && positionValues.length === 0 && holdingValues.length === 0 ? (
-          <Card className="items-center gap-3 rounded-2xl p-5 text-center">
-             <p className="font-medium">Start earning with USDC</p>
-             <p className="text-sm text-muted-foreground">Choose an Earn strategy and approve a deposit from your wallet.</p>
-             <div className="w-full pt-1">
-              <Button variant="outline" className="w-full" nativeButton={false} render={<Link href="/earn" />}>
-                Explore Earn
-              </Button>
-            </div>
-          </Card>
+        {!portfolioReady && !devnet.portfolioError ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading portfolio…
+          </p>
         ) : null}
-        {!portfolioReady && !devnet.portfolioError ? <p role="status" className="text-sm text-muted-foreground">Loading portfolio…</p> : null}
         {hydrated && positionValues.length > 0 ? (
           <PositionSection positions={positionValues} />
         ) : null}
@@ -86,7 +77,6 @@ export function HomeScreen() {
           <HoldingsSection holdings={holdingValues} />
         ) : null}
       </section>
-      {hydrated && !positions["kamino-lend"] ? <PromoCard /> : null}
     </div>
   );
 }

@@ -90,6 +90,7 @@ export function EarnJourney() {
           </div>
           <TrendingUp className="size-7 shrink-0 text-emerald-600" />
         </div>
+        <p className="mt-3 text-sm text-muted-foreground">{devnet.portfolio ? invested ? `Position value: ${money(devnet.portfolio.positions.filter(position => position.productId === "kamino-lend").reduce((sum, position) => sum + position.valueUsd, 0))} USDC · estimated` : `Available: ${money(devnet.portfolio.cashUsd)} USDC` : "Loading your balance…"}</p>
         <ol className="mt-5 grid grid-cols-3 gap-2">
           {[
             { title: "Account", done: !!walletAddress, icon: Wallet },
@@ -141,44 +142,46 @@ export function EarnJourney() {
           checkouts are available in one place.
         </p>
       </Card>
-      <Card className="gap-4 rounded-2xl p-5">
-        <div className="flex justify-between gap-3">
-          <h3 className="text-sm font-semibold">Your yield</h3>
-          <span className="text-xs text-muted-foreground">
-            Devnet estimates
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground">Protocol gain</p>
-            <p className="mt-2 text-xl font-semibold tabular-nums">
-              {overview?.protocolGainAtomic != null
-                ? `${money(Number(overview.protocolGainAtomic) / 1e6)} USDC`
-                : "—"}
-            </p>
+      {invested ? (
+        <Card className="gap-4 rounded-2xl p-5">
+          <div className="flex justify-between gap-3">
+            <h3 className="text-sm font-semibold">Your yield</h3>
+            <span className="text-xs text-muted-foreground">
+              Devnet estimates
+            </span>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">
-              Estimated per day, after fee model
-            </p>
-            <p className="mt-2 text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-              {overview?.dailyEstimate
-                ? `${money(overview.dailyEstimate.net)} USDC`
-                : "—"}
-            </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Protocol gain</p>
+              <p className="mt-2 text-xl font-semibold tabular-nums">
+                {overview?.protocolGainAtomic != null
+                  ? `${money(Number(overview.protocolGainAtomic) / 1e6)} USDC`
+                  : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Estimated per day, after fee model
+              </p>
+              <p className="mt-2 text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                {overview?.dailyEstimate
+                  ? `${money(overview.dailyEstimate.net)} USDC`
+                  : "—"}
+              </p>
+            </div>
           </div>
-        </div>
-        <p className="text-xs leading-5 text-muted-foreground">
-          {overview
-            ? `Current protocol APY: ${overview.supplyApy === null ? "unavailable" : `${(overview.supplyApy * 100).toFixed(2)}%`}. Proposed Plain share: ${overview.performanceFeeBps / 100}% of positive yield, never your deposit. No fee is collected in this demo.`
-            : "Live rate and verified receipts are needed to show your yield. Missing data is not a zero return."}
-        </p>
-        <p className="text-xs leading-5 text-muted-foreground">
-          Daily figures are forecasts, not credited earnings. Protocol gain is a
-          current position estimate reconciled against confirmed deposits and
-          withdrawals; untracked holdings have no assumed cost basis.
-        </p>
-      </Card>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {overview
+              ? `Current protocol APY: ${overview.supplyApy === null ? "unavailable" : `${(overview.supplyApy * 100).toFixed(2)}%`}. Proposed Plain share: ${overview.performanceFeeBps / 100}% of positive yield, never your deposit. No fee is collected in this demo.`
+              : "Live rate and verified receipts are needed to show your yield. Missing data is not a zero return."}
+          </p>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Daily figures are forecasts, not credited earnings. Protocol gain is
+            a current position estimate reconciled against confirmed deposits
+            and withdrawals; untracked holdings have no assumed cost basis.
+          </p>
+        </Card>
+      ) : null}
     </section>
   );
 }

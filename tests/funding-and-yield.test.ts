@@ -145,3 +145,10 @@ test("protocol gain reconciles withdrawals, deduplicates signatures and rejects 
   assert.equal(trackedProtocolGain("0", "0", []), "0");
   assert.equal(trackedProtocolGain("1000000", "900000", [deposit]), "-100000");
 });
+
+test("upcoming strategies cannot authorize unimplemented deposits", async () => {
+  const { STRATEGY_ROADMAP } = await import("../lib/strategy-roadmap");
+  assert.equal(STRATEGY_ROADMAP.length, 5);
+  assert.ok(STRATEGY_ROADMAP.every(strategy => strategy.executable === false));
+  assert.equal(STRATEGY_ROADMAP.find(strategy => strategy.id === "jito-jitosol")?.networks.includes("Solana Devnet"), false);
+});

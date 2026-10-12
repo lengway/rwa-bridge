@@ -26,5 +26,8 @@ test("all original navigation destinations remain present", async () => {
   for (const route of ["/home", "/earn", "/assets", "/activity", "/portfolio"]) {
     assert.ok(source.includes(`href: "${route}"`));
   }
-  assert.match(source, /grid-cols-5/);
+  assert.match(source, /grid-cols-3/);
+  const primary = source.slice(source.indexOf("const tabs ="), source.indexOf("const secondaryLinks"));
+  assert.equal((primary.match(/href:/g) ?? []).length, 3);
+  assert.doesNotMatch(primary, /\/assets|\/portfolio/);
 });

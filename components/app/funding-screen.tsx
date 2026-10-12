@@ -57,6 +57,44 @@ export function FundingScreen({
   } | null>(null);
   const status =
     statusState?.wallet === walletAddress ? statusState.text : null;
+  const [walletCheck, setWalletCheck] = useState<{
+    walletAddress: string;
+    amountAtomic: string;
+    hasTokenAccount: boolean;
+    explorerUrl: string;
+  } | null>(null);
+  const [checkingWallet, setCheckingWallet] = useState(false);
+  async function checkWallet() {
+    if (!walletAddress || checkingWallet) return;
+    const expectedWallet = walletAddress;
+    setCheckingWallet(true);
+    try {
+      const response = await fetch("/api/funding/wallet", {
+        cache: "no-store",
+        signal: AbortSignal.timeout(20000),
+      });
+      const result = await response.json();
+      if (
+        !response.ok ||
+        result.walletAddress !== expectedWallet ||
+        result.network !== "devnet" ||
+        !/^(0|[1-9]\d*)$/.test(result.amountAtomic)
+      )
+        throw new Error("Could not verify your Devnet USDC. Try again.");
+      if (activeWallet.current === expectedWallet) {
+        setWalletCheck(result);
+        await devnet.refreshPortfolio();
+      }
+    } catch (cause) {
+      if (activeWallet.current === expectedWallet)
+        setError(
+          cause instanceof Error ? cause.message : "Could not check funds.",
+        );
+    } finally {
+      setCheckingWallet(false);
+    }
+  }
+  const [showAllMethods, setShowAllMethods] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const method = methods?.find((item) => item.id === selected);
 
@@ -245,37 +283,44 @@ export function FundingScreen({
         ) : null}
       </Card>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {methods?.map((item) => (
-          <button
-            type="button"
-            key={item.id}
-            onClick={() => {
-              setSelected(item.id);
-              setError(null);
-            }}
-            aria-pressed={selected === item.id}
-            className={`rounded-2xl border p-4 text-left transition hover:bg-muted/40 ${selected === item.id ? "border-emerald-600 bg-emerald-500/5 ring-1 ring-emerald-600/20" : "bg-card"}`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold">{item.name}</span>
-              {item.kind === "sandbox" ? (
-                <CreditCard className="size-4 text-muted-foreground" />
-              ) : item.kind === "planned" ? (
-                <Badge variant="outline">Planned</Badge>
-              ) : (
-                <Wallet className="size-4 text-muted-foreground" />
-              )}
-            </div>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              {item.description}
-            </p>
-            {item.kind === "sandbox" ? (
-              <p className="mt-2 text-xs font-medium">
-                {item.available ? "Sandbox ready" : "Sandbox setup required"}
+        {methods
+          ?.filter(
+            (item) =>
+              showAllMethods ||
+              item.kind === "faucet" ||
+              item.kind === "transfer",
+          )
+          .map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              onClick={() => {
+                setSelected(item.id);
+                setError(null);
+              }}
+              aria-pressed={selected === item.id}
+              className={`rounded-2xl border p-4 text-left transition hover:bg-muted/40 ${selected === item.id ? "border-emerald-600 bg-emerald-500/5 ring-1 ring-emerald-600/20" : "bg-card"}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold">{item.name}</span>
+                {item.kind === "sandbox" ? (
+                  <CreditCard className="size-4 text-muted-foreground" />
+                ) : item.kind === "planned" ? (
+                  <Badge variant="outline">Planned</Badge>
+                ) : (
+                  <Wallet className="size-4 text-muted-foreground" />
+                )}
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                {item.description}
               </p>
-            ) : null}
-          </button>
-        )) ?? (
+              {item.kind === "sandbox" ? (
+                <p className="mt-2 text-xs font-medium">
+                  {item.available ? "Sandbox ready" : "Sandbox setup required"}
+                </p>
+              ) : null}
+            </button>
+          )) ?? (
           <p role="status" className="text-sm text-muted-foreground">
             Loading methods…
           </p>
@@ -288,7 +333,7 @@ export function FundingScreen({
           </h3>
           <p className="text-sm leading-6 text-muted-foreground">
             {selected === "circle"
-              ? "Copy your address, open Circle's faucet, and choose USDC → Solana Devnet. Return here and refresh your balance."
+              ? "1. Copy the address below. 2. Open Circle and select USDC + Solana Devnet (not Arc Testnet). 3. Request funds, then check here."
               : "Send only USDC on Solana Devnet to this address. Mainnet assets and TEST QUOTE cannot fund this demo."}
           </p>
           <div className="flex min-w-0 items-center gap-2 rounded-xl bg-muted/60 p-3">
@@ -317,7 +362,7 @@ export function FundingScreen({
               nativeButton={false}
               render={
                 <a
-                  href="https://faucet.circle.com/"
+                  href="https://faucet.circle.com/?chain=SOL"
                   target="_blank"
                   rel="noopener noreferrer"
                 />
@@ -327,12 +372,54 @@ export function FundingScreen({
               <ExternalLink />
             </Button>
           ) : null}
+          <Button
+            variant="outline"
+            disabled={!walletAddress || checkingWallet}
+            onClick={() => void checkWallet()}
+          >
+            {checkingWallet ? "Checking Devnet…" : "Check if USDC arrived"}
+          </Button>
+          {walletCheck?.walletAddress === walletAddress ? (
+            <div role="status" className="space-y-2 text-sm">
+              <p>
+                {BigInt(walletCheck.amountAtomic) > BigInt(0)
+                  ? `${Number(walletCheck.amountAtomic) / 1e6} USDC received on Solana Devnet.`
+                  : "No USDC received on Solana Devnet yet. Check Circle’s network and transaction result."}
+              </p>
+              <a
+                className="underline"
+                href={walletCheck.explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View this wallet on Devnet Solscan
+              </a>
+            </div>
+          ) : null}
+          <details className="text-xs leading-5 text-muted-foreground">
+            <summary className="cursor-pointer">Funds did not arrive?</summary>
+            <p className="mt-2">
+              Circle must report a successful transaction on Solana Devnet. A
+              completed Transak test does not send Devnet USDC. This embedded
+              wallet uses a smart-wallet address; Circle funding to it has not
+              been verified. If Circle rejects it, use a Devnet USDC transfer
+              from another wallet and retain the transaction link.
+            </p>
+          </details>
           <p className="text-xs text-muted-foreground">
             The current route accepts up to 1 demo USDC per action. Faucets can
             have verification and rate limits.
           </p>
         </Card>
       ) : null}
+      <Button
+        variant="ghost"
+        onClick={() => setShowAllMethods(!showAllMethods)}
+      >
+        {showAllMethods
+          ? "Hide checkout tests"
+          : "Card checkout tests & other methods"}
+      </Button>
       {method?.kind === "sandbox" ? (
         <Card className="gap-4 rounded-2xl p-5">
           <div>

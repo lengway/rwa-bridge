@@ -482,3 +482,22 @@ sponsorship, signed roundtrip and strategy expansion work.
 Local lint/typecheck/build and 87 tests passed. Actual sandbox bootstrap and
 wallet-isolation tracking smoke passed for both providers; live Devnet overview
 passed. No card payment, user wallet approval, or onchain write was performed.
+
+## 2026-10-13 — Faucet diagnostics and simpler navigation
+
+Owner reports Circle said sent but now rate limited. Public Devnet RPC found no
+account/token accounts/signatures for the supplied Crossmint address; server
+ledger confirms that same address is linked. Cause is unconfirmed without a
+transaction signature. Added authenticated canonical Devnet USDC check and
+explicit network selection/explorer guidance; no faucet submission or minting.
+
+Reduced primary navigation to Home/Earn/Activity; retained Assets/Portfolio/Account
+under More. Removed duplicate Home promos and onboarding CTAs, collapsed balance
+details and hidden yield estimates until there is a position. Funding shows free
+USDC/transfer first and retains sandbox methods under a secondary action.
+
+Added five informational strategy entries (native SOL, Marinade, JitoSOL, Kamino
+curated vaults, Meteora). They are NOT executable integrations. Crossmint wrapped
+execution and verification remain unresolved; Mainnet routes are unavailable.
+Crossmint stagingFund offers USDXM, not canonical Devnet USDC. See
+ docs/interface-simplification.md for the target redesign and acceptance criteria.
