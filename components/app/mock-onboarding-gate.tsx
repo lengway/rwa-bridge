@@ -9,6 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/useAuth";
 import { useWidgetSession } from "@/lib/widget-context";
+import { countries } from "@/lib/countries";
+import { MockCapture } from "@/components/app/mock-capture";
 
 type MockProfile = {
   status: "MOCK_COMPLETED";
@@ -50,16 +52,6 @@ const EMPTY_FORM: Omit<FormState, "owner"> = {
   adultAttested: false,
   consentAccepted: false,
 };
-
-const countries = [
-  ["KZ", "Kazakhstan"],
-  ["US", "United States"],
-  ["GB", "United Kingdom"],
-  ["CA", "Canada"],
-  ["DE", "Germany"],
-  ["TR", "Türkiye"],
-  ["AE", "United Arab Emirates"],
-] as const;
 
 const GET_TIMEOUT_MS = 12_000;
 const POST_TIMEOUT_MS = 15_000;
@@ -158,6 +150,7 @@ export function MockOnboardingGate({
   });
   const [form, setForm] = useState<FormState>({ owner: null, ...EMPTY_FORM });
   const [retry, setRetry] = useState(0);
+  const [captureOwner, setCaptureOwner] = useState<string | null>(null);
   const [expiredWidgetSession, setExpiredWidgetSession] = useState<string | null>(null);
   const postController = useRef<AbortController | null>(null);
   const countrySelectId = useId();
@@ -242,7 +235,7 @@ export function MockOnboardingGate({
     setForm({ ...activeForm, ...patch, owner });
   };
 
-  const submit = async () => {
+  const submit = async (captureFinished = false) => {
     if (!owner || activeOnboarding?.saving) return;
     const currentWidgetSession = isUsableWidgetSession(widgetSession) ? widgetSession : null;
     const country = currentWidgetSession
@@ -267,6 +260,7 @@ export function MockOnboardingGate({
       return;
     }
 
+    if (!captureFinished) { setCaptureOwner(owner); return; }
     const request = timeoutController(POST_TIMEOUT_MS);
     postController.current?.abort();
     postController.current = request.controller;
@@ -324,7 +318,7 @@ export function MockOnboardingGate({
   if (allowExit) {
     return (
       <>
-        {!isComplete ? (
+        {!isComplete && activeOnboarding?.phase === "incomplete" ? (
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 border-b border-amber-500/20 bg-amber-500/5 px-4 py-2 text-xs leading-5 text-foreground sm:px-6">
             <span>Complete account setup before adding new funds.</span>
             <Link href="/home" className="inline-flex shrink-0 items-center gap-1 font-medium underline underline-offset-4">
@@ -338,10 +332,11 @@ export function MockOnboardingGate({
   }
 
   if (isComplete) return <>{children}</>;
+  if (captureOwner !== null && captureOwner === owner) return <MockCapture key={owner} onBack={() => setCaptureOwner(null)} onFinish={() => { setCaptureOwner(null); void submit(true); }} />;
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8 sm:px-6">
-      <Card className="w-full max-w-lg rounded-2xl bg-background shadow-sm">
+    <main className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-emerald-500/5 via-background to-sky-500/10 px-4 py-12 sm:px-6">
+      <Card className="w-full max-w-lg rounded-3xl bg-background shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
         <CardHeader className="gap-3 px-5 pt-6 sm:px-7 sm:pt-7">
           <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <ShieldCheck aria-hidden="true" className="size-5" />

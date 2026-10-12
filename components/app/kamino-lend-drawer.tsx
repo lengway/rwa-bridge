@@ -38,7 +38,6 @@ import {
 } from "@/lib/kamino-pending-action";
 import { useAuth } from "@/lib/useAuth";
 import { useDevnet } from "@/lib/useDevnet";
-import { KaminoWalletSetup } from "@/components/app/kamino-wallet-setup";
 import { normalizeKaminoWalletSnapshot, kaminoActionMaximum, type KaminoWalletSnapshot } from "@/lib/kamino-wallet-snapshot";
 import { pollKaminoConfirmation, type KaminoConfirmationCheck } from "@/lib/kamino-confirmation-poll";
 import { formatAtomicToDecimal } from "@/lib/earn-gateway";
@@ -624,12 +623,7 @@ export function KaminoLendDrawer({
         {notice ? <Notice>{notice}</Notice> : null}
         {error ? <p className="text-xs leading-5 text-destructive">{error}</p> : null}
         {polling ? <LoadingLine label="Checking finalization automatically. No new transaction is being sent." /> : null}
-        {activeWalletAddress && !currentPendingAction && !prepared ? <KaminoWalletSetup walletAddress={activeWalletAddress} action={action}
-          snapshot={walletSnapshot} loading={walletLoading} error={balanceError}
-          onRefresh={() => void loadWalletSnapshot()} onCopy={() => {
-            void navigator.clipboard.writeText(activeWalletAddress).then(() => toast.success("Wallet address copied"))
-              .catch(() => setError("Could not copy the address. Select it and copy manually."));
-          }} /> : null}
+        {!prepared && !currentPendingAction ? <div className="flex flex-wrap items-center gap-2 text-xs"><Button variant="ghost" size="sm" onClick={() => void loadWalletSnapshot()} disabled={walletLoading}><RefreshCw className={walletLoading ? "animate-spin" : ""} />Refresh balance</Button>{walletSnapshot && (action === "deposit" && walletSnapshot.liquidityAmountAtomic === "0" || walletSnapshot.solBalanceLamports === "0") ? <a href="/home" className="underline">Need demo funds? Open the guide on Home</a> : null}{balanceError ? <p role="alert" className="w-full text-destructive">{balanceError}</p> : null}</div> : null}
         {action === "withdraw" && walletSnapshot?.collateralAmountAtomic === "0" && !currentPendingAction ? <Card className="gap-2 rounded-xl p-4">
           <p className="text-sm font-medium">Nothing to withdraw yet</p>
           <p className="text-xs leading-5 text-muted-foreground">You haven&apos;t invested USDC yet.</p>

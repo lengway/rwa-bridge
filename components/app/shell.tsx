@@ -170,8 +170,10 @@ function SignInScreen() {
   };
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-muted/40 px-4 py-8">
-      <section className="w-full max-w-md space-y-5 rounded-3xl border bg-background p-7 shadow-sm sm:p-9">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background px-4 py-12">
+      <div aria-hidden="true" className="pointer-events-none absolute -left-20 top-1/4 size-72 rounded-full bg-emerald-500/10 blur-3xl animate-pulse motion-reduce:animate-none" />
+      <div aria-hidden="true" className="pointer-events-none absolute -right-20 bottom-1/4 size-72 rounded-full bg-sky-500/10 blur-3xl animate-pulse motion-reduce:animate-none" />
+      <section className="relative w-full max-w-md space-y-5 rounded-3xl border bg-card/95 p-7 shadow-xl backdrop-blur animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none sm:p-9">
         <div className="space-y-2">
           <h1 className="text-center text-2xl font-semibold tracking-tight">Plain</h1>
           <p className="text-center text-sm leading-6 text-muted-foreground">Sign in with your email to continue.</p>

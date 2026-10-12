@@ -6,8 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { BRIDGE_ASSETS } from "@/lib/assets";
 import { useAppStore } from "@/lib/store";
+import { useDevnet } from "@/lib/useDevnet";
+import { formatQuantity } from "@/lib/format";
 
 export function AssetsScreen() {
+  const devnet = useDevnet();
+  return <div className="space-y-5"><div><h2 className="text-xl font-semibold">Your assets</h2><p className="mt-1 text-sm text-muted-foreground">Balances and positions in your wallet.</p></div><Link href="/portfolio" className="block"><Card className="flex-row items-center gap-4 rounded-2xl p-5"><span className="flex size-12 items-center justify-center rounded-full bg-sky-500/10 text-xl font-semibold text-sky-600">$</span><div className="flex-1"><p className="font-semibold">USDC</p><p className="mt-1 text-xs text-muted-foreground">Available balance</p></div><p className="font-semibold tabular-nums">{devnet.portfolio ? formatQuantity(devnet.portfolio.cashUsd) : "—"}</p></Card></Link><Link href="/earn/kamino-lend" className="block"><Card className="gap-2 rounded-2xl p-5"><h3 className="font-semibold">Kamino Lend</h3><p className="text-sm text-muted-foreground">Your USDC lending position. Withdrawals depend on reserve liquidity.</p><span className="text-sm font-medium">View position →</span></Card></Link><p className="text-xs text-muted-foreground">Other tokens and earlier positions remain available in Portfolio.</p></div>;
+}
+
+export function ArchivedAssetsScreen() {
   const { holdings } = useAppStore();
   const asset = BRIDGE_ASSETS[0];
   const holding = holdings[asset.id];

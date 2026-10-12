@@ -19,7 +19,6 @@ export function PortfolioSettings() {
       <AccountSection />
       <EmailPreferenceSection />
       <InstallAppHint />
-      <PreferenceSection />
       <ThemeSection />
       <WalletSection />
     </div>
@@ -120,19 +119,6 @@ function InstallAppHint() {
     <Card className="gap-2 rounded-2xl p-4">
       <h2 className="font-semibold">Install the app</h2>
       <p className="text-sm leading-5 text-muted-foreground">iPhone: open this site in Safari, tap Share, then Add to Home Screen. Android: open the Chrome menu and select Install app.</p>
-    </Card>
-  );
-}
-
-function PreferenceSection() {
-  return (
-    <Card className="gap-4 rounded-2xl p-4">
-      <div>
-        <h2 className="font-semibold">Solana Devnet display</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          App test assets are shown in TEST QUOTE. Fiat or KZT conversion and market pricing are not part of Solana Devnet.
-        </p>
-      </div>
     </Card>
   );
 }

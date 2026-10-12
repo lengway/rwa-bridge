@@ -15,7 +15,7 @@ import { explorerAddressUrl, getUnassignedIncomingPayments, getWalletSolBalance,
 import { devnetConfig } from "@/lib/solana-server";
 import { VAULT_PRODUCTS, getVaultQuote } from "@/lib/vaults";
 import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
-import { getKztRateForOperation, readKztRate } from "@/lib/market-server";
+import { readKztRate } from "@/lib/market-server";
 import { getKaminoLendDevnetHistory, getKaminoLendDevnetPosition, KAMINO_LEND_DEVNET } from "@/lib/kamino-lend-devnet";
 import { kaminoLendErrorResponse, requireKaminoLendSession } from "@/lib/kamino-lend-api";
 import { buildKaminoPortfolio } from "@/lib/kamino-portfolio";
@@ -107,7 +107,8 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     getWalletTokenAccounts(walletAddress),
     getWalletSolBalance(walletAddress),
     Promise.all(Object.keys(VAULT_PRODUCTS).map((productId) => getVaultQuote(productId))),
-    getKztRateForOperation().catch(() => readKztRate()),
+    // Portfolio display must not wait on the unrelated fiat-rate feed.
+    Promise.resolve(readKztRate()),
   ]);
   const quoteByProduct = new Map(quotes.map((quote) => [quote.productId, quote]));
   const knownMints = new Map<string, Omit<Holding, "tokenAccount" | "balance" | "valueUsd" | "costUsd" | "pnlUsd" | "mintExplorerUrl" | "tokenAccountExplorerUrl">>();
@@ -367,7 +368,7 @@ async function buildPrimaryPortfolio(walletAddress: string) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const legacy = await Promise.race([
         legacyReads(walletAddress, () => buildPortfolio(walletAddress)),
-        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Legacy read timed out")), 4_000); }),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Legacy read timed out")), 12_000); }),
       ]).finally(() => { if (timer) clearTimeout(timer); });
       const primaryMints = new Set<string>([KAMINO_LEND_DEVNET.liquidityMint, KAMINO_LEND_DEVNET.collateralMint]);
       const legacyHoldings = legacy.holdings.filter((holding) => !primaryMints.has(holding.mint));

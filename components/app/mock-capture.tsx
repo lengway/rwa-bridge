@@ -1,0 +1,11 @@
+"use client";
+
+import { useState } from "react";
+import { ContactRound, ScanFace, ArrowLeft, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export function MockCapture({ onFinish, onBack }: { onFinish: () => void; onBack: () => void }) {
+  const [step, setStep] = useState(0);
+  const titles = ["Document preview", "Look straight ahead", "Turn left", "Turn right", "Demo steps complete"];
+  return <main className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-emerald-500/5 via-background to-sky-500/10 px-5 py-12"><section className="w-full max-w-md space-y-6 rounded-3xl border bg-card p-7 shadow-xl animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none"><p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Demo identity flow · {step + 1} / 5</p><h1 className="text-2xl font-semibold">{titles[step]}</h1><div className="flex h-48 items-center justify-center overflow-hidden rounded-2xl border bg-gradient-to-br from-emerald-500/10 to-sky-500/10">{step === 0 ? <div className="flex items-center gap-4 rounded-xl border bg-background p-5"><ContactRound className="size-12 text-muted-foreground" /><div><p className="font-semibold">SAMPLE DOCUMENT</p><p className="text-xs text-muted-foreground">Illustration only · no personal data</p></div></div> : <ScanFace className={`size-24 text-foreground/60 transition-transform duration-700 motion-reduce:transition-none ${step === 2 ? "-rotate-12 -translate-x-4" : step === 3 ? "rotate-12 translate-x-4" : ""}`} />}</div><p className="text-sm leading-6 text-muted-foreground">This is a simulated walkthrough. No camera, identity documents or biometric data are collected. This does not verify your identity.</p><Button className="w-full" onClick={() => { if (step === 4) onFinish(); else setStep(step + 1); }}>{step === 4 ? "Finish demo setup" : step === 0 ? "Use sample document" : "Continue"}<ArrowRight /></Button><div className="flex items-center justify-between"><Button variant="ghost" onClick={() => { if (step === 0) onBack(); else setStep(step - 1); }}><ArrowLeft />Back</Button><Button variant="link" onClick={onFinish}>Skip demo capture</Button></div></section></main>;
+}

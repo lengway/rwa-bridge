@@ -127,7 +127,7 @@ export function PortfolioScreen() {
            <span className="text-xs text-muted-foreground">{isReady ? displayHoldings.length : "…"}</span>
         </div>
         {!isReady ? <p className="text-sm text-muted-foreground">{devnet.portfolioError ? "Portfolio data unavailable. Values are not treated as zero." : "Loading Solana data…"}</p> : null}
-        {devnet.portfolio?.legacyUnavailable ? <p role="alert" className="text-sm text-destructive">Historic positions could not be loaded. They are not treated as zero; refresh before redeeming.</p> : null}
+        {devnet.portfolio?.legacyUnavailable ? <details className="rounded-xl border p-3 text-xs text-muted-foreground"><summary className="cursor-pointer">Earlier assets · retry needed</summary><p className="mt-2">Some earlier asset data is unavailable and excluded from the total. Refresh before using those assets.</p><Button className="mt-2" variant="outline" size="sm" onClick={() => void devnet.refreshPortfolio()}>Refresh</Button></details> : null}
         {isReady && displayHoldings.length === 0 ? (
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
             <Wallet className="size-6 text-muted-foreground" />

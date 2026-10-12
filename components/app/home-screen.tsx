@@ -10,6 +10,7 @@ import { BRIDGE_ASSETS } from "@/lib/assets";
 import { useAppStore } from "@/lib/store";
 import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
+import { FundingStories } from "@/components/app/funding-stories";
 
 export function HomeScreen() {
   const {
@@ -46,12 +47,11 @@ export function HomeScreen() {
         unavailable={!portfolioReady && !!devnet.portfolioError}
       />
       <QuickActions />
-      {devnet.portfolio?.legacyUnavailable ? <p role="status" className="text-sm text-muted-foreground">Kamino balances are loaded. Historic test assets could not be loaded and are excluded from this summary; they have not been deleted.</p> : null}
+      <FundingStories />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Portfolio</h2>
-          <Link href="/portfolio" className="rounded px-2 py-1 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View portfolio →</Link>
         </div>
         {(devnet.portfolio?.unassignedDepositsUsd ?? 0) > 0 ? (
           <Card className="gap-3 rounded-2xl p-4">

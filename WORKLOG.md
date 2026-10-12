@@ -421,3 +421,37 @@ main and activated it on VPS, retaining previous `876fad4`. VPS lint/typecheck,
 79 tests and production build passed; 14 HTTP checks passed before/after
 activation and 10 external HTTPS read checks passed. No owner wallet transaction
 or authenticated visual flow was performed during this restoration.
+
+## Eleven-item UX/funding cleanup — active work
+
+Implemented visual Home instruction stories with step navigation and faucet /
+Portfolio links; removed wallet/funding walls from the Kamino action dialog,
+duplicate Home Portfolio links, the long Home legacy-warning banner and the
+obsolete TEST QUOTE display-settings card. Assets now shows actual USDC / Kamino
+entries instead of advertising the old OFFICE/RWA prototype. Historic routes
+and holdings are not deleted; an actual missing-data state remains retryable
+inside a compact Portfolio disclosure rather than silently becoming zero.
+
+Legacy portfolio reads no longer wait on the unrelated live fiat-rate feed and
+have a bounded 12-second optional read window. The actual owner-wallet legacy
+path must still be checked before calling that reported failure fixed.
+
+Added all 249 ISO country/territory choices, entrance/background animations with
+reduced-motion support, and a separate skippable mock document/selfie walkthrough
+after country/consent. Illustrations only: no camera, files, documents or biometric
+data are collected, no VERIFIED status issued. Onboarding is the full gate on
+normal entry; the bypass banner only appears after a loaded incomplete profile.
+Local lint/typecheck, **82 tests**, build and diff checks pass.
+
+Owner chose actual burning rather than hiding old tokens and explicitly confirmed
+the scope: 30 TEST QUOTE at mint Hx7e212hfKYHNV5jdfV4R9NQ5JHCdt9w1g4aGYk7cSaV
+and 150 vUSDY at mint NybngzX175W1p8xoL1yikAV2WnpQzHihMKgGnmifPD4 on Devnet.
+Amounts/mints were read from public RPC and matched the configured legacy mints.
+USDC/SOL/Kamino collateral are excluded. Nothing is burned or submitted; a burn
+preparation/review UI and explicit owner wallet approval/fee review remain pending.
+
+VPS has staging configuration for Transak and Crossmint. Transak staging token
+authentication succeeded in a read/auth-only probe; token/secret values were not
+printed. That does NOT verify a checkout, payment success or token delivery.
+Restoring a safely scoped staging onramp and testing its actual result remain
+pending; do not enable all legacy fiat routes or credit TEST QUOTE as real USDC.

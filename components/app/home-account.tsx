@@ -1,8 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { CircleUserRound } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatQuantity } from "@/lib/format";
@@ -26,16 +23,6 @@ function GreetingContents({ email }: { email?: string }) {
         </div>
         <p className="mt-1 text-sm text-muted-foreground">Your money, working for you</p>
       </div>
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        nativeButton={false}
-        render={<Link href="/portfolio" />}
-        aria-label="Open portfolio"
-        className="rounded-full"
-      >
-        <CircleUserRound />
-      </Button>
     </div>
   );
 }
