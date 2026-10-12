@@ -28,7 +28,7 @@ const money = (amount: number) =>
     maximumFractionDigits: 6,
   });
 
-export function EarnJourney() {
+export function EarnJourney({ showNextStep = true }: { showNextStep?: boolean }) {
   const devnet = useDevnet();
   const walletAddress = devnet.walletAddress;
   const funded = devnet.portfolio !== null && devnet.portfolio.cashUsd > 0;
@@ -74,7 +74,7 @@ export function EarnJourney() {
 
   return (
     <section aria-label="Your Earn journey" className="space-y-3">
-      <Card className="overflow-hidden rounded-3xl border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-card to-sky-500/10 p-5">
+      {showNextStep ? <Card className="overflow-hidden rounded-3xl border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-card to-sky-500/10 p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
@@ -143,7 +143,7 @@ export function EarnJourney() {
             {funded || invested ? "Add money" : "Explore strategies"}
           </Button>
         </div>
-      </Card>
+      </Card> : null}
       {invested ? (
         <Card className="gap-4 rounded-2xl p-5">
           <div className="flex justify-between gap-3">

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { AccountGreeting, BalanceCard } from "@/components/app/home-account";
 import {
   HoldingsSection,
@@ -34,11 +36,6 @@ export function HomeScreen() {
   return (
     <div className="space-y-7">
       <AccountGreeting />
-      <EarnJourney />
-      <details className="rounded-2xl border p-4">
-        <summary className="cursor-pointer text-sm font-medium">
-          Balance details
-        </summary>
         <BalanceCard
           total={total}
           cashUsd={cashUsd}
@@ -46,11 +43,16 @@ export function HomeScreen() {
           hydrated={displayHydrated && portfolioReady}
           unavailable={!portfolioReady && !!devnet.portfolioError}
         />
-      </details>
+      <div className="grid grid-cols-3 gap-2">
+        <Button nativeButton={false} render={<Link href="/funding" />}>Add money</Button>
+        <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Invest</Button>
+        <Button variant="outline" nativeButton={false} render={<Link href="/earn/kamino-lend?action=withdraw" />}>Withdraw</Button>
+      </div>
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Portfolio</h2>
+          <h2 className="text-base font-semibold">Your portfolio</h2>
+          <Link href="/portfolio" className="text-sm font-medium text-emerald-700 dark:text-emerald-400">View all →</Link>
         </div>
         {(devnet.portfolio?.unassignedDepositsUsd ?? 0) > 0 ? (
           <Card className="gap-3 rounded-2xl p-4">
@@ -64,6 +66,7 @@ export function HomeScreen() {
             </div>
           </Card>
         ) : null}
+        {portfolioReady && devnet.portfolio?.positions.length === 0 && devnet.portfolio?.holdings.length === 0 ? <Card className="rounded-2xl p-5"><p className="text-sm text-muted-foreground">Your assets and investments will appear here.</p></Card> : null}
         {!portfolioReady && !devnet.portfolioError ? (
           <p role="status" className="text-sm text-muted-foreground">
             Loading portfolio…
@@ -76,6 +79,7 @@ export function HomeScreen() {
           <HoldingsSection holdings={holdingValues} />
         ) : null}
       </section>
+      <EarnJourney showNextStep={false} />
     </div>
   );
 }

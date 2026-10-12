@@ -1,6 +1,8 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import Link from "next/link";
+import { UserRound } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatQuantity } from "@/lib/format";
 import { useAuth } from "@/lib/useAuth";
@@ -23,6 +25,7 @@ function GreetingContents({ email }: { email?: string }) {
         </div>
         <p className="mt-1 text-sm text-muted-foreground">Your money, working for you</p>
       </div>
+      <Link href="/profile" aria-label="Account" className="flex size-11 items-center justify-center rounded-full border"><UserRound className="size-5" /></Link>
     </div>
   );
 }
@@ -57,6 +60,10 @@ export function BalanceCard({
         {unavailable ? <span className="text-muted-foreground">Unavailable</span> : hydrated ? (
           <span className="font-medium tabular-nums">{formatQuantity(cashUsd)} USDC</span>
         ) : <Skeleton className="h-4 w-20" />}
+      </div>
+      <div className="flex items-center justify-between gap-4 text-sm">
+        <span className="text-muted-foreground">Invested · estimated</span>
+        {unavailable ? <span>Unavailable</span> : hydrated ? <span className="font-medium tabular-nums">${formatQuantity(Math.max(0, total - cashUsd))}</span> : <Skeleton className="h-4 w-20" />}
       </div>
     </Card>
   );

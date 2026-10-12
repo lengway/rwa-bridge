@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, ArrowLeft, House, Landmark } from "lucide-react";
+import { Activity, ArrowLeft, House, Landmark, PieChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBankEmbed } from "@/lib/useBankEmbed";
 import { isCrossmintConfigured } from "@/lib/config";
@@ -16,12 +16,12 @@ import { DemoBadge } from "@/components/app/demo-badge";
 const tabs = [
   { href: "/home", label: "Home", icon: House },
   { href: "/earn", label: "Earn", icon: Landmark },
+  { href: "/portfolio", label: "Portfolio", icon: PieChart },
   { href: "/activity", label: "Activity", icon: Activity },
 ];
 
-const secondaryLinks = [
+const accountLinks = [
   { href: "/assets", label: "Assets" },
-  { href: "/portfolio", label: "Portfolio" },
   { href: "/profile", label: "Account" },
 ];
 
@@ -290,13 +290,13 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
             <Button variant="outline" size="sm" onClick={() => void refreshPortfolio()}>Refresh portfolio</Button>
           </div> : null}
           {children}
-          {!embedded ? <details className="mt-8 border-t pt-4 text-sm text-muted-foreground"><summary className="cursor-pointer">More</summary><div className="mt-3 flex flex-wrap gap-4">{secondaryLinks.map(link => <Link key={link.href} href={link.href} className="underline">{link.label}</Link>)}</div></details> : null}
+          {!embedded ? <div className="mt-8 flex justify-center gap-6 border-t pt-4 text-sm text-muted-foreground">{accountLinks.map(link => <Link key={link.href} href={link.href}>{link.label}</Link>)}</div> : null}
         </main>
         {!embedded ? <nav
           aria-label="Primary navigation"
           className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t bg-background/95 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur"
         >
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-4">
             {tabs.map(({ href, label, icon: Icon }) => {
               const active = pathname === href || pathname.startsWith(`${href}/`);
               return (
