@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 
 const guides = {
   add: [
-    { title: "Your wallet, ready to use", text: "Open Portfolio and copy your Solana wallet address. You never need to share a private key or seed phrase.", href: "/portfolio", cta: "Open my wallet" },
+    { title: "Your wallet, ready to use", text: "Choose free demo funds, a wallet transfer, or a sandbox card checkout. Your Plain wallet is already created.", href: "/funding", cta: "Choose how to add funds" },
     { title: "Add free USDC", text: "At Circle's faucet choose USDC and Solana Devnet, then paste your address. Other demo tokens cannot be invested as USDC.", href: "https://faucet.circle.com/", cta: "Open USDC faucet" },
     { title: "Cover the network fee", text: "Get free SOL on Solana Devnet for fees. Return to Plain, refresh your balance and choose Add to Earn.", href: "https://faucet.solana.com/", cta: "Open SOL faucet" },
   ],

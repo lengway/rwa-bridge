@@ -468,3 +468,17 @@ transaction was submitted. The temporary service and its fixture ledger were
 removed. This fixes the demonstrated legacy read path; future upstream failures
 remain retryable and are not masked as zero. Burn and onramp implementation /
 approval / successful checkout remain pending; staging auth alone is not proof.
+
+## 2026-10-13 — Consumer earn journey and sandbox funding
+
+Added Home account→funding→earn journey and /funding with faucet, wallet transfer,
+Transak staging, and MoonPay sandbox. Sessions and provider checks are bound to
+verified session wallets; provider completion does not credit Devnet USDC.
+Added live Kamino APY, daily net forecasts and reconciled protocol gain; unknown
+cost basis stays unknown. Owner chose 30–40% yield fee; default estimate is 35%,
+collection disabled. See docs/consumer-earn-pipeline.md for remaining executor,
+sponsorship, signed roundtrip and strategy expansion work.
+
+Local lint/typecheck/build and 87 tests passed. Actual sandbox bootstrap and
+wallet-isolation tracking smoke passed for both providers; live Devnet overview
+passed. No card payment, user wallet approval, or onchain write was performed.

@@ -11,6 +11,7 @@ import { useAppStore } from "@/lib/store";
 import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
 import { FundingStories } from "@/components/app/funding-stories";
+import { EarnJourney } from "@/components/app/earn-journey";
 
 export function HomeScreen() {
   const {
@@ -39,6 +40,7 @@ export function HomeScreen() {
   return (
     <div className="space-y-7">
       <AccountGreeting />
+      <EarnJourney />
       <BalanceCard
         total={total}
         cashUsd={cashUsd}

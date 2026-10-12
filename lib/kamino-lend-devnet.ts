@@ -542,6 +542,13 @@ async function readKaminoLendDevnetPosition(walletAddress: string) {
     error("POSITION_UNAVAILABLE", "Unable to estimate the Kamino collateral position.");
   }
 
+  // Display estimate from the same reserve snapshot, never a promised rate.
+  let supplyApy: number | null = null;
+  try {
+    const rawSupplyApy = loaded.reserve.totalSupplyAPY(currentLedgerInstant);
+    if (Number.isFinite(rawSupplyApy) && rawSupplyApy >= 0 && rawSupplyApy <= 10) supplyApy = rawSupplyApy;
+  } catch { /* Optional rate data must not turn a verified balance into an error. */ }
+
   return {
     network: KAMINO_LEND_DEVNET.network,
     walletAddress: owner.toBase58(),
@@ -556,6 +563,7 @@ async function readKaminoLendDevnetPosition(walletAddress: string) {
     liquidityAmountAtomic: liquidityAmount.toString(10),
     solBalanceLamports: solBalance,
     estimatedUnderlyingAmountAtomic: estimatedUnderlyingAtomic,
+    supplyApy,
     state: collateralAmount > BigInt(0) ? "OPEN" as const : "EMPTY" as const,
   };
 }

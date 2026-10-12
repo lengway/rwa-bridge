@@ -23,6 +23,7 @@ const tabs = [
 
 const titles: Record<string, string> = {
   "/home": "Plain",
+  "/funding": "Add funds",
   "/earn": "Earn",
   "/assets": "Assets",
   "/activity": "Activity",
@@ -176,7 +177,8 @@ function SignInScreen() {
       <section className="relative w-full max-w-md space-y-5 rounded-3xl border bg-card/95 p-7 shadow-xl backdrop-blur animate-in fade-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none sm:p-9">
         <div className="space-y-2">
           <h1 className="text-center text-2xl font-semibold tracking-tight">Plain</h1>
-          <p className="text-center text-sm leading-6 text-muted-foreground">Sign in with your email to continue.</p>
+          <p className="text-center text-sm leading-6 text-muted-foreground">Your wallet. Your yield. One email to get started.</p>
+          <p className="text-center text-xs leading-5 text-muted-foreground">Create your account → add funds → choose a strategy. Your Solana wallet is created automatically; no seed phrase is needed.</p>
         </div>
         {step === "email" ? (
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void requestCode(); }}>
