@@ -415,3 +415,9 @@ and existing security, recovery, disclosures, bank demo and identity foundations
 Local lint/typecheck/build/diff passed and **79 tests** passed, including regression
 checks for original navigation, Home actions and strategy selection. This is a
 UI scope correction, not a rollback of wallet/RPC fixes or stored user data.
+
+Published restoration `14a7dd9d7a5b4e5f44042a937d1ba43fdb1f29a8` to GitHub
+main and activated it on VPS, retaining previous `876fad4`. VPS lint/typecheck,
+79 tests and production build passed; 14 HTTP checks passed before/after
+activation and 10 external HTTPS read checks passed. No owner wallet transaction
+or authenticated visual flow was performed during this restoration.
