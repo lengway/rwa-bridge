@@ -92,7 +92,7 @@ function ActivityRow({
         <p className="mt-1 text-xs text-muted-foreground">
           {time}{item.method ? ` · ${presentDevnetCopy(methodLabel(item.method))}` : ""}
         </p>
-        {!primary || item.note ? <p className="mt-1 text-xs text-muted-foreground">{presentDevnetCopy(item.note ?? "Historic test-token activity")}</p> : null}
+        {item.note ? <p className="mt-1 text-xs text-muted-foreground">{presentDevnetCopy(item.note)}</p> : null}
         {item.explorerUrl ? (
           <a
             href={item.explorerUrl}
@@ -105,7 +105,7 @@ function ActivityRow({
         ) : null}
       </div>
       <span className={`shrink-0 text-sm font-medium tabular-nums ${isInflow ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"}`}>
-        {isInflow ? "+" : "−"}{formatQuantity(item.amountUsd)} {primary ? "USDC" : "TEST QUOTE"}
+        {isInflow ? "+" : "−"}{formatQuantity(item.amountUsd)} {primary ? "USDC" : "test units"}
       </span>
     </Card>
   );
@@ -113,11 +113,11 @@ function ActivityRow({
 
 function methodLabel(method: string) {
   const labels: Record<string, string> = {
-    "devnet-faucet": "Devnet test issuer",
-    moonpay: "Legacy adapter · disabled by default",
-    transak: "Legacy adapter · disabled by default",
-    crossmint: "Legacy adapter · disabled by default",
-    "bank-embed": "Legacy adapter · disabled by default",
+    "devnet-faucet": "Test issuer",
+    moonpay: "MoonPay · past",
+    transak: "Transak · past",
+    crossmint: "Crossmint · past",
+    "bank-embed": "Partner embed · past",
   };
   return labels[method] ?? method;
 }

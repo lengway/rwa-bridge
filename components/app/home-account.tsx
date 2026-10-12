@@ -30,7 +30,6 @@ function GreetingContents({ email }: { email?: string }) {
 export function BalanceCard({
   total,
   cashUsd,
-  earnings,
   hydrated,
   unavailable = false,
 }: {
@@ -59,10 +58,6 @@ export function BalanceCard({
           <span className="font-medium tabular-nums">{formatQuantity(cashUsd)} USDC</span>
         ) : <Skeleton className="h-4 w-20" />}
       </div>
-      <p className="-mt-3 text-xs text-muted-foreground">
-        Available USDC plus the estimated value of your positions. Kamino Lend has a variable rate and protocol risk.
-      </p>
-      {unavailable ? <p className="text-xs text-muted-foreground">The network read failed. Your wallet and positions have not been changed.</p> : hydrated && earnings !== 0 ? <p className="text-xs text-muted-foreground">Historic local earnings are not included in this summary.</p> : !hydrated ? <Skeleton className="h-4 w-40" /> : null}
     </Card>
   );
 }

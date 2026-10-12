@@ -56,11 +56,10 @@ export function HomeScreen() {
           <Card className="gap-3 rounded-2xl p-4">
             <div>
               <p className="font-medium">
-                Historic Devnet transfer found without an Earn action
+                Transfer needs review
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                It will not be credited or converted automatically. Contact a
-                Solana Devnet operator to verify the transaction signature.
+                This transfer could not be matched to a deposit. Contact support.
               </p>
             </div>
           </Card>

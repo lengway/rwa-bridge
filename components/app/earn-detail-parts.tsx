@@ -91,29 +91,25 @@ export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
   const apy = hasIllustrativeApy ? apyBps / 10_000 : Number.NaN;
   return (
     <section className="space-y-4 pt-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <RiskBadge strategy={strategy} />
-        <Badge variant="outline">{displayStrategyTicker(strategy)}</Badge>
-      </div>
-      <GatewayDisclosureBadges strategy={strategy} includeAvailability primaryOnly />
       <div>
-        <p className="text-sm text-muted-foreground">{displayStrategyName(strategy)}</p>
+        <p className="text-sm text-muted-foreground">{displayStrategyName(strategy)} · {displayStrategyTicker(strategy)}</p>
         <div className="mt-1 flex items-baseline gap-2">
           <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy ? "text-5xl text-emerald-700 dark:text-emerald-400" : hasVariableProtocolRate ? "text-xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
             {hasIllustrativeApy ? formatApy(apy) : hasVariableProtocolRate ? "Variable" : "Unavailable"}
           </p>
-          <p className="text-sm text-muted-foreground">{hasIllustrativeApy ? "illustrative APY" : hasVariableProtocolRate ? "protocol rate" : "rate unavailable"}</p>
+          <p className="text-sm text-muted-foreground">{hasIllustrativeApy ? "Estimated APY" : "APY"}</p>
         </div>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          {hasVariableProtocolRate
-             ? "Your USDC is supplied to Kamino Lend. The rate changes with reserve demand, and returns are not guaranteed."
-            : hasIllustrativeApy
-            ? "Illustrative yield: a Devnet-only estimate, not actual earnings or an amount credited to your balance."
-            : "No numeric rate is shown or promised for this route."}
-        </p>
-        {strategy.id !== "kamino-lend" ? <p className="mt-1 text-xs leading-5 text-muted-foreground">{presentDevnetCopy(gateway.yield.sourceNote)}</p> : null}
       </div>
-      <p className="text-sm leading-6">{strategy.id === "kamino-lend" ? "Supply USDC to a lending reserve. Receive cUSDC representing your position and withdraw USDC when reserve liquidity is available." : presentDevnetCopy(strategy.description)}</p>
+      <div className="space-y-2 text-sm leading-6">
+        <p>{strategy.id === "kamino-lend" ? "Lend USDC at a variable rate." : presentDevnetCopy(strategy.description)}</p>
+        <p className="text-xs leading-5 text-muted-foreground">
+          {hasVariableProtocolRate
+            ? "Rate changes with reserve demand. Withdrawals depend on liquidity."
+            : hasIllustrativeApy
+              ? "Estimated return."
+              : "APY unavailable."}
+        </p>
+      </div>
     </section>
   );
 }
@@ -141,10 +137,9 @@ export function ProjectionCalculator({
       <Card className="gap-3 rounded-2xl p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold">Variable reserve rate</h2>
+            <h2 className="font-semibold">Variable APY</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Kamino Lend sets the rate and withdrawal availability based on current reserve conditions. No projection
-              or promised APY is shown.
+              Changes with reserve demand. Withdrawals depend on liquidity.
             </p>
           </div>
           <Sparkles className="size-5 text-muted-foreground" />
@@ -158,10 +153,9 @@ export function ProjectionCalculator({
       <Card className="gap-3 rounded-2xl p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold">Rate unavailable</h2>
+            <h2 className="font-semibold">APY unavailable</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              No numeric rate is set for this Devnet entry. The projection is hidden to avoid presenting an unverified
-              return.
+              No rate is shown for this strategy.
             </p>
           </div>
           <Sparkles className="size-5 text-muted-foreground" />
@@ -184,9 +178,8 @@ export function ProjectionCalculator({
         <div>
           <h2 className="font-semibold">Illustrative yield estimate</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Devnet-only estimate; excludes fees and price changes. It is not actual or guaranteed earnings.
+            Estimate excludes fees and price changes.
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Source / mode: {presentDevnetCopy(gateway.sourceLabel)}.</p>
         </div>
         <Sparkles className="size-5 text-emerald-700 dark:text-emerald-400" />
       </div>

@@ -282,7 +282,7 @@ export function KaminoLendDrawer({
       if (signal?.aborted || activeWalletRef.current !== actionWalletAddress) return "unknown";
 
       if (response.status === 202) {
-        setNotice("Transaction submitted to Solana Devnet. Confirmation is still processing—check again in a few seconds.");
+        setNotice("Transaction submitted. Confirmation pending.");
         return "pending";
       }
       if (!response.ok) {
@@ -296,7 +296,7 @@ export function KaminoLendDrawer({
               setPrepared(null);
             }
             setNotice(null);
-            setError("The server confirmed that the transaction failed on Devnet. You can prepare a new transaction.");
+            setError("Transaction failed. Please try again.");
           } catch {
             setRecoveryIssue("The transaction failed, but local storage could not be cleared. Check again or reload the page before starting a new transaction.");
             setError("The transaction failed, but local recovery data could not be cleared.");
@@ -340,8 +340,8 @@ export function KaminoLendDrawer({
       void loadWalletSnapshot();
       onConfirmed?.(nextConfirmation);
       toast.success(actionToConfirm.action === "deposit"
-        ? "Kamino Lend supply confirmed on Solana Devnet"
-        : "Kamino Lend withdrawal confirmed on Solana Devnet");
+        ? "Deposit confirmed"
+        : "Withdrawal confirmed");
       return "confirmed";
     } catch (requestError) {
       if (signal?.aborted || activeWalletRef.current !== actionWalletAddress) return "unknown";
@@ -408,7 +408,7 @@ export function KaminoLendDrawer({
         throw new KaminoDrawerError("The server returned a transaction that does not match the selected Devnet route.", 502);
       }
       setPrepared(nextPrepared);
-      setNotice("Server simulation passed. Review the transaction details before signing in your wallet.");
+      setNotice("Review and confirm.");
     } catch (requestError) {
       setError(userFacingError(requestError, "Could not prepare the Kamino Lend transaction."));
     } finally {
@@ -479,7 +479,7 @@ export function KaminoLendDrawer({
         setRecoveryIssue("A signature was received, but local recovery data could not be updated. Do not resubmit; confirmation will be checked using this signature.");
       }
       if (activeWalletAddress === actionWalletAddress) setPendingAction(signedPending);
-      setNotice("Transaction submitted. Checking confirmation on Solana Devnet.");
+      setNotice("Transaction submitted. Confirming…");
       // The recovery effect owns confirmation checks, including the first
       // check. Do not race a second confirmation request with that poller.
     } catch (requestError) {
@@ -550,7 +550,7 @@ export function KaminoLendDrawer({
         open={open}
         onOpenChange={changeOpen}
         title={confirmation.action === "deposit" ? "Investment confirmed" : "Withdrawal confirmed"}
-        description="Transaction confirmed on Devnet."
+        description="Transaction confirmed."
       >
         <DrawerSuccess
           amount={0}
@@ -558,7 +558,7 @@ export function KaminoLendDrawer({
           sentence={confirmation.action === "deposit"
             ? "Your investment is now shown in your invested balance."
             : "Your USDC has returned to your wallet."}
-          note={recoveryIssue ?? "SOLANA DEVNET · Test tokens and positions have no monetary value."}
+          note={recoveryIssue ?? ""}
           explorerUrl={confirmation.explorerUrl}
           onDone={() => {
             resetPreparedAction();
@@ -623,7 +623,7 @@ export function KaminoLendDrawer({
         {notice ? <Notice>{notice}</Notice> : null}
         {error ? <p className="text-xs leading-5 text-destructive">{error}</p> : null}
         {polling ? <LoadingLine label="Checking finalization automatically. No new transaction is being sent." /> : null}
-        {!prepared && !currentPendingAction ? <div className="flex flex-wrap items-center gap-2 text-xs"><Button variant="ghost" size="sm" onClick={() => void loadWalletSnapshot()} disabled={walletLoading}><RefreshCw className={walletLoading ? "animate-spin" : ""} />Refresh balance</Button>{walletSnapshot && (action === "deposit" && walletSnapshot.liquidityAmountAtomic === "0" || walletSnapshot.solBalanceLamports === "0") ? <a href="/home" className="underline">Need demo funds? Open the guide on Home</a> : null}{balanceError ? <p role="alert" className="w-full text-destructive">{balanceError}</p> : null}</div> : null}
+        {!prepared && !currentPendingAction ? <div className="flex flex-wrap items-center gap-2 text-xs"><Button variant="ghost" size="sm" onClick={() => void loadWalletSnapshot()} disabled={walletLoading}><RefreshCw className={walletLoading ? "animate-spin" : ""} />Refresh balance</Button>{walletSnapshot && (action === "deposit" && walletSnapshot.liquidityAmountAtomic === "0" || walletSnapshot.solBalanceLamports === "0") ? <a href="/funding" className="underline">Add funds</a> : null}{balanceError ? <p role="alert" className="w-full text-destructive">{balanceError}</p> : null}</div> : null}
         {action === "withdraw" && walletSnapshot?.collateralAmountAtomic === "0" && !currentPendingAction ? <Card className="gap-2 rounded-xl p-4">
           <p className="text-sm font-medium">Nothing to withdraw yet</p>
           <p className="text-xs leading-5 text-muted-foreground">You haven&apos;t invested USDC yet.</p>
@@ -676,7 +676,7 @@ export function KaminoLendDrawer({
                   }}>Max</Button>
                 {reserve.maximumAmountAtomic ? (
                   <span className="text-xs text-muted-foreground">
-                    Demo limit: {formatAtomicAmount(reserve.maximumAmountAtomic, reserve.decimals)} USDC
+                    Maximum: {formatAtomicAmount(reserve.maximumAmountAtomic, reserve.decimals)} USDC
                   </span>
                 ) : null}
               </div>
@@ -708,7 +708,7 @@ export function KaminoLendDrawer({
                 className="mt-0.5"
               />
               <span>
-                I understand this is a demo on Solana Devnet. Test tokens have no monetary value. I will review the amount and fee before confirming.
+                I accept the variable rate and withdrawal terms.
               </span>
             </label> : null}
 
@@ -719,7 +719,7 @@ export function KaminoLendDrawer({
             {!activeWalletAddress || !wallet ? (
               <Card className="gap-2 rounded-xl border-amber-500/30 bg-amber-500/5 p-3">
                 <p className="text-sm font-medium">Connect a Solana wallet</p>
-                <p className="text-xs leading-5 text-muted-foreground">Your wallet is only used to sign the prepared Devnet transaction.</p>
+                <p className="text-xs leading-5 text-muted-foreground"></p>
               </Card>
             ) : null}
 
@@ -734,7 +734,7 @@ export function KaminoLendDrawer({
                 {busy === "preparing" ? "Checking your transaction…" : "Continue"}
               </Button>
             ) : null}
-            <details className="rounded-xl border p-3 text-xs"><summary className="cursor-pointer font-medium">Investment details</summary><div className="mt-3 space-y-3"><p className="leading-5 text-muted-foreground">Powered by Kamino Lend. Variable returns, protocol risk and withdrawals subject to liquidity. You approve transactions with your wallet.</p><RouteSummary market={market} action={action} /></div></details>
+            <details className="rounded-xl border p-3 text-xs"><summary className="cursor-pointer font-medium">Investment details</summary><div className="mt-3 space-y-3"><p className="leading-5 text-muted-foreground">Variable returns. Withdrawals depend on available liquidity.</p><RouteSummary market={market} action={action} /></div></details>
           </>
         ) : null}
       </div>
@@ -792,11 +792,11 @@ export function PreparedActionReview({
       <div className="space-y-2 rounded-xl bg-background/70 p-3 text-xs">
         <RouteRow label="Action" value={prepared.action === "deposit" ? "Invest" : "Withdraw"} />
         <RouteRow label="Amount" value={`${formatAtomicAmount(prepared.amountAtomic, reserve.decimals)} USDC`} />
-        <RouteRow label="Network" value="Solana Devnet" />
-        {prepared.networkFeeLamports !== null ? <RouteRow label="Network fee" value={`${formatAtomicAmount(prepared.networkFeeLamports, 9)} Devnet SOL`} /> : null}
+        <RouteRow label="Network" value="Solana" />
+        {prepared.networkFeeLamports !== null ? <RouteRow label="Network fee" value={`${formatAtomicAmount(prepared.networkFeeLamports, 9)} SOL`} /> : null}
       </div>
       <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Technical checks</summary><div className="mt-2 space-y-2"><RouteRow label="Fee payer" value={walletAddress ? shortenAddress(walletAddress) : "Connected wallet"} /><RouteRow label="Reserve" value={shortenAddress(prepared.reserve)} />{prepared.simulation.unitsConsumed !== null ? <RouteRow label="Compute units" value={prepared.simulation.unitsConsumed.toLocaleString("en-US")} /> : null}</div></details>
-      <p className="text-xs leading-5 text-muted-foreground">Network fee excludes any refundable token-account rent. Test funds have no monetary value.</p>
+      <p className="text-xs leading-5 text-muted-foreground">Network fee excludes refundable account rent.</p>
     </Card>
   );
 }
@@ -834,7 +834,7 @@ function UnavailableRoute({ error, onRetry }: { error: string | null; onRetry: (
       <ShieldCheck className="size-5 text-muted-foreground" />
       <div>
         <p className="font-medium">Kamino Lend is temporarily unavailable</p>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{error ?? "The Devnet route is not ready for new transactions yet."}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{error ?? "Temporarily unavailable."}</p>
       </div>
       <Button variant="outline" onClick={onRetry}><RefreshCw />Refresh</Button>
     </Card>

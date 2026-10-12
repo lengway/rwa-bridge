@@ -6,14 +6,11 @@ import { DemoBadge } from "../components/app/demo-badge";
 import { DemoBankScreen } from "../components/app/demo-bank-screen";
 import { BalanceCard } from "../components/app/home-account";
 
-test("one compact demo control carries the truthful environment and mock identity details", () => {
+test("one compact indicator identifies the network without a disclosure wall", () => {
   const html = renderToStaticMarkup(createElement(DemoBadge, { bank: true }));
-  assert.match(html, /Demo · Devnet/);
-  assert.match(html, /no monetary value/);
-  assert.match(html, /not verified KYC/);
-  assert.match(html, /Forma Bank is fictional/);
-  assert.match(html, /sample data, separate from your Plain wallet/);
-  assert.match(html, /<details/);
+  assert.match(html, />Devnet</);
+  assert.match(html, /fixed right-3 top-3/);
+  assert.doesNotMatch(html, /<details|Demo ·|no monetary value|not verified KYC/);
 });
 
 test("bank preview presents sample accounts and a working Plain entry, not live bank rails", () => {

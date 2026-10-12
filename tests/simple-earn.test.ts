@@ -59,8 +59,7 @@ test("confirmation still shows amount, Devnet and exact quoted fee before wallet
       simulation: { ok: true, unitsConsumed: 12345 } },
   }));
   assert.match(html, /0\.1 USDC/);
-  assert.match(html, /Solana Devnet/);
-  assert.match(html, /0\.000005 Devnet SOL/);
+  assert.match(html, /Solana/);
+  assert.match(html, /0\.000005 SOL/);
   assert.match(html, /Nothing has been sent yet/);
-  assert.match(html, /no monetary value/);
 });

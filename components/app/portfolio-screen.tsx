@@ -24,11 +24,11 @@ type DisplayHolding = DevnetPortfolio["holdings"][number];
 
 const allocationNames = [
   { id: "cash", name: "Available balance", color: "bg-sky-500" },
-  { id: "kzte", name: "Legacy KZTE · Devnet only", color: "bg-rose-500" },
+  { id: "kzte", name: "KZTE · archived", color: "bg-rose-500" },
   { id: "kamino-lend", name: "Kamino Lend", color: "bg-emerald-500" },
-  { id: "ondo-usdy", name: "Legacy Devnet position · exit only", color: "bg-emerald-500" },
-  { id: "kz-bond-demo", name: "Archived Devnet position · exit only", color: "bg-amber-500" },
-  { id: "demo-office", name: "OFFICE · app Devnet token", color: "bg-violet-500" },
+  { id: "ondo-usdy", name: "USDY · exit only", color: "bg-emerald-500" },
+  { id: "kz-bond-demo", name: "Bond · exit only", color: "bg-amber-500" },
+  { id: "demo-office", name: "OFFICE · test asset", color: "bg-violet-500" },
 ] as const;
 
 // Legacy KZT/card adapter screens are retained for a separately reviewed
@@ -81,7 +81,7 @@ export function PortfolioScreen() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Portfolio</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Your balances, positions and activity
+            Balances, positions and activity
           </p>
         </div>
         <Button variant="outline" size="icon" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
@@ -126,13 +126,13 @@ export function PortfolioScreen() {
           <h3 className="font-semibold">Holdings</h3>
            <span className="text-xs text-muted-foreground">{isReady ? displayHoldings.length : "…"}</span>
         </div>
-        {!isReady ? <p className="text-sm text-muted-foreground">{devnet.portfolioError ? "Portfolio data unavailable. Values are not treated as zero." : "Loading Solana data…"}</p> : null}
-        {devnet.portfolio?.legacyUnavailable ? <details className="rounded-xl border p-3 text-xs text-muted-foreground"><summary className="cursor-pointer">Earlier assets · retry needed</summary><p className="mt-2">Some earlier asset data is unavailable and excluded from the total. Refresh before using those assets.</p><Button className="mt-2" variant="outline" size="sm" onClick={() => void devnet.refreshPortfolio()}>Refresh</Button></details> : null}
+        {!isReady ? <p className="text-sm text-muted-foreground">{devnet.portfolioError ? "Portfolio data unavailable. Values are not treated as zero." : "Loading balances…"}</p> : null}
+        {devnet.portfolio?.legacyUnavailable ? <details className="rounded-xl border p-3 text-xs text-muted-foreground"><summary className="cursor-pointer">Earlier assets · refresh needed</summary><p className="mt-2">Some earlier asset data is unavailable and excluded from the total.</p><Button className="mt-2" variant="outline" size="sm" onClick={() => void devnet.refreshPortfolio()}>Refresh</Button></details> : null}
         {isReady && displayHoldings.length === 0 ? (
           <Card className="items-center gap-3 rounded-2xl p-5 text-center">
             <Wallet className="size-6 text-muted-foreground" />
             <p className="font-medium">No holdings yet</p>
-            <p className="text-sm text-muted-foreground">Explore Kamino Lend to start earning with USDC.</p>
+            <p className="text-sm text-muted-foreground">Open Kamino Lend to add a USDC position.</p>
             <Button variant="outline" nativeButton={false} render={<Link href="/earn" />}>Open Kamino Lend</Button>
           </Card>
         ) : null}
@@ -202,7 +202,7 @@ export function PortfolioScreen() {
 
 function HoldingRow({ holding }: { holding: DisplayHolding }) {
   const primary = holding.productId === "kamino-lend" || holding.mint === KAMINO_LEND_DEVNET.liquidityMint;
-  const name = holding.kind === "asset" ? "OFFICE · app Devnet token" : presentPortfolioCopy(holding.name);
+  const name = holding.kind === "asset" ? "OFFICE · test asset" : presentPortfolioCopy(holding.name);
   return (
     <Card className="gap-3 rounded-2xl p-4 transition-colors hover:bg-muted/40">
       <div className="flex items-start gap-3">
@@ -216,13 +216,13 @@ function HoldingRow({ holding }: { holding: DisplayHolding }) {
           </span>
         </span>
         <span className="text-right">
-          <span className="block font-semibold tabular-nums">{primary ? `${formatQuantity(holding.valueUsd)} USDC` : `${formatQuantity(holding.valueUsd)} TEST QUOTE`}</span>
+          <span className="block font-semibold tabular-nums">{primary ? `${formatQuantity(holding.valueUsd)} USDC` : `${formatQuantity(holding.valueUsd)} test units`}</span>
           {holding.kind === "vault" ? (
             <span className="mt-1 block text-xs text-muted-foreground">Check the position’s exit terms</span>
-          ) : <span className="mt-1 block text-xs text-muted-foreground">{primary ? "Available" : "Test token"}</span>}
+          ) : <span className="mt-1 block text-xs text-muted-foreground">{primary ? "Available" : "Test asset"}</span>}
         </span>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Estimated position value · withdrawals depend on liquidity" : primary ? "USDC wallet balance" : "Historic test token"}</span></div>
+      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Estimated position value · withdrawals depend on liquidity" : primary ? "USDC wallet balance" : "Token balance"}</span></div>
     </Card>
   );
 }
@@ -275,7 +275,7 @@ function HoldingDetails({
   onExchange: (direction: "kzte-to-usd" | "usd-to-kzte") => void;
   onCopy: (value: string, label: string) => void;
 }) {
-  const name = holding.kind === "asset" ? "OFFICE · app Devnet token" : presentPortfolioCopy(holding.name);
+  const name = holding.kind === "asset" ? "OFFICE · test asset" : presentPortfolioCopy(holding.name);
   const primary = holding.productId === "kamino-lend" || holding.mint === KAMINO_LEND_DEVNET.liquidityMint;
   const canInvest = holding.kind === "cash";
   const canWithdraw = holding.kind === "vault";
@@ -283,15 +283,15 @@ function HoldingDetails({
   const canExchange = legacyFiatAdaptersEnabled && (holding.kind === "cash" || holding.kind === "kzte");
   const exchangeDirection = holding.kind === "kzte" ? "kzte-to-usd" : "usd-to-kzte";
   return (
-    <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${presentPortfolioCopy(holding.ticker)} · Estimated value: ${formatQuantity(holding.valueUsd)} ${primary ? "USDC" : "TEST QUOTE"}`}>
+    <DrawerFrame open onOpenChange={onOpenChange} title={name} description={`${formatQuantity(holding.balance)} ${presentPortfolioCopy(holding.ticker)} · Estimated value: ${formatQuantity(holding.valueUsd)} ${primary ? "USDC" : "test units"}`}>
       <div className="space-y-4">
           <div className="flex items-center justify-between rounded-xl bg-muted/50 p-3 text-sm">
-            <span className="text-muted-foreground">{holding.kind === "vault" ? "Position status" : "Token status"}</span><span className="font-medium">{holding.kind === "vault" ? "Check exit terms" : primary ? "Available" : "Test token"}</span>
+            <span className="text-muted-foreground">{holding.kind === "vault" ? "Position status" : "Token status"}</span><span className="font-medium">{holding.kind === "vault" ? "Check exit terms" : primary ? "Available" : "Test asset"}</span>
           </div>
         {holding.kind === "kzte" ? (
           <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
-            <p>Legacy Devnet token reserve: {kzteReserve === null ? "—" : formatQuantity(kzteReserve)} KZTE · total supply {formatQuantity(kzteSupply ?? 1_000_000_000, 0)}</p>
-            <p>This is an app token on Devnet, not a KZT stablecoin or an Intebix or bank integration.</p>
+            <p>App token reserve: {kzteReserve === null ? "—" : formatQuantity(kzteReserve)} KZTE · total supply {formatQuantity(kzteSupply ?? 1_000_000_000, 0)}</p>
+            <p>This app token does not represent KZT or a bank product.</p>
           </div>
         ) : null}
         <div className="space-y-3 rounded-xl border p-3">
@@ -348,9 +348,9 @@ function shortAddress(address: string) {
 
 function presentPortfolioCopy(value: string) {
   return presentDevnetCopy(value)
-    .replace(/\btest quote\b/gi, "Devnet units")
-    .replace(/\btest token\b/gi, "Devnet token")
-    .replace(/\bsimulated (funding|payout)\b/gi, "Legacy Devnet operation")
-    .replace(/\billustrative yield\b/gi, "Legacy Devnet rate")
-    .replace(/тестов\p{L}*/giu, "Devnet");
+    .replace(/\btest quote\b/gi, "test units")
+    .replace(/\btest token\b/gi, "test asset")
+    .replace(/\bsimulated (funding|payout)\b/gi, "Past activity")
+    .replace(/\billustrative yield\b/gi, "example rate")
+    .replace(/тестов\p{L}*/giu, "test");
 }

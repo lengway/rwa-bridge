@@ -197,9 +197,9 @@ export function MockOnboardingGate({
           signal: request.controller.signal,
         });
         const body: unknown = await response.json().catch(() => null);
-        if (!response.ok) throw new Error("We couldn't load your demo setup.");
+        if (!response.ok) throw new Error("We couldn't load your account setup.");
         const parsed = parseOnboardingResponse(body);
-        if (!parsed) throw new Error("The demo setup response was invalid. Please retry.");
+        if (!parsed) throw new Error("We couldn't confirm your account setup. Please retry.");
         if (cancelled || request.controller.signal.aborted) return;
         setOnboarding({
           owner,
@@ -214,8 +214,8 @@ export function MockOnboardingGate({
           owner,
           phase: "error",
           error: request.didTimeout()
-            ? "Loading demo setup took too long. Check your connection and retry."
-            : "We couldn't confirm your demo setup. Check your connection and retry.",
+            ? "This is taking too long. Check your connection and retry."
+            : "We couldn't confirm your setup. Check your connection and retry.",
           profile: null,
           saving: false,
         });
@@ -253,7 +253,7 @@ export function MockOnboardingGate({
       setOnboarding({
         owner,
         phase: "incomplete",
-        error: !adultAttested ? "Confirm that you are an adult to continue." : "Acknowledge the demo-only setup and data use to continue.",
+        error: !adultAttested ? "Confirm that you are an adult to continue." : "Please agree to save these details for this test account.",
         profile: null,
         saving: false,
       });
@@ -281,7 +281,7 @@ export function MockOnboardingGate({
       });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
-        const error = isRecord(body) && typeof body.error === "string" ? body.error : "We couldn't save your demo setup. Please retry.";
+        const error = isRecord(body) && typeof body.error === "string" ? body.error : "We couldn't save your setup. Please retry.";
         throw new Error(error);
       }
       const parsed = parseOnboardingResponse(body);
@@ -292,7 +292,7 @@ export function MockOnboardingGate({
         parsed.profile.mockAcknowledged !== true ||
         parsed.profile.dataUsageAccepted !== true
       ) {
-        throw new Error("We couldn't confirm that your demo setup was saved. Please retry.");
+        throw new Error("We couldn't confirm that your setup was saved. Please retry.");
       }
       if (request.controller.signal.aborted) return;
       setOnboarding({ owner, phase: "complete", error: null, profile: parsed.profile, saving: false });
@@ -302,10 +302,10 @@ export function MockOnboardingGate({
         owner,
         phase: "incomplete",
         error: request.didTimeout()
-          ? "Saving demo setup took too long. Check your connection and retry."
+          ? "Saving took too long. Check your connection and retry."
           : error instanceof Error
             ? error.message
-            : "We couldn't save your demo setup. Please retry.",
+            : "We couldn't save your setup. Please retry.",
         profile: null,
         saving: false,
       });
@@ -344,7 +344,7 @@ export function MockOnboardingGate({
           <div className="space-y-1.5">
             <CardTitle className="text-xl">Set up your account</CardTitle>
             <CardDescription className="leading-5">
-              A few details to get started. In this demo, no documents are checked and your identity is not verified.
+              Confirm your country and age to continue. This setup does not verify your identity or eligibility.
             </CardDescription>
           </div>
         </CardHeader>
@@ -367,7 +367,7 @@ export function MockOnboardingGate({
             <div className="space-y-4 rounded-xl border border-destructive/25 bg-destructive/5 p-4">
               <p role="alert" className="flex items-start gap-2 text-sm leading-6 text-foreground">
                 <TriangleAlert aria-hidden="true" className="mt-1 size-4 shrink-0 text-destructive" />
-                {activeOnboarding.error ?? "We couldn't confirm your demo setup."}
+                {activeOnboarding.error ?? "We couldn't confirm your setup."}
               </p>
               <Button
                 variant="outline"
@@ -385,9 +385,9 @@ export function MockOnboardingGate({
               {widgetValid ? (
                 <div className="space-y-4">
                   <div className="rounded-xl border bg-muted/30 p-4">
-                    <p className="text-sm font-medium">Bank profile ready</p>
+                    <p className="text-sm font-medium">Partner details ready</p>
                     <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                      The sample bank profile supplies Kazakhstan and an adult declaration. No repeated form is needed. These are mock attributes, not verified KYC.
+                      Your country and age declaration are ready for this test account.
                     </p>
                   </div>
                   <label htmlFor={widgetConsentId} className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm leading-5">
@@ -398,20 +398,19 @@ export function MockOnboardingGate({
                       disabled={activeOnboarding.saving}
                       className="mt-0.5"
                     />
-                    <span>I understand this is mock-only, not real KYC or real-money eligibility, and I consent to storing the demo country and declarations.</span>
+                    <span>Save these details for this test account.</span>
                   </label>
-                  <StoredDataNote />
                   {activeOnboarding.error ? <p role="alert" className="text-sm text-destructive">{activeOnboarding.error}</p> : null}
                   <Button className="w-full" onClick={() => void submit()} disabled={!activeForm.consentAccepted || activeOnboarding.saving}>
                     {activeOnboarding.saving ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : null}
-                    {activeOnboarding.saving ? "Saving…" : "Continue with bank profile"}
+                    {activeOnboarding.saving ? "Saving…" : "Continue"}
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {widgetSession && expiredWidgetSession === widgetSessionKey ? (
                     <p role="status" className="rounded-lg bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
-                      The partner demo session expired. Continue with the standard demo setup below.
+                      Partner session expired. Continue with account setup.
                     </p>
                   ) : null}
                   <div className="space-y-2">
@@ -425,12 +424,12 @@ export function MockOnboardingGate({
                     >
                       <option value="">Select a country</option>
                       {countries.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                      <option value="OTHER">Other (enter ISO2 code)</option>
+                      <option value="OTHER">Other</option>
                     </select>
                   </div>
                   {activeForm.country === "OTHER" ? (
                     <div className="space-y-2">
-                      <label htmlFor={otherCountryId} className="text-sm font-medium">Two-letter ISO country code</label>
+                      <label htmlFor={otherCountryId} className="text-sm font-medium">Country code</label>
                       <Input
                         id={otherCountryId}
                         value={activeForm.otherCountry}
@@ -441,7 +440,7 @@ export function MockOnboardingGate({
                         disabled={activeOnboarding.saving}
                         aria-describedby={`${otherCountryId}-hint`}
                       />
-                      <p id={`${otherCountryId}-hint`} className="text-xs text-muted-foreground">Enter the ISO 3166-1 alpha-2 code.</p>
+                      <p id={`${otherCountryId}-hint`} className="text-xs text-muted-foreground">Enter the two-letter country code.</p>
                     </div>
                   ) : null}
                   <div className="space-y-3">
@@ -463,10 +462,9 @@ export function MockOnboardingGate({
                         disabled={activeOnboarding.saving}
                         className="mt-0.5"
                       />
-                      <span>I understand this is mock-only, not real KYC or real-money eligibility, and I consent to storing the demo country and declarations.</span>
+                      <span>Save these details for this test account.</span>
                     </label>
                   </div>
-                  <StoredDataNote />
                   {activeOnboarding.error ? <p role="alert" className="text-sm text-destructive">{activeOnboarding.error}</p> : null}
                   <Button
                     className="w-full"
@@ -487,18 +485,10 @@ export function MockOnboardingGate({
             </>
           )}
           <p className="text-center text-xs leading-5 text-muted-foreground">
-            No full name, date of birth, ID, passport, photo, or address is requested.
+            No documents are needed. Your identity is not verified.
           </p>
         </CardContent>
       </Card>
     </main>
-  );
-}
-
-function StoredDataNote() {
-  return (
-    <p className="text-xs leading-5 text-muted-foreground">
-      We store your country, adult attestation, mock-only acknowledgement, and demo-data consent. We also record the demo source, completion time, and partner reference when applicable.
-    </p>
   );
 }

@@ -90,7 +90,13 @@ export function EarnJourney() {
           </div>
           <TrendingUp className="size-7 shrink-0 text-emerald-600" />
         </div>
-        <p className="mt-3 text-sm text-muted-foreground">{devnet.portfolio ? invested ? `Position value: ${money(devnet.portfolio.positions.filter(position => position.productId === "kamino-lend").reduce((sum, position) => sum + position.valueUsd, 0))} USDC · estimated` : `Available: ${money(devnet.portfolio.cashUsd)} USDC` : "Loading your balance…"}</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          {devnet.portfolio
+            ? invested
+              ? `Position value: ${money(devnet.portfolio.positions.filter((position) => position.productId === "kamino-lend").reduce((sum, position) => sum + position.valueUsd, 0))} USDC · estimated`
+              : `Available: ${money(devnet.portfolio.cashUsd)} USDC`
+            : "Loading your balance…"}
+        </p>
         <ol className="mt-5 grid grid-cols-3 gap-2">
           {[
             { title: "Account", done: !!walletAddress, icon: Wallet },
@@ -137,22 +143,15 @@ export function EarnJourney() {
             {funded || invested ? "Add money" : "Explore strategies"}
           </Button>
         </div>
-        <p className="mt-3 text-xs leading-5 text-muted-foreground">
-          Your wallet is created automatically. Free demo funds and sandbox card
-          checkouts are available in one place.
-        </p>
       </Card>
       {invested ? (
         <Card className="gap-4 rounded-2xl p-5">
           <div className="flex justify-between gap-3">
             <h3 className="text-sm font-semibold">Your yield</h3>
-            <span className="text-xs text-muted-foreground">
-              Devnet estimates
-            </span>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground">Protocol gain</p>
+              <p className="text-xs text-muted-foreground">Position gain</p>
               <p className="mt-2 text-xl font-semibold tabular-nums">
                 {overview?.protocolGainAtomic != null
                   ? `${money(Number(overview.protocolGainAtomic) / 1e6)} USDC`
@@ -161,7 +160,7 @@ export function EarnJourney() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">
-                Estimated per day, after fee model
+                Estimated daily return
               </p>
               <p className="mt-2 text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
                 {overview?.dailyEstimate
@@ -170,16 +169,20 @@ export function EarnJourney() {
               </p>
             </div>
           </div>
-          <p className="text-xs leading-5 text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {overview
-              ? `Current protocol APY: ${overview.supplyApy === null ? "unavailable" : `${(overview.supplyApy * 100).toFixed(2)}%`}. Proposed Plain share: ${overview.performanceFeeBps / 100}% of positive yield, never your deposit. No fee is collected in this demo.`
-              : "Live rate and verified receipts are needed to show your yield. Missing data is not a zero return."}
+              ? `APY ${overview.supplyApy === null ? "—" : `${(overview.supplyApy * 100).toFixed(2)}%`}`
+              : "Rate unavailable"}
           </p>
-          <p className="text-xs leading-5 text-muted-foreground">
-            Daily figures are forecasts, not credited earnings. Protocol gain is
-            a current position estimate reconciled against confirmed deposits
-            and withdrawals; untracked holdings have no assumed cost basis.
-          </p>
+          {overview ? (
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer">Fees</summary>
+              <p className="mt-2">
+                Daily estimate includes a {overview.performanceFeeBps / 100}%
+                share of positive yield. No fee is currently charged.
+              </p>
+            </details>
+          ) : null}
         </Card>
       ) : null}
     </section>

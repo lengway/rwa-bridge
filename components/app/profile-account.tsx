@@ -112,13 +112,13 @@ function WalletSectionReady() {
       });
       const result = await response.json().catch(() => null) as { ok?: unknown; error?: unknown } | null;
       if (!response.ok || result?.ok !== true) {
-        throw new Error(typeof result?.error === "string" ? result.error : "The transfer is not confirmed on Solana Devnet yet.");
+        throw new Error(typeof result?.error === "string" ? result.error : "The transfer is not confirmed on Solana yet.");
       }
       void devnet.refreshPortfolio();
       setPendingTransfer(null);
       setRecipient("");
       setAmount("10");
-      toast.success("Devnet test units sent");
+      toast.success("Test units sent");
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       setSendError(/[А-Яа-яЁё]/.test(message) ? message : "Could not confirm the transfer. Check again in a few seconds.");
@@ -159,14 +159,11 @@ function WalletSectionReady() {
                   Open in Solana Explorer
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Network: Solana Devnet. You do not need this address for regular app use.
-              </p>
               <Card className="gap-3 rounded-2xl p-4">
                   <div>
                     <h3 className="font-medium">Send to another wallet</h3>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Send app-controlled TEST QUOTE to any Solana address. These test units have meaning only on Solana Devnet.
+                      Send test units to another Solana wallet.
                     </p>
                   </div>
                   <label className="space-y-1.5 text-sm">
@@ -184,7 +181,7 @@ function WalletSectionReady() {
                     <p className="text-xs text-destructive">Check the Solana address.</p>
                   ) : null}
                   <label className="space-y-1.5 text-sm">
-                    <span>Amount in TEST QUOTE</span>
+                    <span>Amount</span>
                     <Input
                       type="number"
                       min="0.01"
@@ -196,17 +193,17 @@ function WalletSectionReady() {
                       disabled={sending || Boolean(pendingTransfer)}
                     />
                   </label>
-                  {balance === null ? <p className="text-xs text-muted-foreground">The historic TEST QUOTE balance is unavailable. Refresh the portfolio before transferring.</p> : null}
+                  {balance === null ? <p className="text-xs text-muted-foreground">Test-unit balance unavailable. Refresh your portfolio before transferring.</p> : null}
                   {balance !== null && amountValue > balance ? (
                     <p className="text-xs text-destructive">
-                      Insufficient TEST QUOTE. Kamino USDC is a different asset and cannot fund this historic transfer. <Link href="/portfolio" className="underline">Check historic holdings</Link>.
+                      Not enough test units. <Link href="/portfolio" className="underline">Check your portfolio</Link>.
                     </p>
                   ) : null}
                   {sendError ? <p className="text-xs text-destructive">{sendError}</p> : null}
                   <Button className="w-full" onClick={sendTokens} disabled={sending || (!pendingTransfer && (!recipientValid || !amountValid))}>
-                    <Send />{sending ? (sendProgress ?? "Sending…") : pendingTransfer ? "Retry confirmation" : `Send ${formatQuantity(amountValue || 0)} TEST QUOTE`}
+                    <Send />{sending ? (sendProgress ?? "Sending…") : pendingTransfer ? "Retry confirmation" : `Send ${formatQuantity(amountValue || 0)} units`}
                   </Button>
-                  <p className="text-xs text-muted-foreground">SOLANA DEVNET · NO MONETARY VALUE. A transfer signature is shown only after the on-chain Devnet transfer is confirmed.</p>
+                  <p className="text-xs text-muted-foreground"></p>
               </Card>
             </>
           ) : (

@@ -8,9 +8,9 @@ import { FundingStories } from "../components/app/funding-stories";
 test("mock capture is an explicitly simulated, skippable flow, not document collection", () => {
   const html = renderToStaticMarkup(createElement(MockCapture, { onFinish: () => undefined, onBack: () => undefined }));
   assert.match(html, /SAMPLE DOCUMENT/);
-  assert.match(html, /Skip demo capture/);
-  assert.match(html, /No camera, identity documents or biometric data are collected/);
-  assert.match(html, /does not verify your identity/);
+  assert.match(html, />Skip</);
+  assert.match(html, /No camera or documents are used/);
+  assert.match(html, /your identity is not verified/);
   assert.doesNotMatch(html, /type="file"|Identity verified|KYC approved/);
 });
 

@@ -250,7 +250,7 @@ export function FundingScreen({
           Your first USDC.
         </h2>
         <p className="text-sm leading-6 text-muted-foreground">
-          Choose free demo funds, receive a transfer, or test a card checkout.
+          Choose how to add USDC to your wallet.
         </p>
       </div>
       <Card className="gap-3 rounded-3xl border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-sky-500/5 p-5">
@@ -262,9 +262,6 @@ export function FundingScreen({
           {balance === undefined
             ? "—"
             : `${balance.toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Solana Devnet · test funds have no monetary value
         </p>
         <Button
           variant="outline"
@@ -302,7 +299,9 @@ export function FundingScreen({
               className={`rounded-2xl border p-4 text-left transition hover:bg-muted/40 ${selected === item.id ? "border-emerald-600 bg-emerald-500/5 ring-1 ring-emerald-600/20" : "bg-card"}`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">{item.name}</span>
+                <span className="text-sm font-semibold">
+                  {item.id === "circle" ? "Circle USDC" : item.name}
+                </span>
                 {item.kind === "sandbox" ? (
                   <CreditCard className="size-4 text-muted-foreground" />
                 ) : item.kind === "planned" ? (
@@ -312,11 +311,17 @@ export function FundingScreen({
                 )}
               </div>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                {item.description}
+                {item.kind === "sandbox"
+                  ? "Card checkout"
+                  : item.kind === "faucet"
+                    ? "Get free USDC"
+                    : item.kind === "transfer"
+                      ? "From another wallet"
+                      : item.description}
               </p>
               {item.kind === "sandbox" ? (
                 <p className="mt-2 text-xs font-medium">
-                  {item.available ? "Sandbox ready" : "Sandbox setup required"}
+                  {item.available ? "Ready" : "Unavailable"}
                 </p>
               ) : null}
             </button>
@@ -329,12 +334,12 @@ export function FundingScreen({
       {selected === "circle" || selected === "transfer" ? (
         <Card className="gap-4 rounded-2xl p-5">
           <h3 className="font-semibold">
-            {selected === "circle" ? "Get free demo USDC" : "Receive USDC"}
+            {selected === "circle" ? "Get USDC from Circle" : "Receive USDC"}
           </h3>
           <p className="text-sm leading-6 text-muted-foreground">
             {selected === "circle"
-              ? "1. Copy the address below. 2. Open Circle and select USDC + Solana Devnet (not Arc Testnet). 3. Request funds, then check here."
-              : "Send only USDC on Solana Devnet to this address. Mainnet assets and TEST QUOTE cannot fund this demo."}
+              ? "Copy your address, open Circle, choose USDC on Solana Devnet, then check your balance here."
+              : "Send USDC on Solana Devnet to this address."}
           </p>
           <div className="flex min-w-0 items-center gap-2 rounded-xl bg-muted/60 p-3">
             <code className="min-w-0 flex-1 break-all text-xs">
@@ -377,14 +382,14 @@ export function FundingScreen({
             disabled={!walletAddress || checkingWallet}
             onClick={() => void checkWallet()}
           >
-            {checkingWallet ? "Checking Devnet…" : "Check if USDC arrived"}
+            {checkingWallet ? "Checking…" : "Check balance"}
           </Button>
           {walletCheck?.walletAddress === walletAddress ? (
             <div role="status" className="space-y-2 text-sm">
               <p>
                 {BigInt(walletCheck.amountAtomic) > BigInt(0)
-                  ? `${Number(walletCheck.amountAtomic) / 1e6} USDC received on Solana Devnet.`
-                  : "No USDC received on Solana Devnet yet. Check Circle’s network and transaction result."}
+                  ? `${Number(walletCheck.amountAtomic) / 1e6} USDC received.`
+                  : "No funds yet? Check the network and transaction in Circle."}
               </p>
               <a
                 className="underline"
@@ -392,24 +397,10 @@ export function FundingScreen({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                View this wallet on Devnet Solscan
+                View on Solscan
               </a>
             </div>
           ) : null}
-          <details className="text-xs leading-5 text-muted-foreground">
-            <summary className="cursor-pointer">Funds did not arrive?</summary>
-            <p className="mt-2">
-              Circle must report a successful transaction on Solana Devnet. A
-              completed Transak test does not send Devnet USDC. This embedded
-              wallet uses a smart-wallet address; Circle funding to it has not
-              been verified. If Circle rejects it, use a Devnet USDC transfer
-              from another wallet and retain the transaction link.
-            </p>
-          </details>
-          <p className="text-xs text-muted-foreground">
-            The current route accepts up to 1 demo USDC per action. Faucets can
-            have verification and rate limits.
-          </p>
         </Card>
       ) : null}
       <Button
@@ -423,10 +414,9 @@ export function FundingScreen({
       {method?.kind === "sandbox" ? (
         <Card className="gap-4 rounded-2xl p-5">
           <div>
-            <h3 className="font-semibold">Test {method.name} checkout</h3>
+            <h3 className="font-semibold">{method.name} checkout</h3>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              No real card charge. This tests provider onboarding and order
-              status; it does not supply USDC to Solana Devnet.
+              Test checkout · funds are not added to your wallet.
             </p>
           </div>
           <label className="space-y-2 text-sm">
@@ -479,7 +469,7 @@ export function FundingScreen({
                   className="rounded-xl bg-muted/60 p-3 text-sm leading-6"
                 >
                   {status === "PROVIDER_COMPLETED"
-                    ? "Provider test completed. Wallet funding is a separate step: use free Devnet USDC or a Devnet transfer, then continue to Earn."
+                    ? "Checkout complete. No funds were added to your wallet."
                     : status === "FAILED"
                       ? "The provider reports that this checkout failed."
                       : "Provider processing is still pending. Check again; no wallet credit is assumed."}
@@ -516,22 +506,15 @@ export function FundingScreen({
               ) : (
                 <CreditCard />
               )}
-              Open sandbox checkout
+              Continue
             </Button>
           )}
-          {!method.available ? (
-            <p className="text-xs text-muted-foreground">
-              The server must enable this provider&apos;s sandbox credentials
-              before checkout is available.
-            </p>
-          ) : null}
         </Card>
       ) : null}
       {method?.kind === "planned" ? (
         <Card className="rounded-2xl p-5">
           <p className="text-sm leading-6 text-muted-foreground">
-            {method.description}. Choose free demo USDC or an enabled sandbox
-            checkout for now.
+            This option isn&apos;t available yet.
           </p>
         </Card>
       ) : null}
@@ -543,26 +526,21 @@ export function FundingScreen({
           {error}
         </p>
       ) : null}
-      <p className="text-xs leading-5 text-muted-foreground">
-        Plain&apos;s target is to cover network fees. Sponsored smart-wallet
-        execution must be verified before a gas-free deposit is offered; the
-        current action review remains authoritative.
-      </p>
       <ProviderSheet
         open={sheetOpen && !!checkout}
         onOpenChange={setSheetOpen}
         title={
           checkout
-            ? `${checkout.provider === "transak" ? "Transak" : "MoonPay"} test checkout`
+            ? `${checkout.provider === "transak" ? "Transak" : "MoonPay"} checkout`
             : "Checkout"
         }
-        badge="Sandbox"
+        badge="Test"
         externalUrl={checkout?.url}
       >
         {checkout ? (
           <iframe
             src={checkout.url}
-            title="Sandbox card checkout"
+            title="Card checkout"
             className="h-full w-full border-0"
             referrerPolicy="strict-origin-when-cross-origin"
             allow="payment"

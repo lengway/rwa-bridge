@@ -6,8 +6,6 @@ import { InvestDrawer, WithdrawDrawer } from "@/components/app/drawers";
 import { KaminoLendDrawer } from "@/components/app/kamino-lend-drawer";
 import { DetailActionBar } from "@/components/app/detail-action-bar";
 import {
-  EligibilitySection,
-  ExplainerSections,
   RiskSection,
   TechnicalDetails,
 } from "@/components/app/earn-explainer-parts";
@@ -48,19 +46,17 @@ export function EarnDetail({ strategy, initialAction, onConfirmed }: { strategy:
         onAmountChange={setAmount}
         currentPosition={currentPosition}
       />
-      <ExplainerSections strategy={strategy} />
       <RiskSection strategy={strategy} />
-      <EligibilitySection strategy={strategy} />
       <TechnicalDetails strategy={strategy} />
 
       {!isKaminoLend && !canInvest ? (
         <p className="text-xs leading-5 text-muted-foreground">
-          Historic entry: new deposits are disabled. This is not an offer to invest real funds.
+          New deposits unavailable.
         </p>
       ) : null}
       {position && !canRedeem ? (
         <p className="text-xs leading-5 text-muted-foreground">
-          Test-token redemption is not currently supported for this position. Wait until a compatible exit route is confirmed before starting a transaction.
+          Withdrawals temporarily unavailable.
         </p>
       ) : null}
       <DetailActionBar amount={isKaminoLend ? "USDC" : hydrated ? `${formatQuantity(cashUsd)} TEST QUOTE` : "…"}>
@@ -100,7 +96,7 @@ export function EarnDetail({ strategy, initialAction, onConfirmed }: { strategy:
           }}
           disabled={(!isKaminoLend && !hydrated) || !canInvest}
         >
-          <ArrowRight />{canInvest ? isKaminoLend ? "Invest" : "Open on Solana Devnet" : "Unavailable"}
+          <ArrowRight />{canInvest ? isKaminoLend ? "Invest" : "Continue" : "Unavailable"}
         </Button>
       </DetailActionBar>
       {isKaminoLend ? (
