@@ -5,8 +5,14 @@ Devnet USDC through one pinned Kamino Lend reserve. The server prepares and
 simulates an unsigned transaction; the user's connected wallet signs and sends
 it. Devnet assets and positions have no monetary value.
 
+The consumer interface has two primary actions: **Invest** and **Withdraw**.
+Available USDC and estimated invested USDC are shown separately. Protocol,
+token-account and cUSDC details are optional rather than required steps. Earlier
+assets remain accessible in Wallet and are never treated as spendable USDC.
+
 - App: https://plain.lengway.me
 - Earn route: https://plain.lengway.me/earn/kamino-lend
+- Bank widget demo: https://plain.lengway.me/widget-demo (fictional Forma Bank)
 - [Implementation report](docs/earn-implementation-report.md)
 - [Provider and route evidence](docs/earn-provider-research.md)
 - [Gateway contract](docs/UNIVERSAL_EARN_GATEWAY_SPEC.md)
@@ -102,6 +108,11 @@ not a prerequisite for the Kamino position.
 
 ## Transaction lifecycle
 
+User journey: email login → mock account setup → Invest/Withdraw → amount →
+checks/simulation → review amount and fee → explicit wallet approval → verified
+confirmation. The app never auto-signs, resends an unknown transaction or credits
+sample bank balances into the user's wallet.
+
 1. The browser requests a deposit or withdrawal for the authenticated wallet.
 2. The server verifies canonical Devnet, the pinned program/market/reserve/mints,
    reserve state, wallet balance, and the configured cap.
@@ -149,6 +160,20 @@ An actual on-chain action requires a user-controlled wallet, Devnet SOL for
 fees, and Devnet USDC or Kamino collateral as appropriate. Do not put a wallet
 private key, production credential, Mainnet endpoint, or real payment
 credential in this project.
+
+### Funding this demo
+
+Only the pinned **USDC on Solana Devnet** mint can be invested. Old `TEST QUOTE`,
+OFFICE and other app tokens are not interchangeable with it. If the wallet has no
+USDC, the Invest screen shows a concise free-demo-funds guide: copy the public
+wallet address, use [Circle's faucet](https://faucet.circle.com/) with
+USDC → Solana Devnet, and refresh. SOL for network fees is available through
+[Solana's faucet](https://faucet.solana.com/). Faucets are external and can require
+verification/rate-limit requests; the app does not pretend they completed.
+
+An owner-approved deposit/reload/withdrawal remains necessary to verify the full
+embedded-wallet execution path. Passing unit tests, wallet reads and HTTP smoke
+checks is not a claim that this entire path has been completed or audited.
 
 ## Deploy
 

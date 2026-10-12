@@ -14,8 +14,13 @@ import {
   presentDevnetCopy,
 } from "@/components/app/earn-detail-parts";
 import { formatApy } from "@/lib/format";
+import { SimpleEarnScreen } from "@/components/app/simple-earn-screen";
 
 export function EarnList() {
+  return <SimpleEarnScreen />;
+}
+
+export function HistoricEarnList() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">

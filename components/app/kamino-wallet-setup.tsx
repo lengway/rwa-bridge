@@ -18,6 +18,18 @@ export function KaminoWalletSetup({ walletAddress, snapshot, loading, error, onR
   const needsUsdc = action === "deposit" && snapshot?.liquidityAmountAtomic === "0";
   const needsSol = snapshot?.solBalanceLamports === "0";
   return (
+    <>
+    {!snapshot ? <Card className="gap-2 rounded-xl p-3"><p className="text-sm">{loading ? "Checking your balance…" : "Your balance could not be checked."}</p>{error ? <p role="alert" className="text-xs text-destructive">{error}</p> : null}<Button variant="outline" size="sm" onClick={onRefresh} disabled={loading}>Refresh balance</Button></Card> : null}
+    {snapshot && (needsUsdc || needsSol) ? <Card className="gap-3 rounded-2xl p-4">
+      <h3 className="text-sm font-semibold">{needsUsdc ? "Get USDC for this demo" : "Add funds for the network fee"}</h3>
+      <p className="text-xs leading-5 text-muted-foreground">{needsUsdc ? "This investment uses USDC. Other demo tokens in your wallet cannot be used here. Copy your address, get free USDC on Solana Devnet, then refresh." : "Withdrawals need a small amount of SOL for fees. Get free SOL for this demo, then refresh."}</p>
+      <Button variant="outline" size="sm" onClick={onCopy}><Copy />Copy my address</Button>
+      {needsUsdc ? <Button variant="outline" size="sm" nativeButton={false} render={<a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" />}><ExternalLink />Get free demo USDC</Button> : null}
+      {needsSol ? <Button variant="outline" size="sm" nativeButton={false} render={<a href="https://faucet.solana.com/" target="_blank" rel="noopener noreferrer" />}><ExternalLink />Get free SOL for fees</Button> : null}
+      <Button size="sm" onClick={onRefresh} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />{loading ? "Checking…" : "Refresh balance"}</Button>
+      <p className="text-[11px] leading-5 text-muted-foreground">Faucets are external and may require verification. No card or real-money payment is needed.</p>
+    </Card> : null}
+    <details className="rounded-xl border p-3 text-xs"><summary className="cursor-pointer font-medium">Wallet and funding details</summary><div className="mt-3">
     <Card className="gap-3 rounded-2xl p-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">Your wallet</h3>
@@ -47,5 +59,7 @@ export function KaminoWalletSetup({ walletAddress, snapshot, loading, error, onR
         <p className="mt-3 text-muted-foreground">Use test tokens only. This is not a card payment, a fiat top-up, or a Mainnet transfer. Test funds have no monetary value.</p>
       </details>
     </Card>
+    </div></details>
+    </>
   );
 }

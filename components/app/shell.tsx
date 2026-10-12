@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, ArrowLeft, BriefcaseBusiness, House, Landmark, PieChart } from "lucide-react";
+import { Activity, ArrowLeft, House, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBankEmbed } from "@/lib/useBankEmbed";
 import { isCrossmintConfigured } from "@/lib/config";
@@ -15,10 +15,8 @@ import { DemoBadge } from "@/components/app/demo-badge";
 
 const tabs = [
   { href: "/home", label: "Home", icon: House },
-  { href: "/earn", label: "Earn", icon: Landmark },
-  { href: "/assets", label: "Assets", icon: BriefcaseBusiness },
   { href: "/activity", label: "Activity", icon: Activity },
-  { href: "/portfolio", label: "Portfolio", icon: PieChart },
+  { href: "/portfolio", label: "Wallet", icon: Wallet },
 ];
 
 const titles: Record<string, string> = {
@@ -287,7 +285,7 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
           aria-label="Primary navigation"
           className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t bg-background/95 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur"
         >
-          <div className="grid grid-cols-5">
+          <div className="grid grid-cols-3">
             {tabs.map(({ href, label, icon: Icon }) => {
               const active = pathname === href || pathname.startsWith(`${href}/`);
               return (

@@ -22,8 +22,14 @@ import { formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import type { YieldStrategy } from "@/lib/yields";
 import type { KaminoLendConfirmation } from "@/components/app/kamino-lend-contract";
+import { SimpleEarnScreen } from "@/components/app/simple-earn-screen";
 
 export function EarnDetail({ strategy, initialAction, onConfirmed }: { strategy: YieldStrategy; initialAction?: "deposit" | "withdraw"; onConfirmed?: (confirmation: KaminoLendConfirmation) => void }) {
+  if (strategy.gateway.provider === "KAMINO") return <SimpleEarnScreen initialAction={initialAction} onConfirmed={onConfirmed} />;
+  return <LegacyEarnDetail strategy={strategy} initialAction={initialAction} onConfirmed={onConfirmed} />;
+}
+
+function LegacyEarnDetail({ strategy, initialAction, onConfirmed }: { strategy: YieldStrategy; initialAction?: "deposit" | "withdraw"; onConfirmed?: (confirmation: KaminoLendConfirmation) => void }) {
   const { positions, cashUsd, hydrated } = useAppStore();
   const [amount, setAmount] = useState(1000);
   const [investOpen, setInvestOpen] = useState(false);

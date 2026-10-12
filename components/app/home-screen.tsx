@@ -10,8 +10,13 @@ import { BRIDGE_ASSETS } from "@/lib/assets";
 import { useAppStore } from "@/lib/store";
 import { ALL_YIELD_STRATEGIES } from "@/lib/yields";
 import { useDevnet } from "@/lib/useDevnet";
+import { SimpleEarnScreen } from "@/components/app/simple-earn-screen";
 
 export function HomeScreen() {
+  return <SimpleEarnScreen />;
+}
+
+export function HistoricHomeScreen() {
   const {
     cashUsd,
     positions,

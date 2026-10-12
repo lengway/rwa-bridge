@@ -351,3 +351,36 @@ session 401s. No login code, wallet approval or transaction was submitted; actua
 authenticated signing in the bank widget and cross-site browser support remain
 unverified. Recent nginx portfolio requests returned 200, consistent with the
 earlier PDA wallet-read correction; no owner session was read or impersonated.
+
+## Two-action consumer UX / publication preparation
+
+Owner requested a consumer-first experience with only Invest and Withdraw as
+primary actions, publication to GitHub and submission/business cleanup. Owner
+explicitly approved making the existing GitHub repository public after checks.
+The selected business model is a transaction-fee hypothesis; owner reported a
+pilot/customers, but counts, activity, permissions and revenue evidence are still
+pending and are not represented as verified traction.
+
+Home, Earn and the bank widget now share one simple screen: available route USDC,
+estimated invested USDC, Invest and Withdraw. Earlier holdings remain accessible
+in Wallet; TEST QUOTE or unrelated tokens cannot fund these actions. Main nav
+is Home / Activity / Wallet. Route, mint, cUSDC and compute details are optional.
+The action form is amount → checks → amount/fee/network review → explicit wallet
+approval. Unknown balances cannot enable preparation. Network/amount caps,
+session binding, receipt verification and pending/reload recovery remain intact.
+Demo USDC / fee-token guidance appears only when funding is missing; no faucet
+success, deposit, fee sponsorship or bank conversion is fabricated.
+
+Local lint/typecheck/build/diff passed and **76 tests** passed, including two
+primary actions, exact reviewed fees, unavailable balances and exclusion of
+legacy tokens from usable USDC. Git history scans covered 937 small/text blobs
+for known key/token/secret patterns and 897 configuration/source blobs for
+hardcoded secret-value candidates; no findings or sensitive key/env paths.
+These heuristic checks are not a guarantee of absence of every possible secret.
+Only ignored local/runtime secrets remain outside the publication scope.
+
+README updated with actual scope, funding and verification limitations. The
+owner's old submission draft is preserved and marked outdated; a private owner
+review checklist supplies factual corrections and questions, not generated
+application answers. Actual portal edits, pilot evidence, videos, owner-approved
+signed round trip and final Submit remain owner-dependent.
