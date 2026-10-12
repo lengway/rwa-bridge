@@ -455,3 +455,16 @@ authentication succeeded in a read/auth-only probe; token/secret values were not
 printed. That does NOT verify a checkout, payment success or token delivery.
 Restoring a safely scoped staging onramp and testing its actual result remain
 pending; do not enable all legacy fiat routes or credit TEST QUOTE as real USDC.
+
+First cleanup block activated as `4437a4cc4c9dfbedd33e47426ba065eee404f4ca`,
+also pushed to public GitHub main. VPS lint/typecheck, 82 tests, production build
+and 14 pre/post activation HTTP checks passed; external HTTPS smoke passed 10.
+Verified the actual legacy-mint read path on the VPS using the owner's public
+wallet target, an isolated fixture session/ledger, SMTP disabled and legacy
+imports explicitly disabled (not the legacy configuration itself). Portfolio
+returned 200 in 3.507 seconds, `legacyUnavailable=false`, and the actual 30
+TEST QUOTE / 150 vUSDY balances. No user authentication was impersonated and no
+transaction was submitted. The temporary service and its fixture ledger were
+removed. This fixes the demonstrated legacy read path; future upstream failures
+remain retryable and are not masked as zero. Burn and onramp implementation /
+approval / successful checkout remain pending; staging auth alone is not proof.
