@@ -403,3 +403,15 @@ fixture balances; this is layout evidence, not an authenticated interactive or
 signed financial flow. No real-money fee implementation, new bank rail or
 claimed pilot/customer evidence was added. Owner-signed round trip remains
 unverified, including the embedded smart-wallet transaction path.
+
+## Restore interface; simplify only Kamino actions
+
+Owner clarified that the global two-button replacement was too broad. Restored
+the existing Home overview, three Home quick actions, Earn strategy selection,
+Kamino overview and Home / Earn / Assets / Activity / Portfolio navigation.
+The bank widget again uses the strategy overview, not a replacement balance page.
+Kept the simplified Kamino action dialog (Invest/Withdraw, amount, review, approval)
+and existing security, recovery, disclosures, bank demo and identity foundations.
+Local lint/typecheck/build/diff passed and **79 tests** passed, including regression
+checks for original navigation, Home actions and strategy selection. This is a
+UI scope correction, not a rollback of wallet/RPC fixes or stored user data.

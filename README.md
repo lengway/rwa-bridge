@@ -5,10 +5,11 @@ Devnet USDC through one pinned Kamino Lend reserve. The server prepares and
 simulates an unsigned transaction; the user's connected wallet signs and sends
 it. Devnet assets and positions have no monetary value.
 
-The consumer interface has two primary actions: **Invest** and **Withdraw**.
-Available USDC and estimated invested USDC are shown separately. Protocol,
-token-account and cUSDC details are optional rather than required steps. Earlier
-assets remain accessible in Wallet and are never treated as spendable USDC.
+The consumer interface retains Home, Earn, Assets, Activity and Portfolio,
+including strategy selection and the Kamino overview. Only the Kamino action
+dialog is simplified: **Invest** or **Withdraw**, amount, checks and confirmation.
+Protocol addresses and compute details are optional rather than required steps.
+Earlier assets remain accessible in Portfolio and are never spendable as USDC.
 
 - App: https://plain.lengway.me
 - Earn route: https://plain.lengway.me/earn/kamino-lend
