@@ -25,7 +25,8 @@ export type VerifiedSession = {
   smoke: boolean;
 };
 
-let keyCache: { privateKey: KeyObject; publicKey: KeyObject; jwk: JsonWebKey; kid: string } | null = null;
+type JwtAlg = "ES256" | "RS256";
+let keyCache: { privateKey: KeyObject; publicKey: KeyObject; jwk: JsonWebKey; kid: string; alg: JwtAlg } | null = null;
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -37,13 +38,16 @@ function getKeys() {
   if (keyCache) return keyCache;
   const pem = requiredEnv("AUTH_JWT_PRIVATE_KEY").replace(/\\n/g, "\n");
   const privateKey = createPrivateKey(pem);
-  if (privateKey.asymmetricKeyType !== "ec" || privateKey.asymmetricKeyDetails?.namedCurve !== "prime256v1") {
-    throw new Error("AUTH_JWT_PRIVATE_KEY must be an EC P-256 private key");
+  // Crossmint's signer service requires RS256; EC P-256 (ES256) stays supported for rollback.
+  const isRsa = privateKey.asymmetricKeyType === "rsa" && (privateKey.asymmetricKeyDetails?.modulusLength ?? 0) >= 2048;
+  const isEc = privateKey.asymmetricKeyType === "ec" && privateKey.asymmetricKeyDetails?.namedCurve === "prime256v1";
+  if (!isRsa && !isEc) {
+    throw new Error("AUTH_JWT_PRIVATE_KEY must be an RSA (2048+) or EC P-256 private key");
   }
   const publicKey = createPublicKey(privateKey);
   const jwk = publicKey.export({ format: "jwk" });
-  if (!jwk.x || !jwk.y) throw new Error("Unable to export the AUTH_JWT_PRIVATE_KEY public coordinates");
-  keyCache = { privateKey, publicKey, jwk, kid: requiredEnv("AUTH_JWT_KID") };
+  if (isRsa ? !jwk.n || !jwk.e : !jwk.x || !jwk.y) throw new Error("Unable to export the AUTH_JWT_PRIVATE_KEY public key");
+  keyCache = { privateKey, publicKey, jwk, kid: requiredEnv("AUTH_JWT_KID"), alg: isRsa ? "RS256" : "ES256" };
   return keyCache;
 }
 
@@ -104,8 +108,8 @@ export function deriveUserId(email: string) {
 
 export function createAuthJwt(email: string, now = Math.floor(Date.now() / 1_000)) {
   const normalizedEmail = normalizeEmail(email);
-  const { privateKey, kid } = getKeys();
-  const header = base64urlJson({ alg: "ES256", typ: "JWT", kid });
+  const { privateKey, kid, alg } = getKeys();
+  const header = base64urlJson({ alg, typ: "JWT", kid });
   const payload = base64urlJson({
     iss: getIssuer(),
     aud: getAudience(),
@@ -115,26 +119,17 @@ export function createAuthJwt(email: string, now = Math.floor(Date.now() / 1_000
     exp: now + JWT_TTL_SECONDS,
   });
   const signingInput = `${header}.${payload}`;
-  const signature = signSignature("sha256", Buffer.from(signingInput), {
-    key: privateKey,
-    dsaEncoding: "ieee-p1363",
-  });
+  const signature = signSignature("sha256", Buffer.from(signingInput),
+    alg === "ES256" ? { key: privateKey, dsaEncoding: "ieee-p1363" } : privateKey);
   return `${signingInput}.${signature.toString("base64url")}`;
 }
 
 export function getAuthJwks() {
-  const { jwk, kid } = getKeys();
-  return {
-    keys: [{
-      kty: "EC",
-      crv: "P-256",
-      x: jwk.x,
-      y: jwk.y,
-      use: "sig",
-      alg: "ES256",
-      kid,
-    }],
-  };
+  const { jwk, kid, alg } = getKeys();
+  const publicJwk = alg === "RS256"
+    ? { kty: "RSA", n: jwk.n, e: jwk.e }
+    : { kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y };
+  return { keys: [{ ...publicJwk, use: "sig", alg, kid }] };
 }
 
 export function verifyAuthJwt(token: string | null | undefined) {
@@ -144,7 +139,7 @@ export function verifyAuthJwt(token: string | null | undefined) {
 
   const header = decodeJsonPart(parts[0]);
   const claims = decodeJsonPart(parts[1]);
-  if (!header || !claims || header.alg !== "ES256" || header.kid !== getKeys().kid) return null;
+  if (!header || !claims || header.alg !== getKeys().alg || header.kid !== getKeys().kid) return null;
 
   const now = Math.floor(Date.now() / 1_000);
   const email = typeof claims.email === "string" ? normalizeEmail(claims.email) : "";
@@ -166,11 +161,10 @@ export function verifyAuthJwt(token: string | null | undefined) {
     || expiresAt - issuedAt > JWT_TTL_SECONDS) return null;
 
   const signature = Buffer.from(parts[2], "base64url");
-  if (signature.length !== 64) return null;
-  const valid = verifySignature("sha256", Buffer.from(`${parts[0]}.${parts[1]}`), {
-    key: getKeys().publicKey,
-    dsaEncoding: "ieee-p1363",
-  }, signature);
+  const { publicKey, alg } = getKeys();
+  if (alg === "ES256" && signature.length !== 64) return null;
+  const valid = verifySignature("sha256", Buffer.from(`${parts[0]}.${parts[1]}`),
+    alg === "ES256" ? { key: publicKey, dsaEncoding: "ieee-p1363" } : publicKey, signature);
   return valid ? email : null;
 }
 
