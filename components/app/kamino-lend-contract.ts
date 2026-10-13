@@ -14,6 +14,7 @@ export type KaminoLendAction = "deposit" | "withdraw";
 export type KaminoLendMarket = Readonly<{
   ready: boolean;
   network: "devnet";
+  execution?: "crossmint-smart-wallet";
   reason: string | null;
   market: Readonly<{
     address: string;
@@ -116,6 +117,7 @@ export function normalizeKaminoLendMarket(value: unknown): KaminoLendMarket | nu
   return {
     ready: true,
     network: "devnet",
+    ...(source.execution === "crossmint-smart-wallet" ? { execution: "crossmint-smart-wallet" as const } : {}),
     reason: null,
     market: {
       address: marketAddress,

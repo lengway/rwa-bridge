@@ -37,6 +37,7 @@ import {
   TOKEN_PROGRAM_ID,
   TokenAccountNotFoundError,
 } from "@solana/spl-token";
+import { validateIntent, type CanonicalInstruction } from "@/lib/kamino-instruction-intent";
 import { KaminoActionStore } from "@/lib/kamino-action-store";
 import { createReadCoalescer } from "@/lib/read-coalescer";
 import { advancePortfolioReadGeneration, portfolioReadGeneration } from "@/lib/portfolio-read-generation";
@@ -578,14 +579,17 @@ export async function prepareKaminoLendDevnetAction({
   action,
   walletAddress,
   amountAtomic,
+  smartWalletTemplate = false,
 }: {
   action: KaminoLendAction;
   walletAddress: string;
   amountAtomic: unknown;
+  smartWalletTemplate?: boolean;
 }) {
   const config = readConfig();
   const requestedAmount = validateRequestedAmount(amountAtomic, config.maxAmountAtomic);
   const ownerKey = publicKey(walletAddress, "walletAddress");
+  if (!smartWalletTemplate && !PublicKey.isOnCurve(ownerKey.toBytes())) error("SMART_WALLET_REQUIRED", "Use the smart-wallet executor for this wallet.");
   const owner = address(ownerKey.toBase58());
   const loaded = await loadVerifiedKaminoLend(config);
   const currentLedgerInstant = await getCurrentLedgerInstant(loaded.rpc, "confirmed");
@@ -680,6 +684,16 @@ export async function prepareKaminoLendDevnetAction({
   assertSafePreparedTransaction(transaction, action, ownerKey.toBase58());
   if (!sameStringArray(compiledKaminoInstructionDigests(transaction), expectedKaminoInstructionDigests)) {
     error("TRANSACTION_LAYOUT_INVALID", "Kamino instruction data does not match the generated action.");
+  }
+
+  if (smartWalletTemplate) {
+    const intentInstructions: CanonicalInstruction[] = instructions.map(instruction => ({
+      programId: instruction.programAddress,
+      accounts: (instruction.accounts ?? []).map(account => ({ address: account.address, isSigner: Boolean(account.role & 2), isWritable: Boolean(account.role & 1) })),
+      dataBase58: bs58.encode(Uint8Array.from(instruction.data ?? [])),
+    }));
+    validateIntent({ action, walletAddress, amountAtomic: requestedAmount.toString(), collateralAmountAtomic: collateralAmount?.toString() ?? null, instructions: intentInstructions });
+    return { serializedTransaction, intentInstructions, action, walletAddress, amountAtomic: requestedAmount.toString(), collateralAmountAtomic: collateralAmount?.toString() ?? null, blockhash: latestBlockhash.blockhash, lastValidBlockHeight: latestBlockhash.lastValidBlockHeight };
   }
 
   let simulation;

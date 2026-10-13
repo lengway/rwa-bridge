@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { DrawerSuccess } from "@/components/app/drawer-success";
+import { KaminoSmartWalletApproval } from "@/components/app/kamino-smart-wallet-approval";
 import {
   type KaminoLendAction,
   type KaminoLendConfirmation,
@@ -542,6 +543,38 @@ export function KaminoLendDrawer({
     if (!nextOpen && !currentPendingAction && !busy) resetPreparedAction();
     onOpenChange(nextOpen);
   };
+
+  if (market?.execution === "crossmint-smart-wallet" && !currentPendingAction && !recoveryBlocked) {
+    return (
+      <DrawerFrame open={open} onOpenChange={changeOpen} title={actionLabel}
+        description={action === "deposit" ? "Put your USDC to work in Kamino." : "Return USDC to your wallet."}>
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Button variant={action === "deposit" ? "default" : "outline"} onClick={() => changeAction("deposit")}>Invest</Button>
+            <Button variant={action === "withdraw" ? "default" : "outline"} onClick={() => changeAction("withdraw")}>Withdraw</Button>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="kamino-smart-amount" className="text-sm font-medium">Amount · USDC</label>
+            <Input id="kamino-smart-amount" inputMode="decimal" placeholder="0.10" value={amount} onChange={event => changeAmount(event.target.value)} />
+            <p className="text-xs text-muted-foreground">Available: {availableMaximum === null ? "—" : formatAtomicAmount(availableMaximum, 6)} USDC</p>
+            {exceedsMaximum || exceedsWalletMaximum ? <p className="text-sm text-destructive">Choose an amount within your available balance.</p> : null}
+            {balanceError ? <p className="text-sm text-destructive">{balanceError}</p> : null}
+          </div>
+          <KaminoSmartWalletApproval action={action} amountAtomic={amountAtomic && !exceedsMaximum && !exceedsWalletMaximum && walletSnapshot ? amountAtomic : "0"}
+            wallet={wallet} walletAddress={activeWalletAddress}
+            onCompleted={status => {
+              void loadWalletSnapshot();
+              void loadMarket();
+              void devnet.refresh();
+              if (status.action !== "initialize" && status.signature) onConfirmed?.({
+                action: status.action, actionId: status.actionId, confirmed: true, signature: status.signature,
+                explorerUrl: `https://explorer.solana.com/tx/${status.signature}?cluster=devnet`, status: "COMPLETED", actualLiquidityAmountAtomic: null,
+              });
+            }} />
+        </div>
+      </DrawerFrame>
+    );
+  }
 
   if (confirmation) {
     const completedActionLabel = confirmation.action === "deposit" ? "Invested" : "Withdrawn";

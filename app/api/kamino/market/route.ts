@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       ? null
       : await requireKaminoLendSession(request, assertedWallet);
     const status = await getKaminoLendDevnetMarketStatus(session?.walletAddress);
-    return NextResponse.json(status, { headers: kaminoNoStoreHeaders });
+    return NextResponse.json({ ...status, execution: "crossmint-smart-wallet" }, { headers: kaminoNoStoreHeaders });
   } catch (cause) {
     return kaminoLendErrorResponse(cause);
   }
