@@ -112,7 +112,7 @@ export default function WidgetDemoPage() {
       setStatus("Connecting to Plain…");
     } catch (startError) {
       if (attempt !== attemptRef.current) return;
-      setError(startError instanceof Error ? startError.message : "We couldn't start the sandbox demo.");
+      setError(startError instanceof Error ? startError.message : "We couldn't start the bank embed. Please try again.");
       setStatus("Connection failed.");
     } finally {
       if (attempt === attemptRef.current) setBusy(false);
