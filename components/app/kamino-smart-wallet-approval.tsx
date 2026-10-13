@@ -33,8 +33,8 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
   const [operation, setOperation] = useState<StoredSmartWalletOperation | null>(null);
   const [running, setRunning] = useState(false);
   const [recovering, setRecovering] = useState(true);
-  const [progress, setProgress] = useState("Подготавливаем…");
-  const [stalled, setStalled] = useState(false);
+  const [, setProgress] = useState("Подготавливаем…");
+  const [, setStalled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState<SmartWalletOperationStatus | null>(null);
   const [completedAmount, setCompletedAmount] = useState(amountAtomic);
@@ -101,6 +101,7 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
         latest.current.onCompleted?.(result);
       }
     } catch (cause) {
+      console.error("[smart-wallet] operation failed:", cause);
       if (!signal.aborted) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       window.clearTimeout(watchdog);
@@ -158,21 +159,14 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
     </Card>
   );
 
+  if (running || recovering) return (
+    <div role="status" aria-live="polite" aria-label="Выполняем операцию" className="flex justify-center py-10">
+      <LoaderCircle className="size-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+
   return (
-    <Card className="gap-4 rounded-2xl p-4">
-      <p className="font-medium">Проверьте операцию</p>
-      <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-sm">
-        <Row label="Сумма" value={amountLabel(displayedAmount)} />
-        <Row label="Маршрут" value="Kamino · Solana Devnet" />
-        <Row label="Комиссия сети" value="Оплачивает Plain" />
-      </div>
-      {running || recovering ? (
-        <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
-          <LoaderCircle className="size-4 shrink-0 animate-spin" />
-          {stalled ? "Операция ещё обрабатывается. Мы проверим её автоматически" : progress}
-        </p>
-      ) : null}
-      {stalled ? <button className="text-left text-sm underline" onClick={() => wake.current?.()}>Проверить ещё раз</button> : null}
+    <div className="space-y-3">
       {error ? (
         <>
           <p role="alert" className="text-sm text-destructive">
@@ -181,14 +175,10 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
           <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Подробнее</summary><p className="mt-2 break-words">{error}</p></details>
         </>
       ) : null}
-      {!running && !recovering ? <Button className="w-full" onClick={start}
+      <Button className="w-full" onClick={start}
         disabled={!operation && !/^[1-9]\d*$/.test(amountAtomic)}>
         {error ? "Повторить" : `${displayedAction === "deposit" ? "Вложить" : "Вывести"} ${amountLabel(displayedAmount)}`}
-      </Button> : null}
-    </Card>
+      </Button>
+    </div>
   );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>;
 }
