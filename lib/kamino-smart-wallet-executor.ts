@@ -289,6 +289,28 @@ export async function getSmartWalletStatus(input: { email: string; walletAddress
   const provider = await getCrossmintKaminoTransaction(refreshed.walletAddress, refreshed.providerTransactionId);
   if (provider.params.transaction !== refreshed.immutableWire) bad("Provider transaction no longer matches the stored request.");
   refreshed.providerStatus = provider.status;
+  if (provider.status === "failed" && !provider.onChain.txId && !provider.onChain.proxiedTxId) {
+    // Crossmint rejected the transaction before broadcast (e.g. the blockhash expired
+    // while awaiting approval). Nothing reached the chain, so the operation is terminal
+    // and a fresh request may be prepared; otherwise status polling never ends.
+    refreshed.stage = refreshed.status = "FAILED";
+    refreshed.failure = "The wallet provider expired the transaction before it was submitted.";
+    if (refreshed.initializationOnly) {
+      const parent = await actionStore.get(refreshed.parentActionId!);
+      if (parent && parent.stage === "SETUP_REQUIRED") {
+        parent.stage = parent.status = "FAILED";
+        parent.failure = "Wallet initialization expired before submission. Prepare a new action.";
+        await save(parent);
+      }
+    }
+    const claimRecord = refreshed.initializationOnly ? await actionStore.get(refreshed.parentActionId!) : refreshed;
+    if (claimRecord) {
+      await claims.releaseWalletLease({ walletAddress: claimRecord.walletAddress, providerUUID: claimRecord.providerUUID, actionId: claimRecord.id, resolution: "never-submitted" })
+        .catch(cause => console.error("[kamino] lease release after provider expiry failed:", cause instanceof Error ? cause.message : cause));
+    }
+    await save(refreshed);
+    return statusOutput(refreshed);
+  }
   if (provider.status === "success" || provider.status === "pending" || provider.status === "failed") {
     refreshed.stage = refreshed.status = "PENDING";
     if (provider.onChain.txId || provider.onChain.proxiedTxId) {
