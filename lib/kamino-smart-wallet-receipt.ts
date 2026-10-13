@@ -157,6 +157,18 @@ function validateTopLevelComputeBudget(
       wrapperIndex = index;
       continue;
     }
+    if (instruction.programId === SYSTEM_PROGRAM_ID && wrapperIndex === -1) {
+      // Crossmint's sponsor may pre-fund rent into the smart wallet. Only an inbound
+      // System transfer from the validated fee payer to this wallet is accepted.
+      const data = decode(instruction.dataBase58, "System transfer data");
+      const isTransfer = data.length === 12 && readU32LE(data, 0) === 2;
+      const lamports = isTransfer ? Number(new DataView(data.buffer, data.byteOffset + 4, 8).getBigUint64(0, true)) : -1;
+      if (!isTransfer || !sameStrings(instruction.accounts, [intent.feePayerAddress, intent.walletAddress])
+        || lamports < 0 || lamports > 10_000_000) {
+        reject("unexpected top-level System Program instruction.");
+      }
+      continue;
+    }
     if (instruction.programId !== COMPUTE_BUDGET_PROGRAM_ID) {
       reject(`unexpected top-level program ${instruction.programId}.`);
     }
