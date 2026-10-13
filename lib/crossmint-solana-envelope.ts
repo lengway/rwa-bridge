@@ -115,7 +115,9 @@ export function decodeCrossmintSolanaEnvelope(
   const settingsAddress = settings.pubkey.toBase58();
   const walletAddress = wallet.pubkey.toBase58();
   if (!settings.isWritable || settings.isSigner) reject("settings root meta is unsupported.");
-  if (!wallet.isWritable || wallet.isSigner) reject("wallet root meta is unsupported.");
+  // The PDA wallet never signs the outer transaction. It is writable only when it moves
+  // lamports itself, so an empty initialization or a token-only action may mark it read-only.
+  if (wallet.isSigner) reject("wallet root meta is unsupported.");
   if (instructionsSysvar.pubkey.toBase58() !== INSTRUCTIONS_SYSVAR_ID
     || instructionsSysvar.isWritable || instructionsSysvar.isSigner) {
     reject("instructions sysvar root meta is unsupported.");

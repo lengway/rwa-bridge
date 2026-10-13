@@ -177,7 +177,7 @@ export async function prepareSmartWalletAction(input: { email: string; walletAdd
   const existing = await actionStore.get(id);
   if (existing) {
     if (existing.walletAddress !== input.walletAddress || existing.action !== input.action || existing.amountAtomic !== amount) bad("Request ID is already bound to a different operation.");
-    if (existing.providerTransactionId) return output(existing);
+    if (existing.providerTransactionId && existing.stage !== "CREATE_UNKNOWN") return output(existing);
     if (existing.stage !== "CREATE_UNKNOWN") bad("Stored operation is incomplete and cannot be resubmitted.");
     const found = await findProvider(input.walletAddress, existing.immutableWire);
     if (!found) bad("Provider submission remains uncertain. Do not retry with a new request until recovery is complete.");
@@ -239,7 +239,7 @@ export async function initializeSmartWallet(input: { email: string; walletAddres
   const existing = await actionStore.get(id);
   if (existing) {
     if (existing.walletAddress !== input.walletAddress || !existing.initializationOnly || existing.parentActionId !== parentId) bad("Request ID is already bound to a different operation.");
-    if (existing.providerTransactionId) return output(existing);
+    if (existing.providerTransactionId && existing.stage !== "CREATE_UNKNOWN") return output(existing);
     const found = await findProvider(input.walletAddress, existing.immutableWire);
     if (!found) bad("Initialization submission remains uncertain. Do not submit it again.");
     return output(await materialize(existing, found, input.email));
