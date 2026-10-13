@@ -1,10 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { connection } from "next/server";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { Providers } from "@/components/providers";
-import { readCurrentMarketData } from "@/lib/market-server";
-import type { MarketDataInitialData } from "@/lib/market-data";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
 const geist = Geist({
   subsets: ["latin", "cyrillic"],
@@ -14,43 +12,44 @@ const geist = Geist({
 const geistMono = Geist_Mono({
   subsets: ["latin", "cyrillic"],
   variable: "--font-geist-mono",
+  preload: false,
 });
 
 export const metadata: Metadata = {
-  title: "Plain",
-  description: "Plain makes Kamino Lend easier to explore with an embedded wallet and verified Solana Devnet transactions. Test funds have no monetary value.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: `%s · ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "/",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
   appleWebApp: {
     capable: true,
-    title: "Plain",
+    title: SITE_NAME,
     statusBarStyle: "default",
   },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1f1f1f",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#1f1f1f" },
+  ],
 };
 
-async function getInitialMarketData(): Promise<MarketDataInitialData | null> {
-  // FX and legacy reference yields are not prerequisites for Kamino Earn.
-  if (process.env.NEXT_PUBLIC_ENABLE_LEGACY_FIAT_ADAPTERS !== "true") return null;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      readCurrentMarketData(),
-      new Promise<null>((resolve) => {
-        timeoutId = setTimeout(() => resolve(null), 1_500);
-      }),
-    ]);
-  } finally {
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
-  }
-}
-
-export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // Next 16's connection() keeps this process-cache lookup request-time, so build prerenders cannot freeze market data.
-  await connection();
-  const initialMarketData = await getInitialMarketData();
-
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
@@ -58,7 +57,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <Providers initialMarketData={initialMarketData}>{children}</Providers>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
