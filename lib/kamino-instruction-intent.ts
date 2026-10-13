@@ -226,7 +226,9 @@ function assertIdempotentAta(
   if ((payer.address !== feePayerAddress && payer.address !== walletAddress) || !payer.isWritable) {
     invalid("ATA payer must be the expected fee payer and a writable signer.");
   }
-  if (owner.address !== walletAddress || owner.isSigner || owner.isWritable) invalid("ATA owner must be the wallet and readonly.");
+  // When the wallet itself pays rent, its meta is merged (signer + writable) for both slots.
+  const ownerPaysRent = payer.address === walletAddress;
+  if (owner.address !== walletAddress || (!ownerPaysRent && (owner.isSigner || owner.isWritable))) invalid("ATA owner must be the wallet and readonly.");
   if (mint.isSigner || mint.isWritable) invalid("ATA mint must be readonly.");
   if (target.isSigner || !target.isWritable) invalid("ATA target must be writable and not a signer.");
   if (systemProgram.address !== SYSTEM_PROGRAM_ID || systemProgram.isSigner || systemProgram.isWritable) {
