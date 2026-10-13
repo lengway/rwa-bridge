@@ -47,3 +47,4 @@ next-env.d.ts
 # Server-only Devnet demo payer / mint authority material. Keep all keypairs out of
 # the repository; public mints and pools belong in ignored .env.local instead.
 .secrets/
+/.data/
