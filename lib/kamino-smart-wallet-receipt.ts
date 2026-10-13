@@ -164,9 +164,11 @@ function validateTopLevelComputeBudget(
     if (wrapperIndex !== -1) reject("Compute Budget instructions must precede the wallet wrapper.");
     const data = decode(instruction.dataBase58, "Compute Budget data");
     if (data[0] === 2) {
-      if (data.length !== 5 || intent.computeUnitLimit === null) reject("unexpected or malformed compute unit limit.");
+      if (data.length !== 5) reject("malformed compute unit limit.");
       const units = readU32LE(data, 1);
-      if (units < 1 || units > MAX_COMPUTE_UNITS || units !== intent.computeUnitLimit) {
+      // Crossmint re-estimates the limit when wrapping; it only affects the project-paid
+      // fee, so any bounded value is accepted while all value-moving checks stay exact.
+      if (units < 1 || units > MAX_COMPUTE_UNITS) {
         reject("compute unit limit differs from the validated intent.");
       }
       limits += 1;
