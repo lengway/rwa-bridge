@@ -16,7 +16,7 @@ const COMPUTE_BUDGET_PROGRAM_ID = "ComputeBudget111111111111111111111111111111";
 const ASSOCIATED_TOKEN_PROGRAM_ID = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 const SYSTEM_PROGRAM_ID = "11111111111111111111111111111111";
 const TOKEN_PROGRAM_ID = KAMINO_LEND_DEVNET.liquidityTokenProgram;
-const MAX_COMPUTE_UNITS = 300_000;
+const MAX_COMPUTE_UNITS = 1_400_000; // Solana per-transaction maximum; Crossmint re-estimates the limit.
 
 export type NormalizedTraceInstruction = {
   programId: string;
