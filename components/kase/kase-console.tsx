@@ -109,22 +109,24 @@ export function KaseConsole() {
   const labelOf = (owner: string) => state?.holders.find((h) => h.owner === owner)?.label ?? short(owner);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
-      <header className="mb-8 space-y-3">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Plain · built for the Superteam Kazakhstan x KASE side track
+    <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
+      <header className="mb-12 max-w-3xl space-y-4">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">For issuers</p>
+        <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">Plain for Issuers — Bond lifecycle on Solana</h1>
+        <p className="text-pretty text-base leading-7 text-muted-foreground">
+          Plain services tokenized instruments end to end: issuance, record date, coupon, buyback and redemption. Below is a
+          working tokenized bond on Solana devnet. Every step is a real transaction with an on-chain memo, and the holder
+          registry is read straight from chain.
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight">Corporate actions on Solana</h1>
-        <p className="max-w-3xl text-muted-foreground">
-          A working tokenized-bond lifecycle on Solana devnet: issuance, a live holder registry, a hashed record-date
-          snapshot, coupon payment, a pro-rata partial buyback and redemption at maturity. Every step is a real devnet
-          transaction with an on-chain memo. The cash leg uses a test settlement token; fiat rails are simulated.
+        <p className="rounded-2xl border bg-muted/40 px-4 py-3 text-sm leading-6 text-muted-foreground">
+          <span className="font-medium text-foreground">Implemented on-chain:</span> Token-2022 bond mint, holder balances, record-date hash memos, coupon, buyback and redemption transfers and burns.{" "}
+          <span className="font-medium text-foreground">Simulated:</span> the fiat cash leg (a test settlement token minted by the issuer) and issuer custody of holder keys.
         </p>
       </header>
 
-      <section className="mb-8 grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border p-5">
-          <h2 className="mb-3 font-medium">Instrument terms</h2>
+      <section className="mb-12 grid gap-4 md:grid-cols-2">
+        <div className="rounded-3xl border bg-card p-6">
+          <h2 className="mb-4 text-lg font-semibold tracking-tight">Instrument terms</h2>
           <dl className="grid grid-cols-2 gap-y-2 text-sm">
             <dt className="text-muted-foreground">Instrument</dt><dd>Plain Test Bond 10% 2Y (PTB10)</dd>
             <dt className="text-muted-foreground">Face value</dt><dd>$1,000 per bond</dd>
@@ -134,8 +136,8 @@ export function KaseConsole() {
             <dt className="text-muted-foreground">Token standard</dt><dd>SPL Token-2022, 0 decimals</dd>
           </dl>
         </div>
-        <div className="rounded-xl border p-5">
-          <h2 className="mb-3 font-medium">On-chain accounts (devnet)</h2>
+        <div className="rounded-3xl border bg-card p-6">
+          <h2 className="mb-4 text-lg font-semibold tracking-tight">On-chain accounts (devnet)</h2>
           {state ? (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
               <dt className="text-muted-foreground">Bond mint</dt>
@@ -157,18 +159,18 @@ export function KaseConsole() {
         </div>
       </section>
 
-      <section className="mb-8">
-        <h2 className="mb-3 font-medium">Lifecycle</h2>
+      <section className="mb-12">
+        <h2 className="mb-4 text-lg font-semibold tracking-tight">Lifecycle</h2>
         <ol className="grid gap-3 md:grid-cols-5">
           {STEPS.map((step, index) => {
             const done = state?.actions.some((a) => a.kind === step.command) ?? false;
             const enabled = step.after.includes(phase) && !busy;
             return (
-              <li key={step.command} className={`flex flex-col gap-3 rounded-xl border p-4 ${done ? "bg-muted/40" : ""}`}>
+              <li key={step.command} className={`flex flex-col gap-3 rounded-3xl border bg-card p-4 ${done ? "border-foreground/20 bg-muted/40" : ""}`}>
                 <div className="text-xs text-muted-foreground">Step {index + 1}{done ? " · done" : ""}</div>
                 <div className="text-sm font-medium">{step.label}</div>
                 <p className="flex-1 text-xs text-muted-foreground">{step.detail}</p>
-                <Button size="sm" disabled={!enabled} onClick={() => run(step.command)}>
+                <Button size="sm" className="rounded-full" disabled={!enabled} onClick={() => run(step.command)}>
                   {busy === step.command ? <Loader2 className="animate-spin" /> : null}
                   {busy === step.command ? "Sending…" : done ? "Done" : "Run"}
                 </Button>
@@ -178,7 +180,7 @@ export function KaseConsole() {
         </ol>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {state ? (
-            <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => run("issue")}>
+            <Button variant="outline" size="sm" className="rounded-full" disabled={Boolean(busy)} onClick={() => run("issue")}>
               {busy === "issue" && phase !== "none" ? <Loader2 className="animate-spin" /> : null}
               Reset: issue a fresh instrument
             </Button>
@@ -187,12 +189,12 @@ export function KaseConsole() {
         </div>
       </section>
 
-      <section className="mb-8">
+      <section className="mb-12">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-medium">Holder registry</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Holder registry</h2>
           {view?.registry ? <span className="text-xs text-muted-foreground">read from chain at slot {view.registry.slot}</span> : null}
         </div>
-        <div className="overflow-x-auto rounded-xl border">
+        <div className="overflow-x-auto rounded-3xl border bg-card">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
               <tr><th className="px-4 py-2">Holder</th><th className="px-4 py-2">Wallet</th><th className="px-4 py-2 text-right">Bonds</th><th className="px-4 py-2 text-right">Cash received (test USD)</th></tr>
@@ -213,8 +215,8 @@ export function KaseConsole() {
       </section>
 
       {state?.snapshot ? (
-        <section className="mb-8 rounded-xl border p-5 text-sm">
-          <h2 className="mb-2 font-medium">Latest record-date snapshot</h2>
+        <section className="mb-12 rounded-3xl border bg-card p-6 text-sm">
+          <h2 className="mb-2 text-lg font-semibold tracking-tight">Latest record-date snapshot</h2>
           <p className="text-muted-foreground">
             {new Date(state.snapshot.recordDate).toUTCString()} · slot {state.snapshot.slot}
           </p>
@@ -223,13 +225,13 @@ export function KaseConsole() {
         </section>
       ) : null}
 
-      <section className="mb-8">
-        <h2 className="mb-3 font-medium">Corporate action log</h2>
+      <section className="mb-12">
+        <h2 className="mb-4 text-lg font-semibold tracking-tight">Corporate action log</h2>
         <div className="space-y-3">
           {[...(state?.actions ?? [])].reverse().map((action) => (
-            <article key={action.id} className="rounded-xl border p-4 text-sm">
+            <article key={action.id} className="rounded-3xl border bg-card p-5 text-sm">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-medium">{KIND_LABEL[action.kind]}</h3>
+                <h3 className="font-semibold tracking-tight">{KIND_LABEL[action.kind]}</h3>
                 <span className="text-xs text-muted-foreground">{action.id} · {new Date(action.at).toUTCString()}</span>
               </div>
               <p className="mt-1 font-mono text-xs break-all text-muted-foreground">memo: {action.memo}</p>
@@ -263,20 +265,19 @@ export function KaseConsole() {
         </div>
       </section>
 
-      <footer className="border-t pt-6 text-xs text-muted-foreground">
+      <footer className="border-t pt-6 text-xs leading-5 text-muted-foreground">
         <p>
-          Implemented on-chain: Token-2022 bond mint (permanent delegate, metadata), holder balances, record-date hash
-          memos, coupon / buyback / redemption transfers and burns. Simulated: the fiat cash leg (a test settlement token
-          minted by the issuer) and the issuer&apos;s custody of holder keys. Not affiliated with or endorsed by KASE.
+          Devnet prototype with test tokens; no real funds or securities. Not investment advice. Built for the Superteam
+          Kazakhstan x KASE side track; not affiliated with or endorsed by KASE.
         </p>
       </footer>
-    </main>
+    </div>
   );
 }
 
 function ExplorerLink({ kind, value, label }: { kind: "tx" | "address"; value: string; label?: string }) {
   return (
-    <a href={explorer(kind, value)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs underline-offset-2 hover:underline">
+    <a href={explorer(kind, value)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs underline-offset-2 transition-colors hover:text-foreground hover:underline">
       {label ?? short(value)}
       <ExternalLink className="size-3" />
     </a>

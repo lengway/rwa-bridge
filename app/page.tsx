@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Building2,
+  FileText,
   Fingerprint,
   Landmark,
   LockKeyhole,
@@ -284,6 +285,23 @@ export default function LandingPage() {
               </div>
               <Link href="/widget-demo" className={secondaryCta}>
                 <Building2 className="size-4" aria-hidden="true" /> See the bank embed
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section id="issuers" aria-labelledby="issuers-title" className="scroll-mt-20 border-t py-16 sm:py-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div className="grid gap-8 rounded-[2rem] border bg-card p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">For issuers</p>
+                <h2 id="issuers-title" className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">Bond lifecycle on Solana.</h2>
+                <p className="max-w-2xl text-pretty text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
+                  Yield needs instruments that are serviced end to end. Run a tokenized bond through issuance, record date, coupon, buyback and redemption on devnet, with every step verifiable on Solana Explorer.
+                </p>
+              </div>
+              <Link href="/kase" className={secondaryCta}>
+                <FileText className="size-4" aria-hidden="true" /> Explore corporate actions
               </Link>
             </div>
           </div>

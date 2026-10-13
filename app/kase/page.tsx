@@ -1,13 +1,22 @@
 import type { Metadata } from "next";
 import { KaseConsole } from "@/components/kase/kase-console";
-import { noIndexMetadata } from "@/lib/noindex";
+import { SiteFooter, SiteHeader } from "@/components/site/site-chrome";
 
 export const metadata: Metadata = {
-  ...noIndexMetadata,
-  title: "Corporate actions on Solana",
-  description: "Tokenized bond prototype: holder registry, record date, coupon, partial buyback and redemption on Solana devnet.",
+  title: "For issuers",
+  description:
+    "Plain for Issuers: run a tokenized bond through issuance, record date, coupon, buyback and redemption on Solana devnet.",
+  alternates: { canonical: "/kase" },
 };
 
 export default function KasePage() {
-  return <KaseConsole />;
+  return (
+    <>
+      <SiteHeader />
+      <main id="main" className="flex-1">
+        <KaseConsole />
+      </main>
+      <SiteFooter />
+    </>
+  );
 }
