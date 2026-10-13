@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Anchor workspace (Rust + generated artifacts) is built separately.
+    "programs/**",
   ]),
 ]);
 
