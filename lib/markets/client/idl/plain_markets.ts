@@ -1963,7 +1963,7 @@ export type PlainMarkets = {
     {
       "code": 6007,
       "name": "invalidSettlementMint",
-      "msg": "Settlement mint must not be the bond mint"
+      "msg": "Settlement mint is the bond mint or has fee / hook / non-transferable extensions"
     },
     {
       "code": 6008,

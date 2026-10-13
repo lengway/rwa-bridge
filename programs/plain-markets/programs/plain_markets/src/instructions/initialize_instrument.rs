@@ -76,6 +76,8 @@ pub fn handle_initialize_instrument(ctx: Context<InitializeInstrument>, params: 
         MarketsError::InvalidMetadata
     );
 
+    reject_unsupported_settlement_mint(&ctx.accounts.settlement_mint.to_account_info())?;
+
     let now = Clock::get()?.unix_timestamp;
     let mint_key = ctx.accounts.mint.key();
     let instrument_key = ctx.accounts.instrument.key();
@@ -244,5 +246,24 @@ pub fn handle_initialize_instrument(ctx: Context<InitializeInstrument>, params: 
         maturity_ts: instrument.maturity_ts,
         allowlist_enabled: instrument.allowlist_enabled,
     });
+    Ok(())
+}
+
+/// The paying vault must receive exactly what is sent and release it unconditionally, so Token-2022
+/// settlement mints with fees, hooks or non-transferability are refused.
+fn reject_unsupported_settlement_mint(info: &AccountInfo) -> Result<()> {
+    use spl_token_2022::extension::{BaseStateWithExtensions, ExtensionType, StateWithExtensions};
+    if info.owner != &token_2022::ID {
+        return Ok(());
+    }
+    let data = info.try_borrow_data()?;
+    let state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&data)?;
+    let unsupported = state.get_extension_types()?.into_iter().any(|e| {
+        matches!(
+            e,
+            ExtensionType::TransferFeeConfig | ExtensionType::TransferHook | ExtensionType::NonTransferable
+        )
+    });
+    require!(!unsupported, MarketsError::InvalidSettlementMint);
     Ok(())
 }

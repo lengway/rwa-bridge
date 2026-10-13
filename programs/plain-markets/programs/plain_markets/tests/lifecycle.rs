@@ -151,6 +151,19 @@ fn rejects_bad_instrument_params() {
     env.fails(&[i], &issuer, &[&mint], E::InvalidMaturity);
 }
 
+#[test]
+fn rejects_settlement_mint_with_transfer_hook() {
+    let mut env = Env::new();
+    let (bond_mint, _) = env.create_instrument(false);
+    // Use an existing bond mint (Token-2022 + transfer hook) as the settlement mint of a new bond.
+    let mint = Keypair::new();
+    let issuer = env.issuer.insecure_clone();
+    let mut i = env.init_instrument_ix(&issuer.pubkey(), &mint.pubkey(), false);
+    i.accounts[4].pubkey = bond_mint; // settlement_mint
+    i.accounts[5].pubkey = token_2022_id(); // settlement_token_program
+    env.fails(&[i], &issuer, &[&mint], E::InvalidSettlementMint);
+}
+
 // ------------------------------------------------------------------------------------------------
 // Coupon: full lifecycle + attacks
 // ------------------------------------------------------------------------------------------------

@@ -19,7 +19,7 @@ pub enum MarketsError {
     InvalidMaturity,
     #[msg("Name, symbol or URI is too long or empty")]
     InvalidMetadata,
-    #[msg("Settlement mint must not be the bond mint")]
+    #[msg("Settlement mint is the bond mint or has fee / hook / non-transferable extensions")]
     InvalidSettlementMint,
 
     // --- instrument state ---
