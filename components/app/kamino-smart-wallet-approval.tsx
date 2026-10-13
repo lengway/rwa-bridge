@@ -6,6 +6,7 @@ import { Check, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatAtomicToDecimal } from "@/lib/earn-gateway";
+import { useAuth } from "@/lib/useAuth";
 import {
   continueSmartWalletChain,
   readStoredSmartWalletOperation,
@@ -38,12 +39,13 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState<SmartWalletOperationStatus | null>(null);
   const [completedAmount, setCompletedAmount] = useState(amountAtomic);
-  const latest = useRef(props);
+  const { email } = useAuth();
+  const latest = useRef({ ...props, email });
   const currentOperation = useRef<StoredSmartWalletOperation | null>(null);
   const controller = useRef<AbortController | null>(null);
   const wake = useRef<(() => void) | null>(null);
   const inFlight = useRef<AbortSignal | null>(null);
-  useEffect(() => { latest.current = props; });
+  useEffect(() => { latest.current = { ...props, email }; });
 
   const run = useCallback(async (userTap: boolean, signal: AbortSignal) => {
     const context = latest.current;
@@ -79,10 +81,13 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
           // Timeout never causes another approval: the durable marker stays set.
           let timer: number | undefined;
           try {
+            // The server requests approval from the wallet's email signer; the SDK
+            // otherwise approves with its device signer and finds no pending approval.
+            if (context.email) await context.wallet!.useSigner({ type: "email", email: context.email });
             return await Promise.race([
               context.wallet!.approve({ transactionId }),
               new Promise<never>((_, reject) => {
-                timer = window.setTimeout(() => reject(new Error("Ответ кошелька прервался.")), 25_000);
+                timer = window.setTimeout(() => reject(new Error("Ответ кошелька прервался.")), 180_000);
               }),
             ]);
           } finally { window.clearTimeout(timer); }
