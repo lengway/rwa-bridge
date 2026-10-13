@@ -222,7 +222,8 @@ function assertIdempotentAta(
   if (instruction.accounts.length !== 6) invalid("associated-token-account instruction must have exactly 6 accounts.");
   const [payer, target, owner, mint, systemProgram, tokenProgram] = instruction.accounts;
   if (!expectedTargets.has(target.address)) invalid("ATA target must be the canonical wallet USDC or cUSDC account.");
-  if (payer.address !== feePayerAddress || !payer.isSigner || !payer.isWritable) {
+  // Crossmint may re-point rent payment at the smart wallet after pre-funding it from the sponsor.
+  if ((payer.address !== feePayerAddress && payer.address !== walletAddress) || !payer.isWritable) {
     invalid("ATA payer must be the expected fee payer and a writable signer.");
   }
   if (owner.address !== walletAddress || owner.isSigner || owner.isWritable) invalid("ATA owner must be the wallet and readonly.");
