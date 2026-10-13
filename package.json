@@ -12,10 +12,12 @@
     "devnet:bootstrap": "tsx scripts/bootstrap-rwa-demo.ts"
   },
   "dependencies": {
+    "@anchor-lang/core": "^1.2.1",
     "@base-ui/react": "^1.8.0",
     "@crossmint/client-sdk-react-ui": "^4.8.0",
     "@kamino-finance/klend-sdk": "13.0.2",
     "@meteora-ag/dlmm": "^1.9.14",
+    "@noble/hashes": "^1.8.0",
     "@solana/kit": "2.3.0",
     "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.99.0",
