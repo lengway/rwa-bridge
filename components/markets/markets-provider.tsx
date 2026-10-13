@@ -96,9 +96,16 @@ export function useLedgerQuery<T>(key: string | null, fn: (svc: MarketsService) 
   return { data: sameKey ? state.data : undefined, error: sameKey ? state.error : null, loading: key != null && state.token !== token };
 }
 
-/** The ledger's clock (cluster time on chain; the simulated clock otherwise). */
+/** The ledger's clock (cluster time on chain, ticking; the simulated clock otherwise). */
 export function useLedgerNow() {
   const svc = useMarkets();
   useLedgerVersion();
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    // A live cluster clock moves on its own: re-render so date-gated steps open on time.
+    if (svc.simulation) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 5_000);
+    return () => window.clearInterval(id);
+  }, [svc]);
   return svc.now();
 }
