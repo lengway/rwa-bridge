@@ -109,3 +109,29 @@ test("formats settlement amounts", () => {
   assert.equal(formatSettlement(usd(50_000)), "$50,000.00");
   assert.equal(formatSettlement(BigInt(1_234_567)), "$1.234567");
 });
+
+test("CSV export: one row per holder, plain decimals, receipts referenced", async () => {
+  const { entitlementsCsv } = await import("../lib/markets/csv");
+  const svc = createSimulatedMarketsService();
+  const actions = await svc.listActions(SIM_MINT);
+  const c1 = actions.find((a) => a.seq === 1)!;
+  const instrument = (await svc.getInstrument(SIM_MINT))!;
+  const csv = entitlementsCsv(instrument, c1, await svc.getEntitlements(c1.id));
+  const lines = csv.trim().split("\r\n");
+  assert.equal(lines.length, 6);
+  assert.match(lines[0], /^instrument,action_id,action_seq,action_type,record_date,payment_date/);
+  assert.match(lines[1], /,400,20000\.000000,0,0,paid_push,/);
+  assert.ok(lines.slice(1).every((l) => l.includes(",2026-04-08,2026-04-15,snapshot,")));
+});
+
+test("next step follows the lifecycle and respects dates", async () => {
+  const { nextStep } = await import("../lib/markets/lifecycle");
+  const svc = createSimulatedMarketsService();
+  const instrument = (await svc.getInstrument(SIM_MINT))!;
+  const [redemption, c2, vote, c1] = await svc.listActions(SIM_MINT);
+  assert.equal(nextStep(redemption, instrument, null)?.op, "lockRecord");
+  assert.equal(nextStep(redemption, instrument, null)?.opensAt, redemption.recordTs);
+  assert.equal(nextStep(c2, instrument, null)?.op, "fund");
+  assert.equal(nextStep(vote, instrument, null)?.op, "settle");
+  assert.equal(nextStep(c1, instrument, null), null);
+});

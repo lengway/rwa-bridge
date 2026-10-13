@@ -137,6 +137,7 @@ export async function verifyCorporateAction(input: {
   let recomputedRoot: string | null = null;
   let recomputedHash: string | null = null;
   let entitlements: EntitlementSheet | null = null;
+  let leaves: VerificationReport["leaves"] = null;
   let holdings: Holding[] | null = null;
   let snapshotError: string | null = null;
 
@@ -144,7 +145,9 @@ export async function verifyCorporateAction(input: {
     try {
       holdings = canonicalHoldings(snapshot.holdings);
       recomputedHash = await snapshotHash(snapshot);
-      recomputedRoot = (await buildMerkleTree(holdings)).root;
+      const tree = await buildMerkleTree(holdings);
+      recomputedRoot = tree.root;
+      leaves = tree.holdings.map((h, i) => ({ holder: h.holder, units: h.units, hash: tree.leaves[i] }));
       entitlements = buildEntitlementSheet(instrument, action.params, holdings, "snapshot", { receipts, votes });
     } catch (error) {
       snapshotError = error instanceof Error ? error.message : String(error);
@@ -221,7 +224,7 @@ export async function verifyCorporateAction(input: {
   }
 
   const verdict = checks.some((c) => c.status === "fail") ? "mismatch" : checks.some((c) => c.status === "pending") ? "incomplete" : "verified";
-  return { action, instrument, snapshot, recomputedRoot, recomputedHash, entitlements, checks, verdict, computedAt: input.now };
+  return { action, instrument, snapshot, recomputedRoot, recomputedHash, leaves, entitlements, checks, verdict, computedAt: input.now };
 }
 
 function timelineCheck(action: CorporateAction): VerificationCheck {

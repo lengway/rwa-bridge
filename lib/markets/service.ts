@@ -238,6 +238,8 @@ export type VerificationReport = {
   /** Merkle root recomputed in this runtime. */
   recomputedRoot: string | null;
   recomputedHash: string | null;
+  /** Merkle leaves in commitment order. */
+  leaves: { holder: Address; units: bigint; hash: string }[] | null;
   entitlements: EntitlementSheet | null;
   checks: VerificationCheck[];
   verdict: "verified" | "mismatch" | "incomplete";

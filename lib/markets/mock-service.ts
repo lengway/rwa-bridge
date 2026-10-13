@@ -1,6 +1,7 @@
 import bs58 from "bs58";
 import { withDerivedViews } from "./derive";
 import { formatDateTime, formatSettlement } from "./format";
+import { actionTitle } from "./lifecycle";
 import { holderEntitlement, isPaymentAction, isRedemption, programTotal } from "./math";
 import type {
   ActionDraft,
@@ -62,7 +63,6 @@ const STATE_VERSION = 3;
 const STORAGE_KEY = "plain-markets-simulated-ledger";
 const ZERO = BigInt(0);
 const MICRO = BigInt(1_000_000);
-const DAY = 86_400;
 
 export const ts = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 export const SIM_START = ts("2026-10-13T09:00:00Z");
@@ -404,24 +404,6 @@ function event(s: State, r: TxResult, e: Omit<MarketEvent, "slot" | "ts" | "sign
 
 function money(v: bigint) {
   return formatSettlement(v);
-}
-
-function couponPeriods(i: Instrument) {
-  return Math.round(((i.maturityTs - i.issueTs) / (365.25 * DAY)) * i.frequency);
-}
-
-export function actionTitle(i: Instrument, d: Pick<ActionDraft, "params">) {
-  const p = d.params;
-  switch (p.kind) {
-    case "Coupon":
-      return `Coupon ${p.period} of ${couponPeriods(i)}`;
-    case "PartialRedemption":
-      return `Partial redemption · ${p.redeemBps / 100}% ${p.priceBps === 10_000 ? "at par" : `at ${p.priceBps / 100}%`}`;
-    case "FinalRedemption":
-      return p.includeCoupon ? "Final redemption with last coupon" : "Final redemption";
-    case "Vote":
-      return `Bondholder vote · ${p.question}`;
-  }
 }
 
 function opAnnounce(s: State, mint: Address, d: ActionDraft) {
