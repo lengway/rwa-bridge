@@ -4,7 +4,6 @@ import {
   CrossmintProvider,
   CrossmintWalletProvider,
 } from "@crossmint/client-sdk-react-ui";
-import { ThemeProvider } from "next-themes";
 import { crossmintApiKey, isCrossmintConfigured } from "@/lib/config";
 import { AppStoreProvider } from "@/lib/store";
 import { MarketDataProvider } from "@/lib/useMarketData";
@@ -23,16 +22,14 @@ export function Providers({
   initialMarketData: MarketDataInitialData | null;
 }) {
   const app = (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <TooltipProvider>
-        <MarketDataProvider initialData={initialMarketData}>
-          <AppStoreProvider>
-            <BankEmbedProvider>{children}</BankEmbedProvider>
-            <Toaster position="top-center" />
-          </AppStoreProvider>
-        </MarketDataProvider>
-      </TooltipProvider>
-    </ThemeProvider>
+    <TooltipProvider>
+      <MarketDataProvider initialData={initialMarketData}>
+        <AppStoreProvider>
+          <BankEmbedProvider>{children}</BankEmbedProvider>
+          <Toaster position="top-center" />
+        </AppStoreProvider>
+      </MarketDataProvider>
+    </TooltipProvider>
   );
   if (!isCrossmintConfigured) {
     return <AuthProvider crossmintEnabled={false}><DevnetProvider crossmintEnabled={false}>{app}</DevnetProvider></AuthProvider>;
