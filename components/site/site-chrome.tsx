@@ -17,7 +17,8 @@ const sectionLinks = [
 export function BrandMark({ className = "" }: { className?: string }) {
   return (
     <Link href="/" className={`inline-flex items-center gap-2 rounded-lg font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${className}`}>
-      <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">P</span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/plain-logo.svg" alt="" aria-hidden="true" width={28} height={28} className="size-7 rounded-lg" />
       <span>Plain</span>
     </Link>
   );
