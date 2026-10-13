@@ -81,9 +81,11 @@ export function kaminoLendErrorResponse(cause: unknown) {
     if (conflicts.has(cause.code)) {
       return NextResponse.json({ error: cause.message, code: cause.code }, { status: 409 });
     }
-    // Avoid disclosing RPC topology, account layouts, or config details.
+    // Avoid disclosing RPC topology, account layouts, or config details to the client; keep them in server logs.
+    console.error("[kamino] unavailable:", cause.code, cause.message);
     return NextResponse.json({ error: "Kamino Lend is temporarily unavailable.", code: "KAMINO_UNAVAILABLE" }, { status: 503 });
   }
+  console.error("[kamino] request error:", cause instanceof Error ? `${cause.name}: ${cause.message}` : cause);
   return NextResponse.json({ error: "Unable to process the Kamino Lend request.", code: "KAMINO_REQUEST_ERROR" }, { status: 500 });
 }
 
