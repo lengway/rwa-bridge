@@ -8,7 +8,7 @@ The design follows `docs/kase-v2-spec.md`.
 | | |
 |---|---|
 | Program id | `H87kwrjtpNKxqbydmjW7ytnX7Jum7RramAaiyc82XMVm` |
-| Devnet | **Not deployed yet.** The deploy wallet has 1.26 SOL and the 542 KB program needs about 2.76 SOL in rent. The devnet faucet returned "rate limit reached" four times; it was not retried in a loop. See [Deploy](#deploy). |
+| Devnet | **Deployed** ([explorer](https://explorer.solana.com/address/H87kwrjtpNKxqbydmjW7ytnX7Jum7RramAaiyc82XMVm?cluster=devnet)). The full lifecycle demo ran on devnet; links are [below](#devnet-deployment-and-transaction-links). |
 | Workspace | `programs/plain-markets/` (excluded from `tsconfig` and ESLint; `npm run build` passes) |
 | Client | `lib/markets/client/` (IDL, IDL type, builders), `lib/markets/merkle.ts`, `lib/markets/entitlements.ts`, `lib/markets/register.ts` |
 | Demo | `scripts/markets-demo.ts` (`npm run markets:demo`) |
@@ -167,18 +167,64 @@ Compute units measured in that run:
 
 All are under the 200k default.
 
-## Devnet transaction links
+## Devnet deployment and transaction links
 
-None yet. The deploy is blocked on devnet SOL (see below). Once deployed, `npm run markets:demo`
-prints an explorer link for every step and writes them to `.data/markets-demo/latest.json`, together
-with the canonical snapshot JSON of every action that the verifier needs.
+- Program: [`H87kwrjtpNKxqbydmjW7ytnX7Jum7RramAaiyc82XMVm`](https://explorer.solana.com/address/H87kwrjtpNKxqbydmjW7ytnX7Jum7RramAaiyc82XMVm?cluster=devnet). Deploy tx: [`3xqXK2jC…`](https://explorer.solana.com/tx/3xqXK2jCWNXMHeG3Epyf87oBcH92nvcRfYGKBRgghuwSMQ8cbiBaUEMHMPxz81E9NLTHnQqCicaWVtKHZY2HqC3Z?cluster=devnet). Upgrade authority: `82dzmeh7DEoJQrAhnzVVjfRFgeDoXj65gUwkbbnjiWB6`. Program data: 542,032 bytes, 2.754 SOL rent.
+- Demo instrument (PKZ27): [`6WKRYj9rYx4Qb1aeB86dAHqRhj3yKrQ3WnLSyiT2zAGx`](https://explorer.solana.com/address/6WKRYj9rYx4Qb1aeB86dAHqRhj3yKrQ3WnLSyiT2zAGx?cluster=devnet). Bond mint: [`5HrfH3enHC21eD1o8eqfhDFset21mVjW4w19oBqFQMim`](https://explorer.solana.com/address/5HrfH3enHC21eD1o8eqfhDFset21mVjW4w19oBqFQMim?cluster=devnet). Test USD mint: [`8FtK9wQtUXWb1DvXpGpNJz1DYCBheZ3BkigowLYDkBrk`](https://explorer.solana.com/address/8FtK9wQtUXWb1DvXpGpNJz1DYCBheZ3BkigowLYDkBrk?cluster=devnet).
+- Investors: alice [`FBhg7JGE…`](https://explorer.solana.com/address/FBhg7JGEAstoEkjx7hsz5rMac91Z4cGTRwAJV8ezrC4M?cluster=devnet), bob [`8oj1CzY6…`](https://explorer.solana.com/address/8oj1CzY6FCdZEqektG9J3mzwvxz11WtbiydnJ676uQAo?cluster=devnet), carol [`2SwDaaZy…`](https://explorer.solana.com/address/2SwDaaZyqWRB2JJZQN1qYAgWNbmM5SWbc5ZEgEwMm5CU?cluster=devnet)
+
+`npm run markets:demo` ran 39 transactions on devnet (2026-10-13). Two attempts were rejected on-chain as intended and so have no link:
+
+- A transfer after the record date failed with `TransferLocked`.
+- Alice's second coupon claim failed with `AlreadyClaimed`.
+
+The final redemption left a supply of 0 and the instrument Redeemed. Summary and snapshots: `.data/markets-demo/latest.json` (gitignored).
+
+| # | Step | Tx |
+|---|---|---|
+| 1 | create test USD settlement mint (6 dp) | [o11SzwYnkc…](https://explorer.solana.com/tx/o11SzwYnkckYXa5sG9tRQ8G9xL4PnaYJ4XKy1w4tRJpzJsiEryAN9eNbXKPaNPxYVcEvrV5oEMNhpog5KKptFo4?cluster=devnet) |
+| 2 | mint 1,000,000 test USD to the issuer | [jXXmH71K1k…](https://explorer.solana.com/tx/jXXmH71K1kPQyt8YrAJQSq1Ww5kkaa3NLe5SoDRsUQ5MfTzvjg9fEYyCFR6NGu7d3oRx2hYth2JM1FVSwyndUbY?cluster=devnet) |
+| 3 | fund investor wallets with 0.02 SOL for fees | [57uvhg2PBo…](https://explorer.solana.com/tx/57uvhg2PBox1pekj5chF9Y9BgbXGGGxhjxRAK4JkMs2muiWCyWcjDMZeTQGLcTEeZPCUpE1JcJfegfYYFhRrmm55?cluster=devnet) |
+| 4 | initialize_instrument PKZ27 (12.5% semi-annual) | [4Dfc992bhp…](https://explorer.solana.com/tx/4Dfc992bhpSAoJD9GnvjaHKj7hCcKDvwrCZrJkdd5GvMaf6sRG1krnBzGrNKoqsAUWtyc2hjN3k1CG2PGTKMhgfj?cluster=devnet) |
+| 5 | issue 50 units to alice | [DVUnmJarKz…](https://explorer.solana.com/tx/DVUnmJarKzFhfBeacacRu9h2tycWaPaeyX2szFAsh7SUE5SYRxRt62EyiT9wdRHGW94AUS6H4EyX3m5jt2hxHdb?cluster=devnet) |
+| 6 | issue 30 units to bob | [44Bm9BCq7N…](https://explorer.solana.com/tx/44Bm9BCq7NLviBV56S5dQqPZaUwdWnGjSiGdeywZ4NDBuQFWBGRZq6adkCLxo78bnvqmi4GstWbYhzSGv6GZYH8z?cluster=devnet) |
+| 7 | issue 20 units to carol | [4aF2nJKnyq…](https://explorer.solana.com/tx/4aF2nJKnyqesXtyq6ANi6hub9e673XNjWpXVcXbFSS7Hfwv6nDG3EKfErVwHeqPD73iMfLfYYidTvpcgYAMgUYDK?cluster=devnet) |
+| 8 | coupon: announce | [4kwrEnnceC…](https://explorer.solana.com/tx/4kwrEnnceC9mWe7iVFSWbNswF3aehotDJWsDH1y9kSLMg8svkuLPLw7e3gEPKTfTvcyjtMthPyVjxvwLSd2qcqtf?cluster=devnet) |
+| 9 | transfer 5 units carol → bob before record date | [2KioeoWipV…](https://explorer.solana.com/tx/2KioeoWipVihVKVdRPZ6zZntv3sHBnB77YvRVKRDgrxriL9iDmWPsnwihvGePLfiFZ8A3aN7oeauCVFcv7K9Vq64?cluster=devnet) |
+| 10 | coupon: lock_record (crank) | [5QdTc2z1X8…](https://explorer.solana.com/tx/5QdTc2z1X8WSJp7kUhqjXeDvs6i4ikb34nQ9G9pa4wDrhJHYTXQ4WAH7aJVTNg45Xodebkj9nKs3nM5JNtLmJkGK?cluster=devnet) |
+| 11 | coupon: post_snapshot root 9dea96c0ac44… | [3RNUhF3x7C…](https://explorer.solana.com/tx/3RNUhF3x7Cfy5up2GFSifWoZadsgVjCDuhb6Vm4NPh1qwnne9amWeh7LMS9TAe1pys3nMrPtYrWN2yEX5DrtbcTP?cluster=devnet) |
+| 12 | coupon: fund $6,250.00 | [3HWggDnDoX…](https://explorer.solana.com/tx/3HWggDnDoXN2PE46hcg9U3cR3U1CGeAeTnmYfjjZBDqH77P9qv3jxcNiCz2xvNYGLqAvgmNMQG31rDUF8swQsqhs?cluster=devnet) |
+| 13 | coupon: alice claims (pull) | [4hdxFJm1PJ…](https://explorer.solana.com/tx/4hdxFJm1PJbbazL4rj2CjsabXTJuyNaUVrUW4s6HRnjMKV4SfWKx3o2zz1BrqFeBxx4TucYRBKnucv7vgB2kMvvV?cluster=devnet) |
+| 14 | coupon: paying agent pays bob (push) | [2XM6AJxbCg…](https://explorer.solana.com/tx/2XM6AJxbCgNKUb553DDxpKjvfweH2fQaBE1JyYUKW3WCbUDicHiJhNxnswr57dRPivusKbmTSWuQ4mM42W4Z6iNa?cluster=devnet) |
+| 15 | coupon: paying agent pays carol (push) | [DnAx8Hgbwv…](https://explorer.solana.com/tx/DnAx8HgbwvvZyiKzEcGixXE1cSzEcc7P7JsSp9SeGxKqDrmWiuRYZcmM4LHnuWpHCEZBsLfHa42fBczUS9r7jLF?cluster=devnet) |
+| 16 | coupon: settle | [5JkWJdLgeQ…](https://explorer.solana.com/tx/5JkWJdLgeQiNKBft2gbpGGvHsiYypSabjNCDUD61CG5tL3xeCxy2VnkaomTEHTAfpUAiYr2BtjpRbMzK8SHnh3XZ?cluster=devnet) |
+| 17 | vote: announce | [4JAwubJBBn…](https://explorer.solana.com/tx/4JAwubJBBnZGosUj1s9Rz1fDA82n2KRoR5sw439DSgKMp8tU6BwRT9RGDTXnyityDhSZzVJHG3oUf7KJAjYQ9WXX?cluster=devnet) |
+| 18 | vote: lock_record (crank) | [3ygkMBossR…](https://explorer.solana.com/tx/3ygkMBossRP1r6pDwDA7Vc1LFVnQmVDr7cM3uVyZofsn1k9YpKybwCEe1AUTPbyGD3e9ffZu7NjrLo7dcC984u3T?cluster=devnet) |
+| 19 | vote: post_snapshot root d39ebd12b889… | [2JehFKKnq7…](https://explorer.solana.com/tx/2JehFKKnq7NuxxAan7pChPa3LaR9Jnxo2Y35fxMxRdCxTWTauzTu72nMRUx2aChMujVPJ5JBPvSTT8bEjmuuLzB8?cluster=devnet) |
+| 20 | vote: alice votes For (50 units) | [c7NQfnBBsE…](https://explorer.solana.com/tx/c7NQfnBBsExwLHFYD4CBTGPEkJvGHM9Xkm4FzysM8gz1WZtyrfcBHDsf6RW6CS8C1MXTnxUgPKYbnXKPWLCxo6C?cluster=devnet) |
+| 21 | vote: bob votes Against (35 units) | [2Vetr5Xio7…](https://explorer.solana.com/tx/2Vetr5Xio71c7Ue8qHWUBnp9NbkuUYay2Ao3Ve8KsaDhmGXD3koFt2S3WQZPbFK94XaX1ueuXw8sEP1G3mzPseP?cluster=devnet) |
+| 22 | vote: carol votes For (15 units) | [5aW9nnSg9t…](https://explorer.solana.com/tx/5aW9nnSg9tJPTXTFNHeKwXXichpKYeQ62iNmDYM445SgYBR4N3oFVjfWeCxG2hpbY4BUg48ueFVzEXVrUKJNMgiv?cluster=devnet) |
+| 23 | vote: settle (close tally) | [58mDp9v3fd…](https://explorer.solana.com/tx/58mDp9v3fd9B2UohjN7NfTK8s68ZSeS2YJWhQHL7VNn3CsiRSiAcDnrKCddDcBQJvLa5PrB7YfsLKky45Zhu1SFH?cluster=devnet) |
+| 24 | partial: announce | [3vL6NritVV…](https://explorer.solana.com/tx/3vL6NritVV4bQbYMBgkzf4f5VsPT5Gu1oHUsoLhpDMbREvjCw8qepuuJLShma5YZsRUCpXeKVSQ9DtZUMiEopVsd?cluster=devnet) |
+| 25 | partial: lock_record (crank) | [52VRVAWKAE…](https://explorer.solana.com/tx/52VRVAWKAE87PMeNVYVh4N7UFfDKBMmjatPdV6wKaNSAQPrLUa6TZ7MYJAYGCCzE3YySAtw3ypgZH1kGMS2ASB28?cluster=devnet) |
+| 26 | partial: post_snapshot root 1bfa6164a421… | [2QAw65Vqiy…](https://explorer.solana.com/tx/2QAw65VqiyPMqimv2eh8Nwh7KZwJohmaP394h5PtkT7GgpRdZb6S4bVe5J7j66FZTCbfiz1GqVNLgtEM5VKStpoz?cluster=devnet) |
+| 27 | partial: fund $23,000.00 | [45i14VykFk…](https://explorer.solana.com/tx/45i14VykFk7qnQvFhWFLnS5UJjBfbHxh5mw7mtcQngqZTd5Ce96ZhPY7yYPZVa26f3KjswjVa7YjsnhwCqdXFtbX?cluster=devnet) |
+| 28 | partial: paying agent pays alice (push) | [H2zzhVsKSm…](https://explorer.solana.com/tx/H2zzhVsKSmFUwhGUvFzAgtM49Wjp9e8RrPAh8s6MyAoKDWvDMGH5RPQphqA7S9EboTw7SUycofnZ8N7aVS6nVjN?cluster=devnet) |
+| 29 | partial: bob claims (pull) | [35s8QS5ZCU…](https://explorer.solana.com/tx/35s8QS5ZCUoCA6HWVz91QUQd79aqdPqm418RaMGDxeAgsrt5n6P3cQj9AeZD5JyJgPnW6D93URDdJk7JSeibTjVr?cluster=devnet) |
+| 30 | partial: paying agent pays carol (push) | [2tERQpjwi9…](https://explorer.solana.com/tx/2tERQpjwi9ys54fLvGPFWXFsavGaaqH99yn2xYbL3jTCqnTawU3vAdeJutiUntsFvLfnuxSKR5fiVutnN8so2h9F?cluster=devnet) |
+| 31 | partial: settle | [3EUQVGgXBZ…](https://explorer.solana.com/tx/3EUQVGgXBZJCs2hZy2HohDJSZpx3guVBTPk9pi1T9hCmdj7DBoroYmXQZCP9totAedsCnSW5cRXffaie7tDaxrQB?cluster=devnet) |
+| 32 | final: announce | [5G195P6LMY…](https://explorer.solana.com/tx/5G195P6LMYEBbfqnaepGuTgVaEMFjupZuiBjepPz56fdSPJ6WtakhuCSskoSTwq6WmJXag2fcLm1uEzzTKyYjJxt?cluster=devnet) |
+| 33 | final: lock_record (crank) | [5BQoM1fTwE…](https://explorer.solana.com/tx/5BQoM1fTwERc3PMM1atzWyLDJCp2KpUM3tR2yp13eY23UJGyRpSjFpGQSoZU1DugirtPQwAAjcfVAnJxmBE6w4n6?cluster=devnet) |
+| 34 | final: post_snapshot root 6c1ad956de5d… | [3ynwAspy3z…](https://explorer.solana.com/tx/3ynwAspy3zSETswoCqPHwRGf7SNnUDsrAuv66pLXjYtQMe1EUm6yYQ5Bg2wE4X645s7BnVVHJo2x5Wjn1rBVTZw3?cluster=devnet) |
+| 35 | final: fund $81,812.50 | [38492xuU72…](https://explorer.solana.com/tx/38492xuU72AuZLSWrcBqxbeM9vbiZTw9yfGzfMiTg6QkZgTuddgKHHfg2f9kTTrBcH66TSjGnLQY2H3Qs6cUiW8b?cluster=devnet) |
+| 36 | final: paying agent pays alice (push) | [3MtSzd4jWG…](https://explorer.solana.com/tx/3MtSzd4jWGDe9XH4hYLJ1WCwdU4su4jzdVZYogoeerfmmKpXLH6i28gPd6gq5se9sJu6v2JntrXrTxqzqdm1fCmQ?cluster=devnet) |
+| 37 | final: paying agent pays bob (push) | [3Z6rkRG2ZH…](https://explorer.solana.com/tx/3Z6rkRG2ZHnxuLFZ6HZE6bVBtwUqA7MWyogbZpxsGZ3bbgpTTYBaeREKHzx7LLa9zoFyN3irf4XQh2V47hK863dR?cluster=devnet) |
+| 38 | final: carol claims (pull) | [2KkvpZzbaa…](https://explorer.solana.com/tx/2KkvpZzbaaqTJE5JZwSGFMqq6EsokCy3gKv41xjBrPUeZGxMXPmTtwHJShoX18NWwzazCZvjkNGXHXdp84b9hcDk?cluster=devnet) |
+| 39 | final: settle | [yxNiPMuNHW…](https://explorer.solana.com/tx/yxNiPMuNHWUA6o5ynBb6Mw26HrAe2TPP9aHYeAkhsFwaaTNoTHMABjRTDVwU1jdVe4AAwX3JjCVcPFe5KT6vfQi?cluster=devnet) |
 
 ## Deploy
 
-1. Top up the deploy wallet `82dzmeh7DEoJQrAhnzVVjfRFgeDoXj65gUwkbbnjiWB6` (the Solana CLI default
-   keypair) to at least **2.9 devnet SOL**. For example, sign in at <https://faucet.solana.com>, or
-   retry `solana airdrop 2` later.
-2. Deploy and run the demo:
+Already done on devnet. To redeploy or upgrade from the CLI wallet:
 
 ```bash
 solana program deploy programs/plain-markets/target/deploy/plain_markets.so --program-id programs/plain-markets/target/deploy/plain_markets-keypair.json --url devnet
@@ -188,7 +234,7 @@ solana program deploy programs/plain-markets/target/deploy/plain_markets.so --pr
 npm run markets:demo
 ```
 
-The upgrade authority will be the CLI wallet. To rebuild, run `npm run markets:build`; it runs
+The upgrade authority is the CLI wallet. To rebuild, run `npm run markets:build`; it runs
 `anchor build` and syncs the IDL into `lib/markets/client/idl`.
 
 ## Known limits
