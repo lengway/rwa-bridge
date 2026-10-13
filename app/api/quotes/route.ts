@@ -12,14 +12,14 @@ export async function GET(request: NextRequest) {
   if ((provider !== "transak" && provider !== "moonpay") || (side !== "buy" && side !== "sell")
     || (provider === "transak" && side !== "buy")) {
     return Response.json(
-      { error: "Некорректный способ или направление операции." },
+      { error: "Invalid method or operation direction." },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }
   const minimum = provider === "transak" ? 30 : side === "buy" ? 5 : 20;
   if (!Number.isFinite(amount) || amount < minimum || amount > 1_000) {
     return Response.json(
-      { error: "Сумма вне диапазона котировки провайдера." },
+      { error: "The amount is outside the provider's quote range." },
       { status: 400, headers: { "Cache-Control": "no-store" } },
     );
   }
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     return Response.json(quote, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return Response.json(
-      { error: "Не удалось получить котировку." },
+      { error: "Couldn't get a quote." },
       { status: 502, headers: { "Cache-Control": "no-store" } },
     );
   }

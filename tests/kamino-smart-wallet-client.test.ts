@@ -26,15 +26,15 @@ test("accepts a prepared operation only when wallet, action, amount, simulation,
   );
   assert.throws(
     () => parsePreparedSmartWalletOperation(prepared, { walletAddress, action: "withdraw", amountAtomic: "100000", requestId: actionId }),
-    /не совпадает с запросом/,
+    /does not match the request/,
   );
   assert.throws(
     () => parsePreparedSmartWalletOperation({ ...prepared, simulation: { ok: false } }, { walletAddress, action: "deposit", amountAtomic: "100000", requestId: actionId }),
-    /симуляция операции не прошла/,
+    /simulation failed/,
   );
   assert.throws(
     () => parsePreparedSmartWalletOperation({ ...prepared, feeMode: "user" }, { walletAddress, action: "deposit", amountAtomic: "100000", requestId: actionId }),
-    /оплата сетевой комиссии/,
+    /pay the network fee/,
   );
 });
 
@@ -62,7 +62,7 @@ test("accepts setup-required operations without simulation success but only a ta
   assert.throws(() => parsePreparedSmartWalletOperation({
     ...initialization,
     initializationOnly: false,
-  }, { walletAddress, action: "initialize", amountAtomic: "0", requestId: actionId }), /отдельная операция без перевода/);
+  }, { walletAddress, action: "initialize", amountAtomic: "0", requestId: actionId }), /separate setup operation with no token transfer/);
 });
 
 test("requires status to match the persisted wallet, action, and operation and rejects unconfirmed completion", () => {
@@ -78,11 +78,11 @@ test("requires status to match the persisted wallet, action, and operation and r
   assert.equal(parseSmartWalletOperationStatus(status, { actionId, walletAddress, action: "deposit" }).stage, "PENDING");
   assert.throws(
     () => parseSmartWalletOperationStatus(status, { actionId, walletAddress, action: "initialize" }),
-    /не совпадает с этим кошельком/,
+    /does not match this wallet/,
   );
   assert.throws(
     () => parseSmartWalletOperationStatus({ ...status, stage: "COMPLETED", confirmed: false }, { actionId, walletAddress, action: "deposit" }),
-    /ещё не подтвердил операцию/,
+    /has not confirmed the operation yet/,
   );
 });
 
@@ -232,7 +232,7 @@ test("transport interruptions during recovery keep checking the same saved trans
   fixture.dependencies.status = async (...args) => {
     if (++polls < 3) {
       const { KaminoSmartWalletClientError } = await import("../lib/kamino-smart-wallet-client");
-      throw new KaminoSmartWalletClientError("Не удалось связаться с сервисом кошелька. Проверьте статус перед повтором.");
+      throw new KaminoSmartWalletClientError("Couldn't reach the wallet service. Check the status before retrying.");
     }
     return status(...args);
   };

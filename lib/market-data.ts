@@ -48,7 +48,7 @@ export const FALLBACK_KZT_DATA: KztRateData = {
   usdKzt: FALLBACK_KZT_RATE,
   asOf: "2026-10-08",
   source: {
-    name: "Ориентир приложения (без актуальной котировки)",
+    name: "App reference (no live quote)",
     url: "https://nationalbank.kz/rss/get_rates.cfm",
   },
   stale: true,
@@ -59,7 +59,7 @@ export const FALLBACK_YIELD_DATA: YieldData = {
     apy: ONDO_USDY.fallbackApy,
     asOf: "2026-10-02",
     source: {
-      name: "Ondo USDY — резервное значение",
+      name: "Ondo USDY — fallback value",
       url: "https://ondo.finance/usdy",
     },
     stale: true,
@@ -79,7 +79,7 @@ export const FALLBACK_YIELD_DATA: YieldData = {
     apy: KZ_BOND.fallbackApy,
     asOf: "2026-10-06",
     source: {
-      name: "KASE · индекс доходности KZGB_Ym1m",
+      name: "KASE · KZGB_Ym1m yield index",
       url: "https://kase.kz/en/indexes-and-indicators/gsecs/kzgb-ym1m",
     },
     stale: true,
@@ -102,7 +102,7 @@ export function getStrategyApy(strategyId: string, yields: YieldData) {
 export function formatDataDate(asOf: string) {
   const date = new Date(`${asOf.slice(0, 10)}T12:00:00Z`);
   if (!Number.isFinite(date.getTime())) return asOf;
-  return new Intl.DateTimeFormat("ru-RU", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",

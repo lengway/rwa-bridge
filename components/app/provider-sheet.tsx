@@ -46,14 +46,14 @@ export function ProviderSheet({
                 variant="ghost"
                 size="sm"
                 className="shrink-0 gap-1 px-2 text-xs text-slate-700 hover:bg-slate-100 hover:text-slate-950"
-                aria-label="Открыть в новой вкладке"
+                aria-label="Open in a new tab"
                 onClick={() => {
                   window.open(externalUrl, "_blank", "noopener,noreferrer");
                   onOpenExternal?.();
                 }}
               >
                 <ExternalLink aria-hidden="true" className="size-3.5" />
-                В новой вкладке
+                In a new tab
               </Button>
             ) : null}
             <Button
@@ -61,7 +61,7 @@ export function ProviderSheet({
               variant="ghost"
               size="icon"
               className="shrink-0 text-slate-700 hover:bg-slate-100 hover:text-slate-950"
-              aria-label="Закрыть"
+              aria-label="Close"
               onClick={() => onOpenChange(false)}
             >
               <X aria-hidden="true" />
@@ -69,7 +69,7 @@ export function ProviderSheet({
           </header>
           {testData ? (
             <details className="shrink-0 border-b px-4 py-2 text-xs text-slate-600">
-              <summary className="cursor-pointer font-medium text-slate-800">Данные для sandbox</summary>
+              <summary className="cursor-pointer font-medium text-slate-800">Sandbox details</summary>
               <div className="pb-1 pt-2 leading-5">{testData}</div>
             </details>
           ) : null}

@@ -29,7 +29,7 @@ export function MethodOption({
   disabled?: boolean;
 }) {
   const labels: Record<string, string> = {
-    "bank-embed": "Со счёта в банке",
+    "bank-embed": "From a bank account",
   };
   const label = labels[id] ?? ONRAMP_OPTIONS.find((option) => option.id === id)?.name ?? id;
   const hint = ONRAMP_OPTIONS.find((option) => option.id === id)?.hint;
@@ -49,10 +49,10 @@ export function MethodOption({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {label}
-          {id === "transak" ? <Badge variant="secondary">Рекомендуем</Badge> : null}
+          {id === "transak" ? <Badge variant="secondary">Recommended</Badge> : null}
         </span>
         {id === "bank-embed" ? (
-          <span className="mt-1 block text-xs text-muted-foreground">Оплата подтверждается в приложении банка</span>
+          <span className="mt-1 block text-xs text-muted-foreground">Payment is confirmed in your bank app</span>
         ) : hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}
       </span>
       <span className={`mt-1 size-4 rounded-full border ${selected ? "border-foreground bg-foreground ring-2 ring-background ring-offset-1 ring-offset-foreground" : "border-muted-foreground/40"}`} />
@@ -109,7 +109,7 @@ export function TransakPath({
     fetch("/api/transak-session")
       .then(async (response) => {
         const result = await response.json();
-        if (!response.ok) throw new Error("Не удалось проверить настройки Transak.");
+        if (!response.ok) throw new Error("Couldn't check the Transak configuration.");
         return result as TransakSetup;
       })
       .then((result) => {
@@ -118,20 +118,20 @@ export function TransakPath({
       .catch(() => {
         if (!cancelled) setSetup({
           configured: false,
-          message: "Не удалось проверить настройки Transak.",
+          message: "Couldn't check the Transak configuration.",
         });
       });
     return () => { cancelled = true; };
   }, []);
 
   if (!setup) {
-    return <p className="text-xs text-muted-foreground">Проверяем настройки Transak…</p>;
+    return <p className="text-xs text-muted-foreground">Checking Transak configuration…</p>;
   }
   if (!setup.configured) {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">{setup.message ?? "Transak пока не настроен."}</p>
-        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Выбрать другой способ</Button>
+        <p className="text-xs text-muted-foreground">{setup.message ?? "Transak is not configured yet."}</p>
+        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Choose another method</Button>
       </div>
     );
   }
@@ -226,12 +226,12 @@ function TransakSessionPath({
       if (!response.ok || typeof result?.widgetUrl !== "string") {
         throw new Error(typeof result?.error === "string"
           ? result.error
-          : "Не удалось открыть виджет Transak.");
+          : "Couldn't open the Transak widget.");
       }
 
       const parsedUrl = new URL(result.widgetUrl);
       if (parsedUrl.origin !== TRANSAK_STAGING_WIDGET_ORIGIN) {
-        throw new Error("Transak вернул ссылку не для тестовой среды.");
+        throw new Error("Transak returned a non-test-environment link.");
       }
       if (!mounted.current) return;
 
@@ -240,7 +240,7 @@ function TransakSessionPath({
       setSheetOpen(true);
     } catch (requestError: unknown) {
       if (mounted.current) {
-        setError(russianActionError(requestError, "Не удалось открыть Transak. Проверьте соединение и повторите попытку."));
+        setError(russianActionError(requestError, "Couldn't open Transak. Check your connection and try again."));
       }
     } finally {
       opening.current = false;
@@ -293,10 +293,10 @@ function TransakSessionPath({
         } else if (response.ok && result?.status === "completed") {
           const amountUsd = toPositiveAmount(result.amountUsd);
           if (amountUsd === null) {
-            throw new Error("Transak не вернул корректную сумму покупки.");
+            throw new Error("Transak did not return a valid purchase amount.");
           }
           if (typeof result.signature !== "string" || typeof result.explorerUrl !== "string") {
-            throw new Error("Не удалось подтвердить зачисление в сети Solana devnet.");
+            throw new Error("Couldn't confirm the credit on Solana devnet.");
           }
           reportedCredit.current = true;
           orderIdRef.current = null;
@@ -313,7 +313,7 @@ function TransakSessionPath({
           setVerificationPending(false);
           setError(typeof result?.error === "string"
             ? result.error
-            : "Не удалось проверить покупку Transak.");
+            : "Couldn't verify the Transak purchase.");
           return;
         } else {
           setVerificationPending(true);
@@ -322,7 +322,7 @@ function TransakSessionPath({
       } catch (requestError) {
         if (active) {
           setVerificationPending(true);
-          setError(russianActionError(requestError, "Не удалось проверить оплату Transak. Проверка повторится автоматически."));
+          setError(russianActionError(requestError, "Couldn't verify the Transak payment. The check will retry automatically."));
         }
       } finally {
         requestPending = false;
@@ -354,7 +354,7 @@ function TransakSessionPath({
       }
       if (eventId === "TRANSAK_ORDER_SUCCESSFUL" && !completed.current) {
         if (!captureOrderId(event.data)) {
-          setError("Не удалось получить идентификатор заказа Transak для проверки.");
+          setError("Couldn't get the Transak order ID to verify.");
         }
         completed.current = true;
         closeWidget();
@@ -372,10 +372,10 @@ function TransakSessionPath({
     return () => window.removeEventListener("message", handleMessage);
   }, [captureOrderId, closeWidget]);
 
-  if (authStatus !== "signed-in") return <p className="text-xs text-muted-foreground">Завершите вход по email, чтобы открыть Transak.</p>;
+  if (authStatus !== "signed-in") return <p className="text-xs text-muted-foreground">Finish signing in with email to open Transak.</p>;
 
   if (!wallet?.address || walletStatus === "in-progress") {
-    return <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>;
+    return <p className="text-xs text-muted-foreground">Preparing your wallet…</p>;
   }
 
   return (
@@ -384,20 +384,20 @@ function TransakSessionPath({
         {!widgetUrl && !orderId ? (
           <p className="text-xs text-muted-foreground">
             {amount < TRANSAK_MIN_USD
-              ? "Минимальная сумма для Transak — $30. Увеличьте сумму или выберите другой способ."
-              : "Откроется виджет Transak."}
+              ? "The minimum amount for Transak is $30. Increase the amount or choose another method."
+              : "The Transak widget will open."}
           </p>
         ) : widgetUrl && !sheetOpen ? (
-          <p className="text-xs text-muted-foreground">Закройте виджет, чтобы вернуться к способам пополнения.</p>
+          <p className="text-xs text-muted-foreground">Close the widget to return to top-up methods.</p>
         ) : null}
-        {loading ? <p className="text-xs text-muted-foreground">Открываем виджет Transak…</p> : null}
+        {loading ? <p className="text-xs text-muted-foreground">Opening the Transak widget…</p> : null}
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
-        {orderId && verificationPending ? <p className="text-xs text-muted-foreground">Проверяем оплату Transak…</p> : null}
-        {pollTimedOut && orderId ? <p className="text-xs text-muted-foreground">Подтверждение задерживается. Попробуйте проверить оплату позже.</p> : null}
-        {orderFailed && !widgetUrl ? <p className="text-xs text-destructive">Оплата не прошла. Попробуйте ещё раз.</p> : null}
+        {orderId && verificationPending ? <p className="text-xs text-muted-foreground">Verifying the Transak payment…</p> : null}
+        {pollTimedOut && orderId ? <p className="text-xs text-muted-foreground">Confirmation is delayed. Try checking the payment again later.</p> : null}
+        {orderFailed && !widgetUrl ? <p className="text-xs text-destructive">The payment failed. Please try again.</p> : null}
         {!widgetUrl && amount >= TRANSAK_MIN_USD ? (
           <Button className="w-full" onClick={openWidget} disabled={loading || verificationPending}>
-            {verificationPending ? "Проверяем оплату…" : loading ? "Открываем Transak…" : hasOpenedSession ? "Открыть Transak снова" : error ? "Повторить" : `Открыть Transak · ${formatMoney(amount)}`}
+            {verificationPending ? "Verifying payment…" : loading ? "Opening Transak…" : hasOpenedSession ? "Open Transak again" : error ? "Retry" : `Open Transak · ${formatMoney(amount)}`}
           </Button>
         ) : null}
         {!widgetUrl ? (
@@ -410,7 +410,7 @@ function TransakSessionPath({
         ) : null}
         {!sheetOpen ? (
           <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>
-            Выбрать другой способ
+            Choose another method
           </Button>
         ) : null}
       </div>
@@ -419,20 +419,20 @@ function TransakSessionPath({
         onOpenChange={handleSheetOpenChange}
         title="Transak"
         badge="devnet"
-        testData={<p>Тестовые данные для проверки личности заполнятся сами — останется код из письма и тестовая карта.</p>}
+        testData={<p>Test identity details fill in automatically — you only need the emailed code and the test card.</p>}
       >
         {widgetUrl ? (
           <div className="flex h-full min-h-0 flex-col bg-white">
             <iframe
               ref={iframeRef}
               src={widgetUrl}
-              title="Transak — покупка USDC"
+              title="Transak — buy USDC"
               className="min-h-0 flex-1 border-0 bg-white"
               allow="camera; microphone; payment"
               referrerPolicy="strict-origin-when-cross-origin"
             />
             {orderFailed ? (
-              <p className="shrink-0 px-4 py-2 text-xs text-red-700">Оплата не прошла. Попробуйте ещё раз.</p>
+              <p className="shrink-0 px-4 py-2 text-xs text-red-700">The payment failed. Please try again.</p>
             ) : null}
           </div>
         ) : null}
@@ -462,14 +462,14 @@ export function CrossmintPath({
           onCompleted={onComplete}
         />
         <p className="text-xs text-muted-foreground">
-          Если оплата картой недоступна в вашей стране, выберите другой способ.
+          If card payment isn&apos;t available in your country, choose another method.
         </p>
         <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>
-          Выбрать другой способ
+          Choose another method
         </Button>
       </div>
     );
   }
 
-  return <p className="text-xs text-muted-foreground">{status === "signed-in" && walletStatus === "in-progress" ? "Подготавливаем кошелёк…" : "Завершите вход по email, чтобы открыть оплату картой."}</p>;
+  return <p className="text-xs text-muted-foreground">{status === "signed-in" && walletStatus === "in-progress" ? "Preparing your wallet…" : "Finish signing in with email to open card payment."}</p>;
 }

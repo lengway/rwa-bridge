@@ -2,13 +2,13 @@ import { formatApy } from "@/lib/format";
 import { formatDataDate, type DatedMetric, type KztRateData } from "@/lib/market-data";
 
 export function marketApyLabel(apy: number, available: boolean) {
-  return available ? formatApy(apy) : "Загружаем ставку…";
+  return available ? formatApy(apy) : "Loading rate…";
 }
 
 export function MarketDataNote({
   data,
   plain = false,
-  loadingText = "Загружаем ставку…",
+  loadingText = "Loading rate…",
 }: {
   data: DatedMetric | KztRateData | null;
   plain?: boolean;
@@ -26,7 +26,7 @@ export function MarketDataNote({
         </a>
       )}
       {" · "}{formatDataDate(data.asOf)}
-      {data.stale ? (manualUpdate ? " · ориентир" : " · устарело") : null}
+      {data.stale ? (manualUpdate ? " · reference" : " · outdated") : null}
     </span>
   );
 }

@@ -33,24 +33,24 @@ export async function POST(request: Request) {
   } | null;
 
   if (!body || !isValidOrderId(body.orderId)) {
-    return NextResponse.json({ error: "Укажите корректный идентификатор заказа Transak." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Transak order ID." }, { status: 400 });
   }
   if (!isValidWalletAddress(body.walletAddress)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
 
   let order: TransakOrder;
   try {
     order = await getOrder(body.orderId);
   } catch {
-    return NextResponse.json({ error: "Не удалось проверить покупку Transak. Повторите попытку." }, { status: 502 });
+    return NextResponse.json({ error: "Couldn't verify the Transak purchase. Please try again." }, { status: 502 });
   }
 
   if (order.id !== body.orderId) {
-    return NextResponse.json({ error: "Transak вернул другой идентификатор заказа." }, { status: 502 });
+    return NextResponse.json({ error: "Transak returned a different order ID." }, { status: 502 });
   }
   if (order.walletAddress !== body.walletAddress) {
-    return NextResponse.json({ error: "Покупка Transak привязана к другому кошельку." }, { status: 403 });
+    return NextResponse.json({ error: "The Transak purchase is linked to a different wallet." }, { status: 403 });
   }
 
   if (failedStatuses.has(order.status)) {
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
   const amountUsd = order.fiatCurrency === "USD" ? order.fiatAmount : order.cryptoAmount;
   if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
-    return NextResponse.json({ error: "Transak не вернул корректную сумму завершённой покупки." }, { status: 502 });
+    return NextResponse.json({ error: "Transak did not return a valid amount for the completed purchase." }, { status: 502 });
   }
 
   if (!devnetConfig.configured) {
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     notifyReceipt(request, {
       kind: "transak",
       amountUsd: previousCredit.amountUsd,
-      details: "Тестовые доллары зачислены после серверной проверки завершённого заказа Transak.",
+      details: "Test dollars were credited after server-side verification of the completed Transak order.",
       explorerUrl: previousCredit.explorerUrl,
       receiptId: body.orderId,
     });
@@ -101,13 +101,13 @@ export async function POST(request: Request) {
     notifyReceipt(request, {
       kind: "transak",
       amountUsd,
-      details: "Тестовые доллары зачислены после серверной проверки завершённого заказа Transak.",
+      details: "Test dollars were credited after server-side verification of the completed Transak order.",
       explorerUrl: result.explorerUrl,
       receiptId: body.orderId,
     });
     return NextResponse.json(result);
   } catch {
-    return NextResponse.json({ error: "Покупка подтверждена, но не удалось зачислить тестовые доллары." }, { status: 502 });
+    return NextResponse.json({ error: "The purchase is confirmed, but test dollars couldn't be credited." }, { status: 502 });
   } finally {
     creditInFlightOrderIds.delete(body.orderId);
   }

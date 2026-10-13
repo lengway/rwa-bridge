@@ -34,17 +34,17 @@ export async function POST(request: Request) {
   if (!isConfigured()) return unavailableResponse();
   const body = await request.json().catch(() => null) as { signature?: unknown; from?: unknown; amount?: unknown } | null;
   if (!isSignature(body?.signature)) {
-    return NextResponse.json({ error: "Не указана подпись перевода." }, { status: 400 });
+    return NextResponse.json({ error: "The transfer signature is missing." }, { status: 400 });
   }
   if (!isValidWalletAddress(body?.from)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
   if (!isValidAmount(body?.amount, 0.000001, 1_000_000)) {
-    return NextResponse.json({ error: "Укажите корректную сумму обмена." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid exchange amount." }, { status: 400 });
   }
   const session = await getSessionWallet(request);
   if (!session || session.walletAddress !== body.from) {
-    return NextResponse.json({ error: "Перевод должен быть отправлен из кошелька текущей сессии." }, { status: 401 });
+    return NextResponse.json({ error: "The transfer must be sent from the current session's wallet." }, { status: 401 });
   }
   const walletAddress = session.walletAddress;
   const transferSignature = body.signature;
@@ -54,15 +54,15 @@ export async function POST(request: Request) {
     try {
       let operation = await findKzteOperation(walletAddress, transferSignature);
       if (operation && operation.sourceSignature !== transferSignature) {
-        return NextResponse.json({ error: "Эта транзакция уже была использована." }, { status: 409 });
+        return NextResponse.json({ error: "This transaction has already been used." }, { status: 409 });
       }
       if (operation && operation.kind !== "exchange-kzte-usd" && operation.kind !== "exchange-usd-kzte") {
-        return NextResponse.json({ error: "Эта транзакция уже использовалась для другой операции." }, { status: 409 });
+        return NextResponse.json({ error: "This transaction was already used for a different operation." }, { status: 409 });
       }
 
       if (!operation) {
         if (await hasLedgerSignature(transferSignature)) {
-          return NextResponse.json({ error: "Эта транзакция уже была использована." }, { status: 409 });
+          return NextResponse.json({ error: "This transaction has already been used." }, { status: 409 });
         }
         let sourceAmount: number | null = null;
         let sourceKind: "kzte" | "usd" | null = null;
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
           sourceKind = "usd";
         }
         if (sourceAmount === null || Math.abs(sourceAmount - requestedAmount) > 0.000001) {
-          throw new Error("Сумма перевода не совпадает с суммой обмена.");
+          throw new Error("The transfer amount does not match the exchange amount.");
         }
         const rate = await getKztRateForOperation();
         const kind = sourceKind === "kzte" ? "exchange-kzte-usd" : "exchange-usd-kzte";
@@ -110,15 +110,15 @@ export async function POST(request: Request) {
         kind: "kzte-exchange",
         amountUsd: operation.amountUsd,
         details: operation.kind === "exchange-kzte-usd"
-          ? `Обмен KZTE → $: ${operation.amountKzt.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} KZTE возвращены в резерв Intebix; зачислено ${operation.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} USD.`
-          : `Перевод из резерва Intebix: получено ${operation.amountKzt.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} KZTE за ${operation.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} USD.`,
+          ? `Exchange KZTE → $: ${operation.amountKzt.toLocaleString("en-US", { maximumFractionDigits: 6 })} KZTE returned to the Intebix reserve; credited ${operation.amountUsd.toLocaleString("en-US", { maximumFractionDigits: 6 })} USD.`
+          : `Transfer from the Intebix reserve: received ${operation.amountKzt.toLocaleString("en-US", { maximumFractionDigits: 6 })} KZTE for ${operation.amountUsd.toLocaleString("en-US", { maximumFractionDigits: 6 })} USD.`,
         explorerUrl: response.sourceExplorerUrl,
         secondaryExplorerUrl: response.targetExplorerUrl,
         receiptId: transferSignature,
       });
       return NextResponse.json(response);
     } catch (error) {
-      return NextResponse.json({ error: safeError(error, "Не удалось выполнить обмен в Solana devnet.") }, { status: 400 });
+      return NextResponse.json({ error: safeError(error, "Couldn't complete the exchange on Solana devnet.") }, { status: 400 });
     }
   });
 }

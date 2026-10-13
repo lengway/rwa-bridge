@@ -28,7 +28,7 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
         </div>
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">{asset.name}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Тестовый актив, контролируемый приложением в Solana Devnet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Test asset controlled by the app on Solana Devnet</p>
         </div>
         <p className="text-sm leading-6 text-muted-foreground">{asset.description}</p>
       </section>
@@ -37,16 +37,16 @@ export function AssetDetailScreen({ asset }: { asset: BridgeAsset }) {
       <AssetFacts asset={asset} />
 
       <Card className="gap-3 rounded-2xl p-4">
-        <h2 className="font-semibold">О тестовом активе</h2>
-        <p className="text-sm leading-5">1 {asset.ticker} выпускается за 1 TEST QUOTE. Это тестовый актив приложения: он не даёт прав на недвижимость, долю в объекте или денежную выплату.</p>
+        <h2 className="font-semibold">About the test asset</h2>
+        <p className="text-sm leading-5">1 {asset.ticker} is issued for 1 TEST QUOTE. It is an app test asset: it grants no rights to real estate, a property stake or any cash payout.</p>
       </Card>
 
       <DetailActionBar
         amount={`${formatQuantity(cashUsd)} TEST QUOTE`}
-        note={cashUsd < 10 ? "Подготовьте не менее 10 TEST QUOTE, чтобы продолжить." : undefined}
+        note={cashUsd < 10 ? "Prepare at least 10 TEST QUOTE to continue." : undefined}
       >
         <Button className="h-11 flex-1" onClick={() => setBuyOpen(true)} disabled={cashUsd < 10}>
-          <ArrowDownToLine />Получить от 10 {asset.ticker}
+          <ArrowDownToLine />Get from 10 {asset.ticker}
         </Button>
       </DetailActionBar>
       <BuyAssetDrawer open={buyOpen} onOpenChange={setBuyOpen} asset={asset} />

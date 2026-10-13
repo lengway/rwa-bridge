@@ -706,13 +706,13 @@ export async function appendKzteOperation(walletAddress: string, operation: Ledg
   return exclusive(async () => {
     const ledger = await readLedgerFile();
     if (operation.sourceSignature && signatureIsUsed(ledger, operation.sourceSignature)) {
-      throw new Error("Эта транзакция уже была использована.");
+      throw new Error("This transaction has already been used.");
     }
     if (operation.targetSignature && signatureIsUsed(ledger, operation.targetSignature)) {
-      throw new Error("Эта транзакция уже была использована.");
+      throw new Error("This transaction has already been used.");
     }
     if (operation.burnSignature && signatureIsUsed(ledger, operation.burnSignature)) {
-      throw new Error("Эта транзакция уже была использована.");
+      throw new Error("This transaction has already been used.");
     }
     const wallet = walletOf(ledger, walletAddress);
     wallet.kzteOperations.push(operation);
@@ -731,14 +731,14 @@ export async function updateKzteOperation(
     const ledger = await readLedgerFile();
     const wallet = walletOf(ledger, walletAddress);
     const operation = wallet.kzteOperations.find((item) => item.sourceSignature === sourceSignature);
-    if (!operation) throw new Error("Операция KZTE не найдена.");
+    if (!operation) throw new Error("KZTE operation not found.");
     if (update.targetSignature && update.targetSignature !== operation.targetSignature
       && signatureIsUsed(ledger, update.targetSignature)) {
-      throw new Error("Эта транзакция уже была использована.");
+      throw new Error("This transaction has already been used.");
     }
     if (update.burnSignature && update.burnSignature !== operation.burnSignature
       && signatureIsUsed(ledger, update.burnSignature)) {
-      throw new Error("Эта транзакция уже была использована.");
+      throw new Error("This transaction has already been used.");
     }
     Object.assign(operation, update);
     ledger.wallets[walletAddress] = wallet;
@@ -781,7 +781,7 @@ export async function appendDeposit(walletAddress: string, deposit: LedgerDeposi
   return exclusive(async () => {
     const ledger = await readLedgerFile();
     if (signatureIsUsed(ledger, deposit.signature) || (deposit.mintSignature && signatureIsUsed(ledger, deposit.mintSignature))) {
-      throw new Error("Эта транзакция уже была использована.");
+      throw new Error("This transaction has already been used.");
     }
     const wallet = walletOf(ledger, walletAddress);
     wallet.deposits.push(deposit);
@@ -804,9 +804,9 @@ export async function updateDeposit(
     const ledger = await readLedgerFile();
     const wallet = walletOf(ledger, walletAddress);
     const deposit = wallet.deposits.find((item) => item.signature === signature);
-    if (!deposit) throw new Error("Операция вклада не найдена.");
+    if (!deposit) throw new Error("Deposit operation not found.");
     if (update.mintSignature && update.mintSignature !== deposit.mintSignature && signatureIsUsed(ledger, update.mintSignature)) {
-      throw new Error("Эта транзакция уже была использована.");
+      throw new Error("This transaction has already been used.");
     }
     Object.assign(deposit, update);
     ledger.wallets[walletAddress] = wallet;
@@ -818,7 +818,7 @@ export async function updateDeposit(
 export async function appendWithdrawal(walletAddress: string, withdrawal: LedgerWithdrawal) {
   return exclusive(async () => {
     const ledger = await readLedgerFile();
-    if (signatureIsUsed(ledger, withdrawal.signature)) throw new Error("Эта транзакция уже была использована.");
+    if (signatureIsUsed(ledger, withdrawal.signature)) throw new Error("This transaction has already been used.");
     const wallet = walletOf(ledger, walletAddress);
     wallet.withdrawals.push(withdrawal);
     ledger.wallets[walletAddress] = wallet;
@@ -835,7 +835,7 @@ export async function updateWithdrawal(
     const ledger = await readLedgerFile();
     const wallet = walletOf(ledger, walletAddress);
     const withdrawal = wallet.withdrawals.find((item) => item.signature === signature);
-    if (!withdrawal) throw new Error("Операция вывода не найдена.");
+    if (!withdrawal) throw new Error("Withdrawal operation not found.");
     for (const candidate of [update.payoutSignature, update.burnSignature]) {
       if (
         candidate
@@ -843,7 +843,7 @@ export async function updateWithdrawal(
         && candidate !== withdrawal.burnSignature
         && signatureIsUsed(ledger, candidate)
       ) {
-        throw new Error("Эта транзакция уже была использована.");
+        throw new Error("This transaction has already been used.");
       }
     }
     Object.assign(withdrawal, update);
@@ -859,7 +859,7 @@ export async function appendMigration(walletAddress: string, migration: LedgerMi
     const wallet = walletOf(ledger, walletAddress);
     const existing = wallet.migrations.find((item) => item.productId === migration.productId);
     if (existing) return existing;
-    if (signatureIsUsed(ledger, migration.mintSignature)) throw new Error("Эта транзакция уже была использована.");
+    if (signatureIsUsed(ledger, migration.mintSignature)) throw new Error("This transaction has already been used.");
     wallet.migrations.push(migration);
     ledger.wallets[walletAddress] = wallet;
     await writeLedgerFile(ledger);
@@ -874,7 +874,7 @@ export async function appendPurchase(walletAddress: string, purchase: LedgerPurc
       .find((item) => item.paymentSignature === purchase.paymentSignature);
     if (existing) return existing;
     if (signatureIsUsed(ledger, purchase.paymentSignature) || signatureIsUsed(ledger, purchase.mintSignature)) {
-      throw new Error("Эта транзакция уже была использована.");
+      throw new Error("This transaction has already been used.");
     }
     const wallet = walletOf(ledger, walletAddress);
     wallet.purchases.push(purchase);

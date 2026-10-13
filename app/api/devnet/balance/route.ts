@@ -8,11 +8,11 @@ export async function GET(request: Request) {
   if (!isConfigured()) return unavailableResponse();
   const wallet = new URL(request.url).searchParams.get("wallet");
   if (!isValidWalletAddress(wallet)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
   try {
     return NextResponse.json(await getWalletTokenBalances(wallet));
   } catch {
-    return NextResponse.json({ error: "Не удалось прочитать баланс Solana devnet." }, { status: 502 });
+    return NextResponse.json({ error: "Couldn't read the Solana devnet balance." }, { status: 502 });
   }
 }

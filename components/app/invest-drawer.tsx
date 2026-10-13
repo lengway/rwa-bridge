@@ -1,5 +1,6 @@
 "use client";
 
+import { isUserFacingMessage } from "@/lib/action-errors";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowDownToLine } from "lucide-react";
@@ -77,34 +78,34 @@ function InvestDrawerContents({
 
   const handleInvest = async () => {
     if (!canInvest) {
-      setError("Эта стратегия недоступна для нового Devnet-пополнения.");
+      setError("This strategy is not available for new Devnet top-ups.");
       return;
     }
     if (!accepted || (!valid && !pendingSignature) || processing) return;
     if (!canonicalAmount) {
-      setError("Укажите сумму тестовых единиц в корректном десятичном формате.");
+      setError("Enter the test unit amount in a valid decimal format.");
       return;
     }
     setError(null);
     if (!devnet.treasuryOwner) {
-      setError("Сеть Solana Devnet не настроена. Выполните node scripts/setup-devnet.mjs.");
+      setError("Solana Devnet is not configured. Run node scripts/setup-devnet.mjs.");
       return;
     }
     if (!devnet.walletAddress || !devnet.usdMint || (!wallet && !pendingSignature)) {
-      setError("Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.");
+      setError("Couldn't connect your Solana wallet. Sign in again.");
       return;
     }
     setProcessing(true);
     try {
       let signature = pendingSignature;
       if (!signature) {
-        setProgress("Подписываем перевод тестового токена…");
+        setProgress("Signing the test token transfer…");
         const transaction = await wallet!.send(devnet.treasuryOwner, devnet.usdMint, canonicalAmount);
-        if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
+        if (!transaction.hash) throw new Error("The wallet did not return a transfer signature.");
         signature = transaction.hash;
         setPendingSignature(signature);
       }
-      setProgress("Подтверждаем тестовый перевод в Devnet…");
+      setProgress("Confirming the test transfer on Devnet…");
       const response = await fetch("/api/devnet/invest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,15 +126,15 @@ function InvestDrawerContents({
       };
       if (!response.ok || result.ok !== true || typeof result.explorerUrl !== "string"
         || typeof result.sharesMinted !== "number" || typeof result.mintSignature !== "string") {
-        throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить тестовый перевод.");
+        throw new Error(typeof result.error === "string" ? result.error : "Couldn't confirm the test transfer.");
       }
       setSuccess({ amount: amountValue, shares: result.sharesMinted, shareTicker: displayStrategyTicker(strategy), explorerUrl: result.explorerUrl });
       setPendingSignature(null);
       void devnet.refreshPortfolio();
-      toast.success("Тестовые доли выпущены в Solana Devnet");
+      toast.success("Test shares issued on Solana Devnet");
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "";
-      setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить тестовый перевод. Проверьте соединение и повторите подтверждение.");
+      setError(isUserFacingMessage(message) ? message : "Couldn't confirm the test transfer. Check your connection and retry the confirmation.");
     } finally {
       setProcessing(false);
       setProgress(null);
@@ -145,41 +146,41 @@ function InvestDrawerContents({
       open={open}
       onOpenChange={changeOpen}
       title={`Solana Devnet · ${displayStrategyName(strategy)}`}
-      description="DEVNET FUNDING · тестовые токены и доли не имеют денежной стоимости."
+      description="DEVNET FUNDING · test tokens and shares have no monetary value."
     >
       {!canInvest ? (
         <Card className="gap-3 rounded-2xl p-4">
           <GatewayDisclosureBadges strategy={strategy} includeAvailability />
           <div>
-            <p className="font-medium">Пополнение недоступно</p>
+            <p className="font-medium">Top-up unavailable</p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              Эта исследовательская карточка не поддерживает новые действия. Мы не подготовим перевод или выпуск долей,
-              пока совместимая Devnet-стратегия не будет подтверждена.
+              This research card doesn&apos;t support new actions. We won&apos;t prepare a transfer or share issuance
+              until a compatible Devnet strategy is confirmed.
             </p>
           </div>
         </Card>
       ) : success ? (
         <DrawerSuccess
           amount={success.amount}
-          amountLabel={`${formatQuantity(success.shares ?? Number.NaN)} ${success.shareTicker ?? "тестовых долей"}`}
-          sentence="Подтверждён перевод тестового токена в Solana Devnet; тестовые доли выпущены в кошелёк."
-          note="REFERENCE RATE не начисляется на эту операцию. NO MONETARY VALUE."
+          amountLabel={`${formatQuantity(success.shares ?? Number.NaN)} ${success.shareTicker ?? "test shares"}`}
+          sentence="Test token transfer confirmed on Solana Devnet; test shares issued to your wallet."
+          note="The REFERENCE RATE does not accrue on this operation. NO MONETARY VALUE."
           onDone={() => changeOpen(false)}
           secondaryHref="/home"
-          secondaryLabel="Перейти к тестовому портфелю"
+          secondaryLabel="Go to the test portfolio"
           explorerUrl={success.explorerUrl}
         />
       ) : (
         <div className="space-y-5">
           <GatewayDisclosureBadges strategy={strategy} />
           <p className="text-xs leading-5 text-muted-foreground">
-            DEVNET FUNDING: доступный баланс и сумма ниже — только Devnet-единицы. NO MONETARY VALUE.
+            DEVNET FUNDING: the available balance and amount below are Devnet units only. NO MONETARY VALUE.
           </p>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <label htmlFor="invest-amount" className="font-medium">Сумма тестовых единиц</label>
+              <label htmlFor="invest-amount" className="font-medium">Test unit amount</label>
               <span className="text-muted-foreground">
-                Доступно {formatQuantity(cashUsd)} TEST QUOTE
+                Available {formatQuantity(cashUsd)} TEST QUOTE
               </span>
             </div>
             <div className="relative">
@@ -206,26 +207,26 @@ function InvestDrawerContents({
                 onClick={() => setAmount(String(cashUsd))}
                 disabled={processing || Boolean(pendingSignature)}
               >
-                Использовать все тестовые единицы
+                Use all test units
               </Button>
             </div>
           </div>
 
           <Card className="gap-3 p-4">
-            <p className="text-sm font-medium">Справочный результат</p>
+            <p className="text-sm font-medium">Reference result</p>
             {hasIllustrativeApy ? (
               <>
-                <IllustrativeLine label="Пример за месяц" amount={illustrativeMonth} />
-                <IllustrativeLine label="Пример за год" amount={illustrativeYear} />
+                <IllustrativeLine label="Monthly example" amount={illustrativeMonth} />
+                <IllustrativeLine label="Yearly example" amount={illustrativeYear} />
               </>
             ) : (
-              <p className="text-sm leading-6 text-muted-foreground">Числовая ставка не задана, поэтому пример не рассчитывается.</p>
+              <p className="text-sm leading-6 text-muted-foreground">No numeric rate is set, so the example isn&apos;t calculated.</p>
             )}
             <p className="text-xs text-muted-foreground">
-              REFERENCE RATE: он не является фактическим доходом и не начисляется на Devnet-доли.
+              REFERENCE RATE: it is not actual income and does not accrue on Devnet shares.
             </p>
             <p className="text-xs text-muted-foreground">{presentDevnetCopy(gateway.yield.sourceNote)}</p>
-            <p className="text-xs text-muted-foreground">Источник / режим: {presentDevnetCopy(gateway.sourceLabel)}.</p>
+            <p className="text-xs text-muted-foreground">Source / mode: {presentDevnetCopy(gateway.sourceLabel)}.</p>
           </Card>
 
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm leading-5">
@@ -234,20 +235,20 @@ function InvestDrawerContents({
               onCheckedChange={(checked) => setAccepted(checked === true)}
               className="mt-0.5"
             />
-            <span>Понимаю: это SOLANA DEVNET, DEVNET FUNDING и NO MONETARY VALUE; ставка не гарантируется.</span>
+            <span>I understand: this is SOLANA DEVNET, DEVNET FUNDING and NO MONETARY VALUE; the rate is not guaranteed.</span>
           </label>
           {amountValue > cashUsd ? (
             <p className="text-xs text-destructive">
-              Недостаточно тестовых единиц. <Link href="/home" className="underline">Подготовьте баланс Solana Devnet на Главной</Link>.
+              Not enough test units. <Link href="/home" className="underline">Prepare a Solana Devnet balance on Home</Link>.
             </p>
           ) : null}
           {!accepted ? (
-            <p className="text-xs text-muted-foreground">Отметьте согласие с условиями Solana Devnet, чтобы продолжить.</p>
+            <p className="text-xs text-muted-foreground">Accept the Solana Devnet terms to continue.</p>
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           {progress ? <p className="text-center text-xs text-muted-foreground">{progress}</p> : null}
           <Button className="w-full" onClick={handleInvest} disabled={!accepted || (!valid && !pendingSignature) || processing}>
-            <ArrowDownToLine />{processing ? (progress ?? "Обрабатываем…") : pendingSignature ? "Повторить подтверждение" : "Подтвердить тестовый перевод"}
+            <ArrowDownToLine />{processing ? (progress ?? "Processing…") : pendingSignature ? "Retry confirmation" : "Confirm test transfer"}
           </Button>
         </div>
       )}

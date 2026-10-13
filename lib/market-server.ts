@@ -79,7 +79,7 @@ async function loadKztRate(): Promise<KztRateData> {
   return {
     usdKzt: amount / quantity,
     asOf,
-    source: { name: "Национальный Банк Республики Казахстан", url },
+    source: { name: "National Bank of the Republic of Kazakhstan", url },
     stale: false,
   };
 }
@@ -107,7 +107,7 @@ async function loadUsdY(): Promise<DatedMetric> {
   return {
     apy: apy / 100,
     asOf,
-    source: { name: "DefiLlama · USDY в Solana", url: USDY_POOL_CHART_URL },
+    source: { name: "DefiLlama · USDY on Solana", url: USDY_POOL_CHART_URL },
     stale: false,
   };
 }
@@ -136,7 +136,7 @@ async function loadTbill3m(): Promise<DatedMetric> {
     return {
       apy: rate / 100,
       asOf,
-      source: { name: "U.S. Treasury · кривая доходности", url },
+      source: { name: "U.S. Treasury · yield curve", url },
       stale: false,
     };
   }
@@ -176,7 +176,7 @@ export async function getKztRateForOperation(): Promise<KztRateData> {
     return value;
   } catch {
     if (cached) return cached;
-    throw new Error("Курс НБ РК временно недоступен.");
+    throw new Error("The NBK exchange rate is temporarily unavailable.");
   }
 }
 

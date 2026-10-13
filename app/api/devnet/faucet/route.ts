@@ -49,7 +49,7 @@ function completedResponse(requestId: string, signature: string) {
 
 function requestIdConflictResponse(requestId: string) {
   return NextResponse.json({
-    error: "Этот requestId уже связан с другим запросом крана.",
+    error: "This requestId is already linked to a different faucet request.",
     code: "FAUCET_REQUEST_ID_CONFLICT",
     requestId,
   }, { status: 409 });
@@ -57,7 +57,7 @@ function requestIdConflictResponse(requestId: string) {
 
 function actionNeedsReviewResponse(requestId: string) {
   return NextResponse.json({
-    error: "Выпуск тестовых токенов требует сверки. Не повторяйте запрос с новым requestId.",
+    error: "Test token issuance needs reconciliation. Do not retry with a new requestId.",
     code: "FAUCET_ACTION_NEEDS_REVIEW",
     requestId,
     actionState: "NEEDS_REVIEW" as const,
@@ -66,7 +66,7 @@ function actionNeedsReviewResponse(requestId: string) {
 
 function actionUnavailableResponse(requestId: string) {
   return NextResponse.json({
-    error: "Невозможно безопасно зафиксировать действие крана. Повторите позже с тем же requestId.",
+    error: "Couldn't safely record the faucet action. Retry later with the same requestId.",
     code: "FAUCET_ACTION_UNAVAILABLE",
     requestId,
   }, { status: 503 });
@@ -139,35 +139,35 @@ export async function POST(request: Request) {
   // as simulated Devnet funding, never as a fiat on-ramp or production rail.
   if (process.env.ENABLE_LEGACY_DEVNET_FAUCET !== "true") {
     return NextResponse.json({
-      error: "Тестовый issuer выключен. Включите ENABLE_LEGACY_DEVNET_FAUCET=true только для контролируемой среды Solana Devnet.",
+      error: "The test issuer is disabled. Enable ENABLE_LEGACY_DEVNET_FAUCET=true only in a controlled Solana Devnet environment.",
       code: "DEVNET_FAUCET_DISABLED",
     }, { status: 503 });
   }
 
   const body = await request.json().catch(() => null) as FaucetRequestBody | null;
   if (!isValidWalletAddress(body?.walletAddress)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
   if (!isValidAmount(body?.amountUsd)) {
-    return NextResponse.json({ error: "Сумма должна быть от $1 до $1 000." }, { status: 400 });
+    return NextResponse.json({ error: "The amount must be between $1 and $1,000." }, { status: 400 });
   }
   if (body?.requestId === undefined) {
     return NextResponse.json({
-      error: "Укажите requestId для идемпотентного выпуска тестовых токенов.",
+      error: "Provide a requestId for idempotent test token issuance.",
       code: "FAUCET_REQUEST_ID_REQUIRED",
     }, { status: 400 });
   }
   if (!isLegacyDevnetFaucetRequestId(body.requestId)) {
     return NextResponse.json({
-      error: "requestId должен содержать от 8 до 64 URL-безопасных символов.",
+      error: "requestId must contain 8 to 64 URL-safe characters.",
       code: "FAUCET_REQUEST_ID_INVALID",
     }, { status: 400 });
   }
 
   const session = await getSessionWallet(request);
-  if (!session) return NextResponse.json({ error: "Требуется авторизованная сессия." }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "An authenticated session is required." }, { status: 401 });
   if (session.walletAddress !== body.walletAddress) {
-    return NextResponse.json({ error: "Адрес кошелька не соответствует текущей сессии." }, { status: 403 });
+    return NextResponse.json({ error: "The wallet address does not match the current session." }, { status: 403 });
   }
 
   const walletAddress = session.walletAddress;
@@ -214,7 +214,7 @@ export async function POST(request: Request) {
     }
 
     if (!reserveFaucetUsage(walletAddress, amountUsd, Date.now())) {
-      return NextResponse.json({ error: "Лимит крана Solana devnet на сегодня исчерпан." }, { status: 429 });
+      return NextResponse.json({ error: "The Solana devnet faucet limit for today has been reached." }, { status: 429 });
     }
 
     let reservation: { action: LegacyDevnetFaucetAction; reused: boolean };
@@ -271,7 +271,7 @@ export async function POST(request: Request) {
     notifyReceipt(request, {
       kind: "faucet",
       amountUsd,
-      details: "DEVNET TEST FUNDING: тестовые токены выпущены на кошелёк в Solana Devnet; это не банковский или карточный платёж.",
+      details: "DEVNET TEST FUNDING: test tokens issued to the wallet on Solana Devnet; this is not a bank or card payment.",
       explorerUrl: explorerUrl(signature),
       receiptId: signature,
     });

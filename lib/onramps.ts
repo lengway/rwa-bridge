@@ -10,27 +10,27 @@ export const TRANSAK_MIN_USD = 30;
 export const ONRAMP_OPTIONS: OnrampOption[] = [
   {
     id: "devnet-faucet",
-    name: "Кран Solana devnet",
-    hint: "Мгновенно · тестовые доллары для сети devnet",
+    name: "Solana devnet faucet",
+    hint: "Instant · test dollars for devnet",
   },
   {
     id: "kzte-intebix",
-    name: "В тенге · Intebix",
-    hint: "Перевод из резерва Intebix · комиссия 0 ₸",
+    name: "In tenge · Intebix",
+    hint: "Transfer from the Intebix reserve · 0 ₸ fee",
   },
   {
     id: "transak",
-    name: "Карта · Transak",
+    name: "Card · Transak",
     hint: "",
   },
   {
     id: "moonpay",
-    name: "Карта · MoonPay",
-    hint: "Покупка картой · USD/EUR, Казахстан поддерживается",
+    name: "Card · MoonPay",
+    hint: "Card purchase · USD/EUR, Kazakhstan supported",
   },
   {
     id: "crossmint",
-    name: "Карта · Crossmint",
+    name: "Card · Crossmint",
     hint: "",
   },
 ];

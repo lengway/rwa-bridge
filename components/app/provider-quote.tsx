@@ -64,25 +64,25 @@ export function ProviderQuote({
     ? quote
     : null;
   if (!matchingQuote) {
-    return loading ? <p className="text-xs text-muted-foreground">Считаем котировку…</p> : null;
+    return loading ? <p className="text-xs text-muted-foreground">Getting quote…</p> : null;
   }
 
-  const amountLabel = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 6 }).format(matchingQuote.cryptoAmount);
-  const feeLabel = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(matchingQuote.feeUsd);
+  const amountLabel = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 }).format(matchingQuote.cryptoAmount);
+  const feeLabel = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(matchingQuote.feeUsd);
   const dateLabel = formatDataDate(matchingQuote.asOf);
 
   return (
     <div className="space-y-1 text-xs text-muted-foreground" aria-live="polite">
       <p className="text-sm text-foreground">
         {side === "buy"
-          ? `Вы получите ≈ ${amountLabel} ${matchingQuote.cryptoCode} · комиссия ≈ $${feeLabel}`
-          : `≈ ${amountLabel} ${matchingQuote.cryptoCode} на выплату · комиссия ≈ $${feeLabel}`}
+          ? `You'll receive ≈ ${amountLabel} ${matchingQuote.cryptoCode} · fee ≈ $${feeLabel}`
+          : `≈ ${amountLabel} ${matchingQuote.cryptoCode} payout · fee ≈ $${feeLabel}`}
       </p>
       <p>
         <a href={matchingQuote.source.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
           {matchingQuote.source.name}
         </a>
-        {" · котировка на "}{dateLabel}{matchingQuote.stale ? " · последняя сохранённая котировка" : null}
+        {" · quote as of "}{dateLabel}{matchingQuote.stale ? " · last saved quote" : null}
       </p>
     </div>
   );

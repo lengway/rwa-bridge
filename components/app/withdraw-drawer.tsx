@@ -1,5 +1,6 @@
 "use client";
 
+import { isUserFacingMessage } from "@/lib/action-errors";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpFromLine, WalletCards } from "lucide-react";
@@ -118,7 +119,7 @@ function WithdrawDrawerContents({
       isCardWithdrawal: true,
     });
     void devnet.refreshPortfolio();
-    toast.success("Перевод в MoonPay подтверждён");
+    toast.success("MoonPay transfer confirmed");
     return true;
   };
 
@@ -126,7 +127,7 @@ function WithdrawDrawerContents({
     if (processingId) return;
     setError(null);
     if (!canRedeemStrategy(strategy)) {
-      setError("TEST-TOKEN REDEMPTION не поддерживается для этой позиции. Новая операция не была подготовлена.");
+      setError("TEST-TOKEN REDEMPTION is not supported for this position. No new operation was prepared.");
       return;
     }
     const position = positions[strategy.id];
@@ -135,30 +136,30 @@ function WithdrawDrawerContents({
     try {
       const decimal = requestedShares ?? displayShareAmount(position.shares ?? 0);
       const atomic = parseDecimalToAtomic(decimal, 6, "shares");
-      if (atomic <= BigInt(0)) throw new Error("Количество долей должно быть положительным.");
+      if (atomic <= BigInt(0)) throw new Error("The number of shares must be positive.");
       redemption = { atomic: atomic.toString(10), decimal: formatAtomicToDecimal(atomic, 6) };
     } catch {
-      setError("Укажите количество тестовых долей с точностью до 6 знаков после запятой.");
+      setError("Enter the number of test shares with up to 6 decimal places.");
       return;
     }
     const shares = redemption.decimal;
     const vaultMint = strategy.id === "ondo-usdy" ? devnet.vaultUsdyMint : devnet.vaultKzgbMint;
     const retryPending = pendingRedemption?.productId === strategy.id && pendingRedemption.sharesAtomic === redemption.atomic;
     if (pendingRedemption && !retryPending) {
-      setError("Сначала повторите подтверждение предыдущего вывода.");
+      setError("Retry the confirmation of the previous withdrawal first.");
       return;
     }
     if ((!wallet && !retryPending) || !devnet.treasuryOwner || !vaultMint) {
-      setError("Не удалось подключить кошелёк или токен доли.");
+      setError("Couldn't connect the wallet or share token.");
       return;
     }
     setProcessingId(strategy.id);
     try {
       let signature = retryPending ? pendingRedemption.signature : null;
       if (!signature) {
-        setProgress("Подписываем перевод…");
+        setProgress("Signing the transfer…");
         const transfer = await wallet!.send(devnet.treasuryOwner, vaultMint, String(shares));
-        if (!transfer.hash) throw new Error("Кошелёк не вернул подпись перевода долей.");
+        if (!transfer.hash) throw new Error("The wallet did not return a share transfer signature.");
         signature = transfer.hash;
         setPendingRedemption({
           productId: strategy.id,
@@ -167,7 +168,7 @@ function WithdrawDrawerContents({
           sharesDecimal: shares,
         });
       }
-      setProgress("Подтверждаем в сети…");
+      setProgress("Confirming on-chain…");
       const response = await fetch("/api/devnet/withdraw", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -187,7 +188,7 @@ function WithdrawDrawerContents({
       };
       if (!response.ok || typeof result.signature !== "string" || typeof result.explorerUrl !== "string"
         || typeof result.amountUsd !== "number" || typeof result.sharesRedeemed !== "number") {
-        throw new Error(typeof result.error === "string" ? result.error : "Не удалось подтвердить погашение тестовых долей.");
+        throw new Error(typeof result.error === "string" ? result.error : "Couldn't confirm test share redemption.");
       }
       setCompleted({
         amount: result.amountUsd,
@@ -195,14 +196,14 @@ function WithdrawDrawerContents({
         shares: result.sharesRedeemed,
         shareTicker: displayStrategyTicker(strategy),
         explorerUrl: result.explorerUrl,
-        note: "SOLANA DEVNET · TEST-TOKEN REDEMPTION · NO MONETARY VALUE. Это не денежная выплата.",
+        note: "SOLANA DEVNET · TEST-TOKEN REDEMPTION · NO MONETARY VALUE. This is not a cash payout.",
       });
       setPendingRedemption(null);
       void devnet.refreshPortfolio();
-      toast.success("Тестовые доли погашены в Solana Devnet");
+      toast.success("Test shares redeemed on Solana Devnet");
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "";
-      setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить вывод. Проверьте соединение и повторите подтверждение.");
+      setError(isUserFacingMessage(message) ? message : "Couldn't confirm the withdrawal. Check your connection and retry the confirmation.");
     } finally {
       setProcessingId(null);
       setProgress(null);
@@ -213,11 +214,11 @@ function WithdrawDrawerContents({
     const pendingMatches = pendingKzteMatches;
     if (processingId || (!validTengeAmount && !pendingMatches) || cardEnding.length !== 4 || !devnet.walletAddress || !devnet.treasuryOwner || !devnet.kzteMint) return;
     if (pendingKzte && !pendingMatches) {
-      setError("Сначала повторите подтверждение предыдущего вывода KZTE.");
+      setError("Retry the confirmation of the previous KZTE withdrawal first.");
       return;
     }
     if (!wallet && !pendingMatches) {
-      setError("Не удалось подключить кошелёк KZTE.");
+      setError("Couldn't connect the KZTE wallet.");
       return;
     }
     setProcessingId("kzte");
@@ -225,13 +226,13 @@ function WithdrawDrawerContents({
     try {
       let signature = pendingMatches ? pendingKzte?.signature ?? null : null;
       if (!signature) {
-        setProgress("Подписываем перевод KZTE…");
+        setProgress("Signing the KZTE transfer…");
         const transfer = await wallet!.send(devnet.treasuryOwner, devnet.kzteMint, String(tengeAmountValue));
-        if (!transfer.hash) throw new Error("Кошелёк не вернул подпись перевода KZTE.");
+        if (!transfer.hash) throw new Error("The wallet did not return a KZTE transfer signature.");
         signature = transfer.hash;
         setPendingKzte({ signature, amount: tengeAmountValue });
       }
-      setProgress("Возвращаем KZTE в резерв Intebix…");
+      setProgress("Returning KZTE to the Intebix reserve…");
       const response = await fetch("/api/devnet/kzte/redeem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -239,22 +240,22 @@ function WithdrawDrawerContents({
       });
       const result = await response.json() as { amountKzt?: unknown; explorerUrl?: unknown; error?: unknown };
       if (!response.ok || typeof result.amountKzt !== "number" || typeof result.explorerUrl !== "string") {
-        throw new Error(typeof result.error === "string" ? result.error : "Не удалось вывести KZTE.");
+        throw new Error(typeof result.error === "string" ? result.error : "Couldn't withdraw KZTE.");
       }
       setCompleted({
         amount: result.amountKzt,
         currency: "KZT",
-        amountLabel: result.amountKzt.toLocaleString("ru-RU") + " ₸",
-        sentence: "Выплата " + result.amountKzt.toLocaleString("ru-RU") + " ₸ на карту ·· " + cardEnding + " через Intebix; KZTE возвращены в резерв Intebix.",
-        note: "Операция проведена в сети Solana devnet. Квитанция будет отправлена на email аккаунта.",
+        amountLabel: result.amountKzt.toLocaleString("en-US") + " ₸",
+        sentence: "Payout " + result.amountKzt.toLocaleString("en-US") + " ₸ to card ·· " + cardEnding + " via Intebix; KZTE returned to the Intebix reserve.",
+        note: "Processed on Solana devnet. A receipt will be sent to your account email.",
         explorerUrl: result.explorerUrl,
       });
       setPendingKzte(null);
       void devnet.refreshPortfolio();
-      toast.success("KZTE возвращены в резерв Intebix");
+      toast.success("KZTE returned to the Intebix reserve");
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "";
-      setError(/[А-Яа-яЁё]/.test(message) ? message : "Не удалось подтвердить вывод KZTE. Проверьте соединение и повторите попытку.");
+      setError(isUserFacingMessage(message) ? message : "Couldn't confirm the KZTE withdrawal. Check your connection and try again.");
     } finally {
       setProcessingId(null);
       setProgress(null);
@@ -265,8 +266,8 @@ function WithdrawDrawerContents({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      title="Вывести средства"
-      description={method === "card" ? "Внешний адаптер недоступен в Universal Earn Solana Devnet." : method === "tenge" ? "Внешний адаптер недоступен в Universal Earn Solana Devnet." : "DEVNET TEST-TOKEN REDEMPTION: отправьте тестовые доли на погашение; тестовые токены вернутся в кошелёк."}
+      title="Withdraw funds"
+      description={method === "card" ? "The external adapter is not available in Universal Earn on Solana Devnet." : method === "tenge" ? "The external adapter is not available in Universal Earn on Solana Devnet." : "DEVNET TEST-TOKEN REDEMPTION: submit test shares for redemption; test tokens return to your wallet."}
     >
       {completed ? (
         <DrawerSuccess
@@ -274,17 +275,17 @@ function WithdrawDrawerContents({
           currency={completed.currency ?? displayCurrency}
           amountLabel={completed.amountLabel}
           sentence={completed.sentence ?? (completed.isCardWithdrawal
-            ? "Перевод в MoonPay подтверждён в сети Solana devnet."
-            : `Погашено ${formatQuantity(completed.shares ?? Number.NaN)} ${completed.shareTicker ?? "тестовых долей"}; тестовые токены возвращены в кошелёк Devnet. Это не денежная выплата.`)}
+            ? "MoonPay transfer confirmed on Solana devnet."
+            : `Redeemed ${formatQuantity(completed.shares ?? Number.NaN)} ${completed.shareTicker ?? "test shares"}; test tokens returned to your Devnet wallet. This is not a cash payout.`)}
           note={completed.note}
           onDone={() => changeOpen(false)}
           secondaryHref="/activity"
-          secondaryLabel="История операций"
+          secondaryLabel="Transaction history"
           explorerUrl={completed.explorerUrl}
         />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Способ вывода">
+          <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="Withdrawal method">
             <button
               type="button"
               role="tab"
@@ -295,7 +296,7 @@ function WithdrawDrawerContents({
               }}
               className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${method === "yield" ? "border-foreground bg-muted" : "hover:bg-muted/40"}`}
             >
-              Из вклада на баланс
+              From deposit to balance
             </button>
             <button
               type="button"
@@ -309,7 +310,7 @@ function WithdrawDrawerContents({
               }}
               className="rounded-lg border px-3 py-2 text-sm font-medium text-muted-foreground opacity-60"
             >
-              На карту · недоступно
+              To card · unavailable
             </button>
             <button
               type="button"
@@ -319,14 +320,14 @@ function WithdrawDrawerContents({
               onClick={() => { setError(null); setMethod("tenge"); }}
               className="rounded-lg border px-3 py-2 text-sm font-medium text-muted-foreground opacity-60"
             >
-              KZTE · недоступно
+              KZTE · unavailable
             </button>
           </div>
           <Card className="gap-2 border-amber-500/30 bg-amber-500/5 p-3">
             <p className="text-xs font-medium">SOLANA DEVNET · NO MONETARY VALUE</p>
             <p className="text-xs leading-5 text-muted-foreground">
-              Внешние адаптеры карты, KZTE и Intebix — необязательные будущие интеграции и не входят в эту
-              Devnet-стратегию. Они не создают денежную выплату или банковский перевод.
+              The card, KZTE and Intebix external adapters are optional future integrations and are not part of this
+              Devnet strategy. They do not create a cash payout or bank transfer.
             </p>
           </Card>
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
@@ -349,9 +350,9 @@ function WithdrawDrawerContents({
           {method === "yield" && active.length === 0 ? (
             <Card className="items-center gap-2 p-6 text-center">
               <WalletCards className="size-6 text-muted-foreground" />
-              <p className="font-medium">Нет открытых вкладов</p>
+              <p className="font-medium">No open deposits</p>
               <p className="text-sm text-muted-foreground">
-                Откройте вклад во вкладке «Доход», чтобы вернуть деньги на баланс.
+                Open a deposit in the Earn tab to move money back to your balance.
               </p>
               <Button
                 variant="outline"
@@ -359,15 +360,15 @@ function WithdrawDrawerContents({
                 nativeButton={false}
                 render={<Link href="/earn" />}
               >
-                Перейти к вкладам
+                Go to deposits
               </Button>
             </Card>
           ) : null}
           {method === "card" && legacyExternalPayoutAvailable ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <label htmlFor="moonpay-withdraw-amount" className="text-sm font-medium">Сумма вывода</label>
-                <span className="text-xs text-muted-foreground">Доступно {formatMoney(cashUsd, "USD")}</span>
+                <label htmlFor="moonpay-withdraw-amount" className="text-sm font-medium">Withdrawal amount</label>
+                <span className="text-xs text-muted-foreground">Available {formatMoney(cashUsd, "USD")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Input
@@ -385,19 +386,19 @@ function WithdrawDrawerContents({
                 />
                 <span className="text-sm font-medium">USD</span>
               </div>
-              <p className="text-xs text-muted-foreground">Минимум $20, максимум за одну операцию MoonPay — $1 000.</p>
+              <p className="text-xs text-muted-foreground">Minimum $20, maximum $1,000 per MoonPay operation.</p>
               {cashUsd < 20 ? (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Для вывода на карту нужно минимум $20.</p>
+                  <p className="text-xs text-muted-foreground">Withdrawing to a card requires at least $20.</p>
                   {onAddMoney ? (
                     <Button variant="outline" className="w-full" onClick={onAddMoney}>
-                      Пополнить баланс
+                      Add to balance
                     </Button>
                   ) : null}
                 </div>
               ) : cardAmountTouched && !validCardAmount ? (
                 <p className="text-xs text-destructive">
-                  Введите сумму от $20 до доступного баланса и не выше $1 000.
+                  Enter an amount from $20 up to your available balance, and no more than $1,000.
                 </p>
               ) : null}
             </div>
@@ -413,21 +414,21 @@ function WithdrawDrawerContents({
           {method === "tenge" && legacyExternalPayoutAvailable ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <label htmlFor="intebix-withdraw-amount" className="text-sm font-medium">Сумма вывода</label>
-                <span className="text-xs text-muted-foreground">Доступно {formatQuantity(kzteBalance)} KZTE</span>
+                <label htmlFor="intebix-withdraw-amount" className="text-sm font-medium">Withdrawal amount</label>
+                <span className="text-xs text-muted-foreground">Available {formatQuantity(kzteBalance)} KZTE</span>
               </div>
               <div className="flex items-center gap-2">
                 <Input id="intebix-withdraw-amount" type="number" min="0.000001" step="any" max={kzteBalance} inputMode="decimal" value={tengeAmount} onChange={(event) => setTengeAmount(event.target.value)} disabled={Boolean(processingId || pendingKzte)} className="h-11 text-lg tabular-nums" />
                 <span className="text-sm font-medium">KZTE</span>
               </div>
-              <label htmlFor="intebix-withdraw-card" className="block text-sm font-medium">Последние 4 цифры карты</label>
+              <label htmlFor="intebix-withdraw-card" className="block text-sm font-medium">Last 4 digits of the card</label>
               <Input id="intebix-withdraw-card" type="text" inputMode="numeric" autoComplete="off" maxLength={4} value={cardEnding} onChange={(event) => setCardEnding(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="0000" disabled={Boolean(processingId)} className="h-11" />
-              <p className="text-xs text-muted-foreground">Выплата в сети Solana devnet.</p>
-              {kzteBalance <= 0 ? <p className="text-xs text-muted-foreground">На кошельке пока нет KZTE.</p> : null}
-              {!validTengeAmount && kzteBalance > 0 ? <p className="text-xs text-destructive">Укажите сумму не больше доступного баланса.</p> : null}
-              {cardEnding.length > 0 && cardEnding.length !== 4 ? <p className="text-xs text-destructive">Введите последние 4 цифры карты.</p> : null}
+              <p className="text-xs text-muted-foreground">Payout on Solana devnet.</p>
+              {kzteBalance <= 0 ? <p className="text-xs text-muted-foreground">There is no KZTE in the wallet yet.</p> : null}
+              {!validTengeAmount && kzteBalance > 0 ? <p className="text-xs text-destructive">Enter an amount no greater than your available balance.</p> : null}
+              {cardEnding.length > 0 && cardEnding.length !== 4 ? <p className="text-xs text-destructive">Enter the last 4 digits of the card.</p> : null}
               <Button className="w-full" onClick={() => void redeemKzte()} disabled={Boolean(processingId) || (!validTengeAmount && !pendingKzteMatches) || cardEnding.length !== 4 || Boolean(pendingKzte && !pendingKzteMatches)}>
-                {processingId === "kzte" ? (progress ?? "Выводим…") : pendingKzte ? "Повторить подтверждение" : "Вывести"}
+                {processingId === "kzte" ? (progress ?? "Withdrawing…") : pendingKzte ? "Retry confirmation" : "Withdraw"}
               </Button>
             </div>
           ) : null}
@@ -476,15 +477,15 @@ function WithdrawPosition({
       </div>
       <GatewayDisclosureBadges strategy={strategy} />
       <p className="text-xs leading-5 text-muted-foreground">
-        DEVNET TEST-TOKEN REDEMPTION: это возврат настроенной стоимости тестовых долей, а не денежная выплата.
+        DEVNET TEST-TOKEN REDEMPTION: this returns the configured value of test shares; it is not a cash payout.
       </p>
       {!canRedeem ? (
         <p className="text-xs leading-5 text-destructive">
-          Выход недоступен: {gateway.availabilityReason ?? "для этой стратегии не настроен подтверждённый путь TEST-TOKEN REDEMPTION."}
+          Exit unavailable: {gateway.availabilityReason ?? "no confirmed TEST-TOKEN REDEMPTION path is configured for this strategy."}
         </p>
       ) : null}
       <label className="space-y-1.5 text-sm">
-          <span>Тестовых долей к погашению</span>
+          <span>Test shares to redeem</span>
           <Input
             type="number"
             min="0.000001"
@@ -495,8 +496,8 @@ function WithdrawPosition({
             onChange={(event) => setSharesInput(event.target.value)}
             disabled={processing || pending || !canRedeem}
           />
-          <span className="block text-xs text-muted-foreground">Оценка возврата: {formatQuantity(redemptionEstimate)} TEST QUOTE · NO MONETARY VALUE</span>
-          {!validShares ? <span className="block text-xs text-destructive">Укажите сумму не больше доступного баланса.</span> : null}
+          <span className="block text-xs text-muted-foreground">Estimated return: {formatQuantity(redemptionEstimate)} TEST QUOTE · NO MONETARY VALUE</span>
+          {!validShares ? <span className="block text-xs text-destructive">Enter an amount no greater than your available balance.</span> : null}
       </label>
       <Button
         variant="outline"
@@ -504,7 +505,7 @@ function WithdrawPosition({
             onClick={() => onWithdraw(strategy, sharesInput)}
         disabled={processing || blocked || !canRedeem || (!validShares && !pending)}
       >
-        <ArrowUpFromLine />{processing ? (processingLabel ?? "Погашаем тестовые доли…") : pending ? "Повторить подтверждение" : canRedeem ? "Погасить тестовые доли" : "Выход недоступен"}
+        <ArrowUpFromLine />{processing ? (processingLabel ?? "Redeeming test shares…") : pending ? "Retry confirmation" : canRedeem ? "Redeem test shares" : "Exit unavailable"}
       </Button>
     </Card>
   );

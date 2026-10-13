@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   if (!legacyFiatAdaptersEnabled()) return legacyFiatAdapterUnavailableResponse("moonpay");
 
   if (!await getVerifiedEmailFromRequest(request)) {
-    return NextResponse.json({ error: "Войдите, чтобы подтвердить покупку MoonPay." }, { status: 401 });
+    return NextResponse.json({ error: "Sign in to confirm the MoonPay purchase." }, { status: 401 });
   }
 
   const body = await request.json().catch(() => null) as {
@@ -30,17 +30,17 @@ export async function POST(request: Request) {
   } | null;
 
   if (body?.flow !== "buy" || !isMoonPayExternalId(body.externalTransactionId)) {
-    return NextResponse.json({ error: "Укажите корректный идентификатор покупки MoonPay." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid MoonPay purchase ID." }, { status: 400 });
   }
   if (!isValidWalletAddress(body.walletAddress)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
 
   let transaction: Record<string, unknown> | null;
   try {
     transaction = await getTransactionByExternalId(body.externalTransactionId, "buy");
   } catch {
-    return NextResponse.json({ error: "Не удалось проверить покупку MoonPay. Повторите попытку." }, { status: 502 });
+    return NextResponse.json({ error: "Couldn't verify the MoonPay purchase. Please try again." }, { status: 502 });
   }
   if (!transaction) return NextResponse.json({ pending: true, status: "notFound" }, { status: 202 });
 
@@ -54,11 +54,11 @@ export async function POST(request: Request) {
   }
 
   if (transaction.walletAddress !== body.walletAddress) {
-    return NextResponse.json({ error: "Покупка MoonPay привязана к другому кошельку." }, { status: 403 });
+    return NextResponse.json({ error: "The MoonPay purchase is linked to a different wallet." }, { status: 403 });
   }
   if (normalizedStatus === "failed") {
     return NextResponse.json({
-      error: failureReason ? `MoonPay отклонил оплату: ${failureReason}` : "Оплата MoonPay не прошла.",
+      error: failureReason ? `MoonPay declined the payment: ${failureReason}` : "The MoonPay payment failed.",
       status: "failed",
       ...(failureReason ? { failureReason } : {}),
     }, { status: 409 });
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     ? getMoonPayNumericField(transaction, "baseCurrencyAmount")
     : getMoonPayNumericField(transaction, "quoteCurrencyAmount");
   if (amountUsd === null) {
-    return NextResponse.json({ error: "MoonPay не вернул сумму завершённой покупки." }, { status: 502 });
+    return NextResponse.json({ error: "MoonPay did not return an amount for the completed purchase." }, { status: 502 });
   }
   if (!devnetConfig.configured) return unavailableResponse();
 
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     notifyReceipt(request, {
       kind: "moonpay",
       amountUsd: previousCredit.amountUsd,
-      details: "Тестовые доллары зачислены после серверной проверки завершённой покупки MoonPay.",
+      details: "Test dollars were credited after server-side verification of the completed MoonPay purchase.",
       explorerUrl: previousCredit.explorerUrl,
       receiptId: externalTransactionId,
     });
@@ -102,13 +102,13 @@ export async function POST(request: Request) {
     notifyReceipt(request, {
       kind: "moonpay",
       amountUsd,
-      details: "Тестовые доллары зачислены после серверной проверки завершённой покупки MoonPay.",
+      details: "Test dollars were credited after server-side verification of the completed MoonPay purchase.",
       explorerUrl: result.explorerUrl,
       receiptId: externalTransactionId,
     });
     return NextResponse.json(result);
   } catch {
-    return NextResponse.json({ error: "Покупка подтверждена, но не удалось зачислить тестовые доллары." }, { status: 502 });
+    return NextResponse.json({ error: "The purchase is confirmed, but test dollars couldn't be credited." }, { status: 502 });
   } finally {
     creditInFlightIds.delete(externalTransactionId);
   }

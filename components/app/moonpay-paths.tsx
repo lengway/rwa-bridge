@@ -30,24 +30,24 @@ type MoonPayIpResponse = {
   isSellAllowed?: unknown;
 };
 
-const SIGNING_MESSAGE = "Добавьте MOONPAY_SECRET_KEY в .env.local, чтобы подписывать ссылку MoonPay.";
+const SIGNING_MESSAGE = "Add MOONPAY_SECRET_KEY to .env.local to sign the MoonPay link.";
 const IFRAME_ALLOW = "accelerometer; autoplay; camera; gyroscope; payment";
 const POLL_INTERVAL_MS = 5_000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1_000;
 
 async function getMoonPayIp(flow: "buy" | "sell" = "sell") {
   const apiKey = process.env.NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY;
-  if (!apiKey) throw new Error("Добавьте NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY в .env.local для подключения MoonPay.");
+  if (!apiKey) throw new Error("Add NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY to .env.local to enable MoonPay.");
 
   const url = new URL("https://api.moonpay.com/v4/ip_address");
   url.searchParams.set("apiKey", apiKey);
   const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) throw new Error("Не удалось проверить доступность MoonPay в вашей стране.");
+  if (!response.ok) throw new Error("Couldn't check MoonPay availability in your country.");
 
   const result = await response.json().catch(() => null) as MoonPayIpResponse | null;
   const allowed = flow === "buy" ? result?.isBuyAllowed : result?.isSellAllowed;
   if (typeof result?.ipAddress !== "string" || typeof allowed !== "boolean") {
-    throw new Error("Не удалось проверить доступность MoonPay в вашей стране.");
+    throw new Error("Couldn't check MoonPay availability in your country.");
   }
   return { ipAddress: result.ipAddress, allowed };
 }
@@ -55,11 +55,11 @@ async function getMoonPayIp(flow: "buy" | "sell" = "sell") {
 function TestCardDetails() {
   return (
     <ul className="list-inside list-disc space-y-0.5">
-      <li>Email: используйте тестовый email из вашего MoonPay Sandbox-аккаунта · код 123456</li>
-      <li>Телефон: если номер не принимается во встроенном окне, откройте MoonPay в новой вкладке. Тестовый номер: +1 500 555 0000, код 123456.</li>
-      <li>Карта: Visa 4242 4242 4242 4242 · 12/2030 · CVC 123</li>
-      <li>Адрес: любой в США или Великобритании; шаг с документами можно пропустить.</li>
-      <li>Карта для тестовой выплаты: Visa · 4000 0209 5159 5032 · срок 12/2030 · CVC 123.</li>
+      <li>Email: use the test email from your MoonPay Sandbox account · code 123456</li>
+      <li>Phone: if the number isn&apos;t accepted in the embedded window, open MoonPay in a new tab. Test number: +1 500 555 0000, code 123456.</li>
+      <li>Card: Visa 4242 4242 4242 4242 · 12/2030 · CVC 123</li>
+      <li>Address: any in the US or UK; the documents step can be skipped.</li>
+      <li>Test payout card: Visa · 4000 0209 5159 5032 · expires 12/2030 · CVC 123.</li>
     </ul>
   );
 }
@@ -98,12 +98,12 @@ export function MoonPayBuyPath({
   onSelectAnotherMethod: () => void;
 }) {
   const setup = useMoonPaySetup();
-  if (!setup) return <p className="text-xs text-muted-foreground">Проверяем настройки MoonPay…</p>;
+  if (!setup) return <p className="text-xs text-muted-foreground">Checking MoonPay configuration…</p>;
   if (!setup.configured) {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">Добавьте NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY в .env.local, чтобы подключить MoonPay.</p>
-        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Выбрать другой способ</Button>
+        <p className="text-xs text-muted-foreground">Add NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY to .env.local to enable MoonPay.</p>
+        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Choose another method</Button>
       </div>
     );
   }
@@ -111,7 +111,7 @@ export function MoonPayBuyPath({
     return (
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">{SIGNING_MESSAGE}</p>
-        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Выбрать другой способ</Button>
+        <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Choose another method</Button>
       </div>
     );
   }
@@ -179,17 +179,17 @@ function MoonPayBuyReady({
       });
       const result = await response.json().catch(() => null) as WidgetResponse | null;
       if (!response.ok || typeof result?.url !== "string" || typeof result.externalTransactionId !== "string") {
-        throw new Error(typeof result?.error === "string" ? result.error : "Не удалось открыть MoonPay.");
+        throw new Error(typeof result?.error === "string" ? result.error : "Couldn't open MoonPay.");
       }
 
       const parsedUrl = new URL(result.url);
       const expectedHost = environment === "sandbox" ? "buy-sandbox.moonpay.com" : "buy.moonpay.com";
-      if (parsedUrl.hostname !== expectedHost) throw new Error("MoonPay вернул ссылку для другой среды.");
+      if (parsedUrl.hostname !== expectedHost) throw new Error("MoonPay returned a link for a different environment.");
       setExternalTransactionId(result.externalTransactionId);
       setWidgetUrl(parsedUrl.toString());
       setSheetOpen(true);
     } catch (requestError) {
-      setError(russianActionError(requestError, "Не удалось открыть MoonPay. Проверьте соединение и повторите попытку."));
+      setError(russianActionError(requestError, "Couldn't open MoonPay. Check your connection and try again."));
     } finally {
       opening.current = false;
       setLoading(false);
@@ -233,8 +233,8 @@ function MoonPayBuyReady({
             : null;
           setOrderFailed(true);
           setError(failureReason
-            ? `MoonPay отклонил оплату: ${failureReason}`
-            : typeof result?.error === "string" ? result.error : "Оплата MoonPay не прошла.");
+            ? `MoonPay declined the payment: ${failureReason}`
+            : typeof result?.error === "string" ? result.error : "The MoonPay payment failed.");
           active = false;
           setWidgetUrl(null);
           setExternalTransactionId(null);
@@ -243,12 +243,12 @@ function MoonPayBuyReady({
           return;
         }
         if (!response.ok) {
-          setError(typeof result?.error === "string" ? result.error : "Не удалось проверить покупку MoonPay.");
+          setError(typeof result?.error === "string" ? result.error : "Couldn't verify the MoonPay purchase.");
           return;
         }
         if (typeof result?.amountUsd !== "number" || completed.current) return;
         if (typeof result.signature !== "string" || typeof result.explorerUrl !== "string") {
-          setError("Не удалось подтвердить зачисление в сети Solana devnet.");
+          setError("Couldn't confirm the credit on Solana devnet.");
           return;
         }
         completed.current = true;
@@ -274,10 +274,10 @@ function MoonPayBuyReady({
   }, [externalTransactionId, onComplete, wallet?.address, widgetUrl]);
 
   if (authStatus !== "signed-in") {
-    return <p className="text-xs text-muted-foreground">Завершите вход по email, чтобы открыть MoonPay.</p>;
+    return <p className="text-xs text-muted-foreground">Finish signing in with email to open MoonPay.</p>;
   }
   if (!wallet?.address || walletStatus === "in-progress") {
-    return <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>;
+    return <p className="text-xs text-muted-foreground">Preparing your wallet…</p>;
   }
 
   return (
@@ -285,34 +285,34 @@ function MoonPayBuyReady({
       <div className="space-y-3">
         {openedExternally && widgetUrl ? (
           <>
-            <p className="text-xs text-muted-foreground">MoonPay открыт в новой вкладке. Завершите там оплату и вернитесь сюда — мы проверим её и зачислим сумму автоматически.</p>
+            <p className="text-xs text-muted-foreground">MoonPay is open in a new tab. Complete the payment there and come back — we&apos;ll verify it and credit the amount automatically.</p>
             {error ? <p className="text-xs text-destructive">{error}</p> : null}
-            {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Оставьте виджет открытым и повторите проверку позже.</p> : null}
+            {pollTimedOut ? <p className="text-xs text-muted-foreground">Checking stopped after 15 minutes. Keep the widget open and check again later.</p> : null}
             <Button className="w-full" onClick={() => window.open(widgetUrl, "_blank", "noopener,noreferrer")}>
-              <ExternalLink />Открыть MoonPay снова
+              <ExternalLink />Open MoonPay again
             </Button>
-            <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Выбрать другой способ</Button>
+            <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>Choose another method</Button>
           </>
         ) : (
           <>
-            {environment === "sandbox" ? <p className="text-xs text-muted-foreground">Тестовый режим MoonPay: покупается тестовый SOL, а в Solana devnet зачисляются тестовые доллары.</p> : null}
-            {widgetUrl && !sheetOpen ? <p className="text-xs text-muted-foreground">Если вы уже оплатили, сумма зачислится после проверки MoonPay.</p> : null}
+            {environment === "sandbox" ? <p className="text-xs text-muted-foreground">MoonPay test mode: test SOL is purchased, and test dollars are credited on Solana devnet.</p> : null}
+            {widgetUrl && !sheetOpen ? <p className="text-xs text-muted-foreground">If you&apos;ve already paid, the amount will be credited after MoonPay is verified.</p> : null}
             {!widgetUrl ? (
               <p className="text-xs text-muted-foreground">
                 {countryUnavailable
-                  ? "MoonPay недоступен в вашей стране."
+                  ? "MoonPay is not available in your country."
                   : amount < 5
-                    ? "Минимальная сумма покупки через MoonPay — $5."
-                    : `Откроется MoonPay${environment === "sandbox" ? " в тестовом режиме" : ""} для покупки ${environment === "sandbox" ? "SOL" : "USDC"}.`}
+                    ? "The minimum MoonPay purchase is $5."
+                    : `MoonPay will open${environment === "sandbox" ? " in test mode" : ""} to buy ${environment === "sandbox" ? "SOL" : "USDC"}.`}
               </p>
             ) : null}
-            {loading ? <p className="text-xs text-muted-foreground">Открываем MoonPay…</p> : null}
+            {loading ? <p className="text-xs text-muted-foreground">Opening MoonPay…</p> : null}
             {error ? <p className="text-xs text-destructive">{error}</p> : null}
-            {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Оставьте виджет открытым и повторите проверку позже.</p> : null}
-            {orderFailed && !error ? <p className="text-xs text-destructive">Оплата не прошла. Попробуйте ещё раз.</p> : null}
+            {pollTimedOut ? <p className="text-xs text-muted-foreground">Checking stopped after 15 minutes. Keep the widget open and check again later.</p> : null}
+            {orderFailed && !error ? <p className="text-xs text-destructive">The payment failed. Please try again.</p> : null}
             {((widgetUrl && !sheetOpen) || (!widgetUrl && amount >= 5 && !countryUnavailable)) && !loading ? (
               <Button className="w-full" onClick={openWidget} disabled={loading}>
-                {widgetUrl ? "Открыть MoonPay снова" : error ? "Повторить" : `Открыть MoonPay · ${formatMoney(amount)}`}
+                {widgetUrl ? "Open MoonPay again" : error ? "Retry" : `Open MoonPay · ${formatMoney(amount)}`}
               </Button>
             ) : null}
             {!widgetUrl ? (
@@ -323,7 +323,7 @@ function MoonPayBuyReady({
                 setSheetOpen(false);
                 onSelectAnotherMethod();
               }}>
-                Выбрать другой способ
+                Choose another method
               </Button>
             ) : null}
           </>
@@ -333,7 +333,7 @@ function MoonPayBuyReady({
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         title="MoonPay"
-        badge={environment === "sandbox" ? "Тестовый режим" : undefined}
+        badge={environment === "sandbox" ? "Test mode" : undefined}
         testData={environment === "sandbox" ? <TestCardDetails /> : undefined}
         externalUrl={widgetUrl ?? undefined}
         onOpenExternal={() => {
@@ -346,7 +346,7 @@ function MoonPayBuyReady({
             <iframe
               ref={iframeRef}
               src={widgetUrl}
-              title={`MoonPay — покупка ${environment === "sandbox" ? "SOL" : "USDC"}`}
+              title={`MoonPay — buy ${environment === "sandbox" ? "SOL" : "USDC"}`}
               className="min-h-0 flex-1 border-0 bg-white"
               allow={IFRAME_ALLOW}
               referrerPolicy="strict-origin-when-cross-origin"
@@ -376,10 +376,10 @@ export function MoonPaySellPath({
   onSelectAnotherMethod: () => void;
 }) {
   const setup = useMoonPaySetup();
-  if (!setup) return <p className="text-xs text-muted-foreground">Проверяем настройки MoonPay…</p>;
+  if (!setup) return <p className="text-xs text-muted-foreground">Checking MoonPay configuration…</p>;
 
   const missingConfiguration = !setup.configured
-    ? "Добавьте NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY в .env.local, чтобы подключить MoonPay."
+    ? "Add NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY to .env.local to enable MoonPay."
     : !setup.canSign
       ? SIGNING_MESSAGE
       : null;
@@ -456,17 +456,17 @@ function MoonPaySellReady({
       });
       const result = await response.json().catch(() => null) as WidgetResponse | null;
       if (!response.ok || typeof result?.url !== "string" || typeof result.externalTransactionId !== "string") {
-        throw new Error(typeof result?.error === "string" ? result.error : "Не удалось открыть MoonPay.");
+        throw new Error(typeof result?.error === "string" ? result.error : "Couldn't open MoonPay.");
       }
       const parsedUrl = new URL(result.url);
       const expectedHost = environment === "sandbox" ? "sell-sandbox.moonpay.com" : "sell.moonpay.com";
-      if (parsedUrl.hostname !== expectedHost) throw new Error("MoonPay вернул ссылку для другой среды.");
+      if (parsedUrl.hostname !== expectedHost) throw new Error("MoonPay returned a link for a different environment.");
       setExternalTransactionId(result.externalTransactionId);
       setWidgetUrl(parsedUrl.toString());
       setStage("iframe");
       setSheetOpen(true);
     } catch (requestError) {
-      setError(russianActionError(requestError, "Не удалось открыть MoonPay. Проверьте соединение и повторите попытку."));
+      setError(russianActionError(requestError, "Couldn't open MoonPay. Check your connection and try again."));
     } finally {
       opening.current = false;
       setLoading(false);
@@ -502,7 +502,7 @@ function MoonPaySellReady({
         } | null;
         if (response.status === 202 || result?.pending === true) return;
         if (!response.ok) {
-          setError(typeof result?.error === "string" ? result.error : "Не удалось проверить вывод MoonPay.");
+          setError(typeof result?.error === "string" ? result.error : "Couldn't verify the MoonPay withdrawal.");
           return;
         }
         if (typeof result?.cryptoAmount === "number" && result.cryptoAmount > 0) setCryptoAmount(result.cryptoAmount);
@@ -539,7 +539,7 @@ function MoonPaySellReady({
 
   const sendDevnetTransfer = async () => {
     if (!wallet || !devnet.walletAddress || !devnet.treasuryOwner || !devnet.usdMint || sending) {
-      setError("Не удалось подключить Solana devnet-кошелёк.");
+      setError("Couldn't connect the Solana devnet wallet.");
       return;
     }
     setSending(true);
@@ -547,13 +547,13 @@ function MoonPaySellReady({
     try {
       let transfer = pendingTransfer;
       if (!transfer) {
-        setSendProgress("Подписываем перевод…");
+        setSendProgress("Signing the transfer…");
         const transaction = await wallet.send(devnet.treasuryOwner, devnet.usdMint, String(amount));
-        if (!transaction.hash) throw new Error("Кошелёк не вернул подпись перевода.");
+        if (!transaction.hash) throw new Error("The wallet did not return a transfer signature.");
         transfer = { signature: transaction.hash, amountUsd: amount };
         setPendingTransfer(transfer);
       }
-      setSendProgress("Подтверждаем в сети…");
+      setSendProgress("Confirming on-chain…");
       const response = await fetch("/api/devnet/wallet-send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -566,20 +566,20 @@ function MoonPaySellReady({
       });
       const result = await response.json().catch(() => null) as { ok?: unknown; error?: unknown } | null;
       if (!response.ok || result?.ok !== true) {
-        throw new Error(typeof result?.error === "string" ? result.error : "Перевод пока не подтверждён в Solana devnet.");
+        throw new Error(typeof result?.error === "string" ? result.error : "The transfer is not yet confirmed on Solana devnet.");
       }
       const explorerUrl = `https://explorer.solana.com/tx/${encodeURIComponent(transfer.signature)}?cluster=devnet`;
       const recorded = onWithdrawal(transfer.amountUsd, {
         signature: transfer.signature,
         explorerUrl,
-        note: "Перевод в MoonPay в сети devnet.",
+        note: "Transfer to MoonPay on devnet.",
       });
-      if (!recorded) throw new Error("Не удалось записать вывод в историю операций.");
+      if (!recorded) throw new Error("Couldn't record the withdrawal in the transaction history.");
       setPendingTransfer(null);
       void devnet.refreshPortfolio();
       setExternalTransactionId(null);
     } catch (requestError) {
-      setError(russianActionError(requestError, "Не удалось списать тестовые доллары. Проверьте баланс и повторите попытку."));
+      setError(russianActionError(requestError, "Couldn't debit test dollars. Check your balance and try again."));
     } finally {
       setSending(false);
       setSendProgress(null);
@@ -590,14 +590,14 @@ function MoonPaySellReady({
     if (!depositAddress) return;
     try {
       await navigator.clipboard.writeText(depositAddress);
-      toast.success("Адрес депозита скопирован");
+      toast.success("Deposit address copied");
     } catch {
-      toast.error("Не удалось скопировать адрес");
+      toast.error("Couldn't copy the address");
     }
   };
 
   if (!wallet?.address || walletStatus === "in-progress") {
-    return <p className="text-xs text-muted-foreground">Подготавливаем кошелёк…</p>;
+    return <p className="text-xs text-muted-foreground">Preparing your wallet…</p>;
   }
 
   const currentCryptoAmount = cryptoAmount ?? (environment === "sandbox" ? null : amount);
@@ -605,9 +605,9 @@ function MoonPaySellReady({
   if (countryUnavailable) {
     return (
       <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">MoonPay недоступен в вашей стране.</p>
+        <p className="text-xs text-muted-foreground">MoonPay is not available in your country.</p>
         <Button variant="outline" className="w-full" onClick={onSelectAnotherMethod}>
-          Выбрать другой способ
+          Choose another method
         </Button>
       </div>
     );
@@ -619,12 +619,12 @@ function MoonPaySellReady({
         {stage === "opened-external" && widgetUrl ? (
           <>
             <p className="text-xs text-muted-foreground">
-              MoonPay открыт в новой вкладке. Завершите вывод там и вернитесь сюда — когда MoonPay попросит перевод, здесь появится кнопка отправки.
+              MoonPay is open in a new tab. Complete the withdrawal there and come back — when MoonPay asks for a transfer, a send button will appear here.
             </p>
             {error ? <p className="text-xs text-destructive">{error}</p> : null}
-            {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Можно повторить попытку.</p> : null}
+            {pollTimedOut ? <p className="text-xs text-muted-foreground">Checking stopped after 15 minutes. You can try again.</p> : null}
             <Button className="w-full" onClick={() => window.open(widgetUrl, "_blank", "noopener,noreferrer")}>
-              <ExternalLink />Открыть MoonPay снова
+              <ExternalLink />Open MoonPay again
             </Button>
             <Button
               variant="outline"
@@ -633,7 +633,7 @@ function MoonPaySellReady({
                 onSelectAnotherMethod();
               }}
             >
-              Выбрать другой способ
+              Choose another method
             </Button>
           </>
         ) : null}
@@ -641,37 +641,37 @@ function MoonPaySellReady({
           <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
             <p className="text-sm font-medium">
               {currentCryptoAmount === null
-                ? "MoonPay ждёт перевод выбранной суммы."
-                : `MoonPay ждёт перевод ${currentCryptoAmount.toFixed(2)} ${environment === "sandbox" ? "SOL" : "USDC"}.`}
+                ? "MoonPay is waiting for a transfer of the selected amount."
+                : `MoonPay is waiting for a transfer of ${currentCryptoAmount.toFixed(2)} ${environment === "sandbox" ? "SOL" : "USDC"}.`}
             </p>
             {depositAddress ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="min-w-0 flex-1 truncate font-mono" title={depositAddress}>Адрес депозита MoonPay: {`${depositAddress.slice(0, 7)}…${depositAddress.slice(-6)}`}</span>
-                <Button variant="ghost" size="icon" className="size-7 shrink-0" aria-label="Скопировать адрес депозита MoonPay" onClick={() => void copyDepositAddress()}><Copy /></Button>
+                <span className="min-w-0 flex-1 truncate font-mono" title={depositAddress}>MoonPay deposit address: {`${depositAddress.slice(0, 7)}…${depositAddress.slice(-6)}`}</span>
+                <Button variant="ghost" size="icon" className="size-7 shrink-0" aria-label="Copy MoonPay deposit address" onClick={() => void copyDepositAddress()}><Copy /></Button>
               </div>
             ) : null}
-            <p className="text-xs text-muted-foreground">Перевод в MoonPay в сети devnet.</p>
+            <p className="text-xs text-muted-foreground">Transfer to MoonPay on devnet.</p>
             <Button className="w-full" onClick={sendDevnetTransfer} disabled={sending || !validAmount}>
-              {sending ? (sendProgress ?? "Отправляем…") : "Отправить тестовые доллары"}
+              {sending ? (sendProgress ?? "Sending…") : "Send test dollars"}
             </Button>
           </div>
         ) : null}
         {stage === "provider-complete" ? (
           <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
-            <p className="text-sm font-medium">MoonPay завершил операцию.</p>
+            <p className="text-sm font-medium">MoonPay completed the operation.</p>
           </div>
         ) : null}
         {stage !== "opened-external" ? (
           <>
-            {loading ? <p className="text-xs text-muted-foreground">Открываем MoonPay…</p> : null}
+            {loading ? <p className="text-xs text-muted-foreground">Opening MoonPay…</p> : null}
             {error ? <p className="text-xs text-destructive">{error}</p> : null}
-            {pollTimedOut ? <p className="text-xs text-muted-foreground">Проверка остановлена через 15 минут. Можно повторить попытку.</p> : null}
-            {failed ? <p className="text-xs text-destructive">Вывод не прошёл. Попробуйте ещё раз.</p> : null}
+            {pollTimedOut ? <p className="text-xs text-muted-foreground">Checking stopped after 15 minutes. You can try again.</p> : null}
+            {failed ? <p className="text-xs text-destructive">The withdrawal failed. Please try again.</p> : null}
           </>
         ) : null}
         {stage === "idle" && !widgetUrl && validAmount ? (
           <Button className="w-full" onClick={openWidget} disabled={loading}>
-            {failed || error ? "Повторить" : "Открыть MoonPay"}
+            {failed || error ? "Retry" : "Open MoonPay"}
           </Button>
         ) : null}
         {stage === "idle" && !widgetUrl ? (
@@ -684,7 +684,7 @@ function MoonPaySellReady({
         ) : null}
         {stage === "iframe" && widgetUrl && !sheetOpen ? (
           <Button className="w-full" onClick={openWidget}>
-            Открыть MoonPay снова
+            Open MoonPay again
           </Button>
         ) : null}
       </div>
@@ -692,7 +692,7 @@ function MoonPaySellReady({
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         title="MoonPay"
-        badge={environment === "sandbox" ? "Тестовый режим" : undefined}
+        badge={environment === "sandbox" ? "Test mode" : undefined}
         testData={environment === "sandbox" ? <TestCardDetails /> : undefined}
         externalUrl={widgetUrl ?? undefined}
         onOpenExternal={() => {
@@ -705,7 +705,7 @@ function MoonPaySellReady({
             <iframe
               ref={iframeRef}
               src={widgetUrl}
-              title={`MoonPay — вывод ${environment === "sandbox" ? "SOL" : "USDC"}`}
+              title={`MoonPay — withdraw ${environment === "sandbox" ? "SOL" : "USDC"}`}
               className="min-h-0 flex-1 border-0 bg-white"
               allow={IFRAME_ALLOW}
               referrerPolicy="strict-origin-when-cross-origin"

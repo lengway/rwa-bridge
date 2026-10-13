@@ -14,10 +14,10 @@ export async function POST(request: Request) {
 
   const serverApiKey = process.env.CROSSMINT_SERVER_API_KEY;
   if (!serverApiKey) {
-    return NextResponse.json({ error: "добавь CROSSMINT_SERVER_API_KEY в .env.local" }, { status: 501 });
+    return NextResponse.json({ error: "add CROSSMINT_SERVER_API_KEY to .env.local" }, { status: 501 });
   }
   if (!serverApiKey.startsWith("sk_staging_")) {
-    return NextResponse.json({ error: "Для Crossmint разрешён staging-ключ." }, { status: 400 });
+    return NextResponse.json({ error: "Only a staging key is allowed for Crossmint." }, { status: 400 });
   }
 
   const body = await request.json().catch(() => null);
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   const email: string | undefined = body?.email;
   const amount = Number(body?.amount);
   if (!walletAddress || !email || !Number.isFinite(amount) || amount <= 0 || amount > 1000) {
-    return NextResponse.json({ error: "нужны walletAddress, email и сумма от 1 до 1000" }, { status: 400 });
+    return NextResponse.json({ error: "walletAddress, email and an amount from 1 to 1000 are required" }, { status: 400 });
   }
 
   const res = await fetch("https://staging.crossmint.com/api/2022-06-09/orders", {
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    return NextResponse.json({ error: data?.message ?? "Crossmint не создал заказ" }, { status: 502 });
+    return NextResponse.json({ error: data?.message ?? "Crossmint did not create the order" }, { status: 502 });
   }
   return NextResponse.json({ orderId: data?.order?.orderId, clientSecret: data?.clientSecret });
 }

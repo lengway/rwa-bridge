@@ -37,7 +37,7 @@ export async function notifyWelcome(request: Request) {
       to: email,
       kind: "welcome",
       amountUsd: 0,
-      details: "Добро пожаловать в Plain.",
+      details: "Welcome to Plain.",
     }).catch(() => console.error("Plain: welcome email could not be sent."));
     return true;
   } catch {

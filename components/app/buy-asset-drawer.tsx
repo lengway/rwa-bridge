@@ -64,14 +64,14 @@ function BuyAssetDrawerContents({
     setError(null);
 
     if (!devnet.treasuryOwner) {
-        const message = "Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs.";
+        const message = "Solana devnet is not configured. Run node scripts/setup-devnet.mjs.";
         setError(message);
         toast.error(message);
         setProcessing(false);
         return;
       }
       if ((!wallet && !pendingPayment) || !devnet.walletAddress || !devnet.usdMint) {
-        const message = "Не удалось подключить Solana-кошелёк. Перезайдите в аккаунт.";
+        const message = "Couldn't connect your Solana wallet. Sign in again.";
         setError(message);
         toast.error(message);
         setProcessing(false);
@@ -80,13 +80,13 @@ function BuyAssetDrawerContents({
       try {
         let signature = pendingPayment?.signature;
         if (!signature) {
-          setProgress("Подписываем Devnet-перевод TEST QUOTE…");
+          setProgress("Signing the TEST QUOTE Devnet transfer…");
           const payment = await wallet!.send(devnet.treasuryOwner, devnet.usdMint, String(purchaseAmount));
-          if (!payment.hash) throw new Error("Кошелёк не вернул подпись перевода.");
+          if (!payment.hash) throw new Error("The wallet did not return a transfer signature.");
           signature = payment.hash;
           setPendingPayment({ signature, amount: purchaseAmount });
         }
-        setProgress("Подтверждаем Devnet-перевод…");
+        setProgress("Confirming the Devnet transfer…");
         const requestPurchase = async () => {
           const response = await fetch("/api/devnet/buy-asset", {
             method: "POST",
@@ -112,10 +112,10 @@ function BuyAssetDrawerContents({
             };
           }
           const message = data.stage === "verify"
-            ? "Не удалось подтвердить Devnet-перевод TEST QUOTE."
+            ? "Couldn't confirm the TEST QUOTE Devnet transfer."
             : data.stage === "mint"
-              ? "Devnet-перевод подтверждён, но выпуск тестового актива пока не завершён."
-              : "Не удалось подтвердить выпуск тестового актива.";
+              ? "The Devnet transfer is confirmed, but test asset issuance isn't complete yet."
+              : "Couldn't confirm test asset issuance.";
           const failure = new Error(message) as Error & { stage?: unknown };
           failure.stage = data.stage;
           throw failure;
@@ -135,20 +135,20 @@ function BuyAssetDrawerContents({
           }
         }
         if (!data) {
-          throw new Error("Devnet-перевод подтверждён, но тестовый актив ещё не выпущен. Повторите подтверждение.", { cause: lastRequestError });
+          throw new Error("The Devnet transfer is confirmed, but the test asset hasn't been issued yet. Retry the confirmation.", { cause: lastRequestError });
         }
         const purchasedUnits = typeof data.units === "number" ? data.units : units;
         setResult({ amount: purchaseAmount, units: purchasedUnits, explorerUrl: data.explorerUrl });
         setPendingPayment(null);
         void devnet.refreshPortfolio();
-        toast.success("Тестовый актив выпущен");
+        toast.success("Test asset issued");
       } catch (requestError) {
         const message = requestError instanceof Error ? requestError.message : "";
-        const visibleMessage = message === "Кошелёк не вернул подпись перевода."
-          || message.startsWith("Devnet-перевод")
-          || message.startsWith("Не удалось подтвердить выпуск")
+        const visibleMessage = message === "The wallet did not return a transfer signature."
+          || message.startsWith("Devnet transfer")
+          || message.startsWith("Couldn't confirm issuance")
           ? message
-          : "Не удалось выполнить Devnet-перевод TEST QUOTE. Проверьте кошелёк и повторите подтверждение.";
+          : "Couldn't complete the TEST QUOTE Devnet transfer. Check your wallet and retry the confirmation.";
         setError(visibleMessage);
         toast.error(visibleMessage);
       } finally {
@@ -161,27 +161,27 @@ function BuyAssetDrawerContents({
     <DrawerFrame
       open={open}
       onOpenChange={changeOpen}
-      title={`Получить тестовый актив · ${asset.ticker}`}
-      description="SOLANA DEVNET · NO MONETARY VALUE. OFFICE не даёт прав на недвижимость или денежную выплату."
+      title={`Get test asset · ${asset.ticker}`}
+      description="SOLANA DEVNET · NO MONETARY VALUE. OFFICE grants no rights to real estate or any cash payout."
     >
       {result ? (
         <DrawerSuccess
           amount={result.amount}
           amountLabel={`${formatQuantity(result.units, 0)} ${asset.ticker}`}
-          sentence="Тестовый актив выпущен в Solana Devnet."
-          note={result.note ?? "SOLANA DEVNET · NO MONETARY VALUE. OFFICE не предоставляет прав на недвижимость или денежную выплату."}
+          sentence="Test asset issued on Solana Devnet."
+          note={result.note ?? "SOLANA DEVNET · NO MONETARY VALUE. OFFICE grants no rights to real estate or any cash payout."}
           onDone={() => changeOpen(false)}
           secondaryHref="/assets"
-          secondaryLabel="К активам"
+          secondaryLabel="Back to assets"
           explorerUrl={result.explorerUrl}
         />
       ) : (
         <div className="space-y-5">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <label htmlFor="buy-amount" className="font-medium">Количество TEST QUOTE</label>
+              <label htmlFor="buy-amount" className="font-medium">TEST QUOTE amount</label>
               <span className="text-muted-foreground">
-                Доступно {formatQuantity(cashUsd)} TEST QUOTE
+                Available {formatQuantity(cashUsd)} TEST QUOTE
               </span>
             </div>
             <div className="relative">
@@ -201,31 +201,31 @@ function BuyAssetDrawerContents({
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              1 {asset.ticker} = 1 TEST QUOTE · будет выпущено {units > 0 ? formatQuantity(units, 0) : "0"} {asset.ticker}
+              1 {asset.ticker} = 1 TEST QUOTE · will issue {units > 0 ? formatQuantity(units, 0) : "0"} {asset.ticker}
             </p>
           </div>
 
           <Card className="gap-2 p-4">
-            <p className="text-sm font-medium">Выпуск тестового актива</p>
+            <p className="text-sm font-medium">Test asset issuance</p>
             <p className="text-xs leading-5 text-muted-foreground">
-              После подтверждённого Devnet-перевода приложение выпустит {asset.ticker} в ваш кошелёк. Это не покупка недвижимости, не инвестиция и не денежная операция.
+              After a confirmed Devnet transfer, the app will issue {asset.ticker} to your wallet. This is not a real estate purchase, an investment or a monetary transaction.
             </p>
           </Card>
           {amountValue < 10 ? (
-            <p className="text-xs text-destructive">Минимум — 10 TEST QUOTE.</p>
+            <p className="text-xs text-destructive">Minimum is 10 TEST QUOTE.</p>
           ) : null}
           {amountValue > cashUsd ? (
             <p className="text-xs text-destructive">
-              Недостаточно TEST QUOTE. <a href="/home" className="underline">Подготовьте тестовые единицы</a>.
+              Not enough TEST QUOTE. <a href="/home" className="underline">Prepare test units</a>.
             </p>
           ) : null}
           {amountValue > 1000 ? (
-            <p className="text-xs text-destructive">Максимум — 1 000 TEST QUOTE.</p>
+            <p className="text-xs text-destructive">Maximum is 1,000 TEST QUOTE.</p>
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           {progress ? <p className="text-center text-xs text-muted-foreground">{progress}</p> : null}
           <Button className="w-full" onClick={completePurchase} disabled={(!valid && !pendingPayment) || processing}>
-            <ArrowDownToLine />{processing ? (progress ?? "Выпускаем тестовый актив…") : pendingPayment ? "Повторить подтверждение" : `Получить ${formatQuantity(amountValue || 0)} ${asset.ticker}`}
+            <ArrowDownToLine />{processing ? (progress ?? "Issuing test asset…") : pendingPayment ? "Retry confirmation" : `Get ${formatQuantity(amountValue || 0)} ${asset.ticker}`}
           </Button>
         </div>
       )}

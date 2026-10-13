@@ -9,11 +9,11 @@ export function KztEstimate({ usd }: { usd: number }) {
   return (
     <div className="space-y-1 text-xs text-muted-foreground">
       <p>
-        {marketData.availability.rate ? `≈ ${formatMoney(usd, "KZT")} по курсу НБ РК.` : "Загружаем курс…"}
+        {marketData.availability.rate ? `≈ ${formatMoney(usd, "KZT")} at the NBK rate.` : "Loading rate…"}
       </p>
       <MarketDataNote
         data={marketData.availability.rate ? marketData.rate : null}
-        loadingText="Загружаем курс…"
+        loadingText="Loading rate…"
       />
     </div>
   );

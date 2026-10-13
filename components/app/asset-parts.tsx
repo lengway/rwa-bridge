@@ -7,7 +7,7 @@ import type { BridgeAsset } from "@/lib/assets";
 
 export function TestAssetArtwork({ ticker }: { ticker: string }) {
   return (
-    <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-2xl border bg-muted/60 px-8" role="img" aria-label={`${ticker}: тестовый актив в Solana Devnet`}>
+    <div className="relative flex h-48 items-center justify-center overflow-hidden rounded-2xl border bg-muted/60 px-8" role="img" aria-label={`${ticker}: test asset on Solana Devnet`}>
       <div className="absolute size-40 rounded-full border bg-background/50" />
       <div className="absolute size-28 rounded-full border border-dashed border-muted-foreground/35" />
       <div className="relative z-10 flex size-24 flex-col items-center justify-center gap-2 rounded-full border bg-card shadow-sm">
@@ -36,7 +36,7 @@ export function AssetListCard({ asset }: { asset: BridgeAsset }) {
         </div>
         <div className="flex items-end justify-between gap-3 border-t pt-3">
           <div>
-            <p className="text-sm font-medium">От 10 TEST QUOTE</p>
+            <p className="text-sm font-medium">From 10 TEST QUOTE</p>
             <p className="text-xs text-muted-foreground">1 {asset.ticker} = 1 TEST QUOTE · NO MONETARY VALUE</p>
           </div>
         </div>
@@ -48,13 +48,13 @@ export function AssetListCard({ asset }: { asset: BridgeAsset }) {
 export function AssetFacts({ asset }: { asset: BridgeAsset }) {
   return (
     <Card className="gap-3 rounded-2xl p-4">
-      <h2 className="font-semibold">Ключевые факты</h2>
-      <Fact label="Название" value={asset.name} />
-      <Fact label="Формат" value="Тестовый актив приложения" />
-      <Fact label="Тикер" value={asset.ticker} />
-      <Fact label="Одна единица" value={`1 ${asset.ticker} = 1 TEST QUOTE`} />
-      <Fact label="Минимальное действие" value="10 TEST QUOTE" />
-      <Fact label="Статус" value="NO MONETARY VALUE" />
+      <h2 className="font-semibold">Key facts</h2>
+      <Fact label="Name" value={asset.name} />
+      <Fact label="Format" value="App test asset" />
+      <Fact label="Ticker" value={asset.ticker} />
+      <Fact label="One unit" value={`1 ${asset.ticker} = 1 TEST QUOTE`} />
+      <Fact label="Minimum action" value="10 TEST QUOTE" />
+      <Fact label="Status" value="NO MONETARY VALUE" />
     </Card>
   );
 }
@@ -68,7 +68,7 @@ export function ExistingHolding({ units, costUsd }: { units: number; costUsd: nu
     <Card className="flex-row items-center gap-3 rounded-2xl p-4">
       <span className="flex size-9 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"><ShieldCheck className="size-5" /></span>
       <div className="min-w-0 flex-1">
-        <p className="font-medium">Ваш тестовый актив</p>
+        <p className="font-medium">Your test asset</p>
         <p className="text-xs text-muted-foreground">{formatQuantity(units, 0)} OFFICE · NO MONETARY VALUE</p>
       </div>
       <div className="text-right">

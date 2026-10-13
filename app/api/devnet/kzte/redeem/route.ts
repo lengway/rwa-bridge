@@ -19,10 +19,10 @@ export async function POST(request: Request) {
 
   if (!isConfigured()) return unavailableResponse();
   const session = await getSessionWallet(request);
-  if (!session) return NextResponse.json({ error: "Войдите в аккаунт, чтобы вывести KZTE с кошелька." }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Sign in to withdraw KZTE from your wallet." }, { status: 401 });
   const body = await request.json().catch(() => null) as { signature?: unknown } | null;
   if (!isSignature(body?.signature)) {
-    return NextResponse.json({ error: "Не указана подпись перевода KZTE." }, { status: 400 });
+    return NextResponse.json({ error: "The KZTE transfer signature is missing." }, { status: 400 });
   }
   const walletAddress = session.walletAddress;
   const transferSignature = body.signature;
@@ -31,11 +31,11 @@ export async function POST(request: Request) {
     try {
       let operation = await findKzteOperation(walletAddress, transferSignature);
       if (operation && (operation.sourceSignature !== transferSignature || operation.kind !== "redeem")) {
-        return NextResponse.json({ error: "Эта транзакция уже использовалась для другой операции." }, { status: 409 });
+        return NextResponse.json({ error: "This transaction was already used for a different operation." }, { status: 409 });
       }
       if (!operation) {
         if (await hasLedgerSignature(transferSignature)) {
-          return NextResponse.json({ error: "Эта транзакция уже была использована." }, { status: 409 });
+          return NextResponse.json({ error: "This transaction has already been used." }, { status: 409 });
         }
         const amountKzt = await verifyIncomingPayment({
           signature: transferSignature,
@@ -62,13 +62,13 @@ export async function POST(request: Request) {
       notifyReceipt(request, {
         kind: "kzte-redeem",
         amountUsd: operation.amountUsd,
-        details: `KZTE возвращены в резерв Intebix: ${operation.amountKzt.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ₸. Выплата через Intebix проводится в сети Solana devnet.`,
+        details: `KZTE returned to the Intebix reserve: ${operation.amountKzt.toLocaleString("en-US", { maximumFractionDigits: 6 })} ₸. The Intebix payout is processed on Solana devnet.`,
         explorerUrl: response.explorerUrl,
         receiptId: transferSignature,
       });
       return NextResponse.json(response);
     } catch (error) {
-      return NextResponse.json({ error: safeError(error, "Не удалось вернуть KZTE в резерв Intebix.") }, { status: 400 });
+      return NextResponse.json({ error: safeError(error, "Couldn't return KZTE to the Intebix reserve.") }, { status: 400 });
     }
   });
 }

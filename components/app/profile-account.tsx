@@ -1,5 +1,6 @@
 "use client";
 
+import { isUserFacingMessage } from "@/lib/action-errors";
 import { useState } from "react";
 import Link from "next/link";
 import { Copy, LogOut, Send, WalletCards } from "lucide-react";
@@ -121,7 +122,7 @@ function WalletSectionReady() {
       toast.success("Test units sent");
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      setSendError(/[А-Яа-яЁё]/.test(message) ? message : "Could not confirm the transfer. Check again in a few seconds.");
+      setSendError(isUserFacingMessage(message) ? message : "Could not confirm the transfer. Check again in a few seconds.");
     } finally {
       setSending(false);
       setSendProgress(null);

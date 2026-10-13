@@ -136,20 +136,20 @@ function formatActivityDay(timestamp: number, now: number) {
 function activityTitle(item: ActivityItem) {
   const title = presentDevnetCopy(item.title);
   const historicTitles: Record<string, string> = {
-    "Перевод из резерва Intebix": "Transfer from Intebix reserve",
-    "KZTE возвращены в резерв Intebix · обмен KZTE → $": "KZTE returned to Intebix reserve · KZTE → $ exchange",
-    "Перевод из резерва Intebix · обмен $ → KZTE": "Transfer from Intebix reserve · $ → KZTE exchange",
-    "KZTE возвращены в резерв Intebix · выплата в тенге": "KZTE returned to Intebix reserve · payout in KZT",
+    "Transfer from the Intebix reserve": "Transfer from Intebix reserve",
+    "KZTE returned to the Intebix reserve · exchange KZTE → $": "KZTE returned to Intebix reserve · KZTE → $ exchange",
+    "Transfer from the Intebix reserve · exchange $ → KZTE": "Transfer from Intebix reserve · $ → KZTE exchange",
+    "KZTE returned to the Intebix reserve · payout in tenge": "KZTE returned to Intebix reserve · payout in KZT",
   };
   if (historicTitles[title]) return historicTitles[title];
 
   const typeLabels: Record<string, string> = {
-    "Вклад": "Deposit",
-    "Покупка доли": "Asset purchase",
-    "Вывод из вклада": "Withdrawal",
-    "Пополнение": "Top-up",
-    "Движение долей": "Position movement",
-    "Операция с активом": "Asset transaction",
+    "Deposit": "Deposit",
+    "Share purchase": "Asset purchase",
+    "Withdrawal from deposit": "Withdrawal",
+    "Top-up": "Top-up",
+    "Share movement": "Position movement",
+    "Asset operation": "Asset transaction",
   };
-  return title.replace(/^(Вклад|Покупка доли|Вывод из вклада|Пополнение|Движение долей|Операция с активом)(?=\s|·|$)/, (label) => typeLabels[label] ?? label);
+  return title.replace(/^(Deposit|Share purchase|Withdrawal from deposit|Top-up|Share movement|Asset operation)(?=\s|·|$)/, (label) => typeLabels[label] ?? label);
 }

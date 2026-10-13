@@ -41,7 +41,7 @@ export function legacyFiatAdapterUnavailableResponse(adapter: LegacyFiatAdapter)
     code: "LEGACY_FIAT_ADAPTERS_DISABLED",
     adapter,
     mode: "DEVNET",
-    error: "Устаревший фиатный/KZT-адаптер отключён: Universal Earn в Solana Devnet не выполняет внешние платежи, выплаты или конвертацию.",
+    error: "The legacy fiat/KZT adapter is disabled: Universal Earn on Solana Devnet does not make external payments, payouts or conversions.",
     requiredEnvironment: "ENABLE_LEGACY_FIAT_ADAPTERS=true",
   };
 

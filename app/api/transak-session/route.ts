@@ -4,8 +4,8 @@ import { legacyFiatAdapterUnavailableResponse, legacyFiatAdaptersEnabled } from 
 import { TRANSAK_MIN_USD } from "@/lib/onramps";
 import { createWidgetUrl, transakConfig } from "@/lib/transak";
 
-const MISSING_SECRET_MESSAGE = "Добавьте TRANSAK_API_SECRET в .env.local, чтобы включить Transak в тестовом режиме.";
-const MISSING_API_KEY_MESSAGE = "Добавьте NEXT_PUBLIC_TRANSAK_API_KEY в .env.local, чтобы включить Transak в тестовом режиме.";
+const MISSING_SECRET_MESSAGE = "Add TRANSAK_API_SECRET to .env.local to enable Transak in test mode.";
+const MISSING_API_KEY_MESSAGE = "Add NEXT_PUBLIC_TRANSAK_API_KEY to .env.local to enable Transak in test mode.";
 const IP_LOOKUP_CACHE_TTL = 10 * 60 * 1000;
 
 let cachedPublicEgressIp: { address: string; expiresAt: number } | null = null;
@@ -176,13 +176,13 @@ export async function POST(request: Request) {
     || amountUsd > 1000
   ) {
     return NextResponse.json(
-      { error: "Укажите адрес Solana и сумму от $1 до $1 000." },
+      { error: "Provide a Solana address and an amount from $1 to $1,000." },
       { status: 400 },
     );
   }
   if (amountUsd < TRANSAK_MIN_USD) {
     return NextResponse.json(
-      { error: "Минимальная сумма для Transak — $30." },
+      { error: "The minimum amount for Transak is $30." },
       { status: 400 },
     );
   }
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
     }
     referrerDomain = parsedHost.hostname;
   } catch {
-    return NextResponse.json({ error: "Не удалось определить домен приложения." }, { status: 400 });
+    return NextResponse.json({ error: "Couldn't determine the app domain." }, { status: 400 });
   }
 
   const forwardedIp = request.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim();
@@ -211,7 +211,7 @@ export async function POST(request: Request) {
   }
   if (!userIp) {
     return NextResponse.json(
-      { error: "Не удалось определить IP для тестовой сессии Transak." },
+      { error: "Couldn't determine the IP for the Transak test session." },
       { status: 502 },
     );
   }
@@ -228,7 +228,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ widgetUrl });
   } catch {
     return NextResponse.json(
-      { error: "Transak не смог создать тестовую сессию. Попробуйте ещё раз." },
+      { error: "Transak couldn't create a test session. Please try again." },
       { status: 502 },
     );
   }

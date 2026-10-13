@@ -34,7 +34,7 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
   const [operation, setOperation] = useState<StoredSmartWalletOperation | null>(null);
   const [running, setRunning] = useState(false);
   const [recovering, setRecovering] = useState(true);
-  const [, setProgress] = useState("Подготавливаем…");
+  const [, setProgress] = useState("Preparing…");
   const [, setStalled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState<SmartWalletOperationStatus | null>(null);
@@ -89,7 +89,7 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
             return await Promise.race([
               context.wallet!.approve({ transactionId }).then(result => { console.info("[smart-wallet] approved", transactionId); return result; }),
               new Promise<never>((_, reject) => {
-                timer = window.setTimeout(() => reject(new Error("Ответ кошелька прервался.")), 180_000);
+                timer = window.setTimeout(() => reject(new Error("The wallet response was interrupted.")), 180_000);
               }),
             ]);
           } finally { window.clearTimeout(timer); }
@@ -104,7 +104,7 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
       });
       if (!signal.aborted && result) {
         setCompleted(result);
-        setProgress("Готово");
+        setProgress("Done");
         latest.current.onCompleted?.(result);
       }
     } catch (cause) {
@@ -153,21 +153,21 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
     void run(true, controller.current.signal);
   };
 
-  if (!matches) return <Card className="rounded-2xl p-4">Подключите кошелёк этого аккаунта</Card>;
+  if (!matches) return <Card className="rounded-2xl p-4">Connect this account&apos;s wallet</Card>;
 
   if (completed) return (
     <Card className="gap-3 rounded-2xl p-4">
       <p className="flex items-center gap-2 font-medium"><Check className="size-4" />
-        Готово — {amountLabel(completedAmount)} {completed.action === "deposit" ? "вложен в Kamino" : "выведен из Kamino"}
+        Done — {amountLabel(completedAmount)} {completed.action === "deposit" ? "deposited into Kamino" : "withdrawn from Kamino"}
       </p>
       <a className="text-sm underline" href={`https://explorer.solana.com/tx/${completed.signature}?cluster=devnet`}
-        target="_blank" rel="noopener noreferrer">Посмотреть транзакцию</a>
-      <Button className="w-full" onClick={onDone}>Готово</Button>
+        target="_blank" rel="noopener noreferrer">View transaction</a>
+      <Button className="w-full" onClick={onDone}>Done</Button>
     </Card>
   );
 
   if (running || recovering) return (
-    <div role="status" aria-live="polite" aria-label="Выполняем операцию" className="flex justify-center py-10">
+    <div role="status" aria-live="polite" aria-label="Processing operation" className="flex justify-center py-10">
       <LoaderCircle className="size-8 animate-spin text-muted-foreground" />
     </div>
   );
@@ -177,14 +177,14 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
       {error ? (
         <>
           <p role="alert" className="text-sm text-destructive">
-            {displayedAction === "deposit" ? "Не получилось вложить. Деньги остались на вашем балансе." : "Не получилось вывести. Деньги остались в Kamino."}
+            {displayedAction === "deposit" ? "Couldn't deposit. Your funds stayed in your balance." : "Couldn't withdraw. Your funds stayed in Kamino."}
           </p>
-          <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Подробнее</summary><p className="mt-2 break-words">{error}</p></details>
+          <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Details</summary><p className="mt-2 break-words">{error}</p></details>
         </>
       ) : null}
       <Button className="w-full" onClick={start}
         disabled={!operation && !/^[1-9]\d*$/.test(amountAtomic)}>
-        {error ? "Повторить" : `${displayedAction === "deposit" ? "Вложить" : "Вывести"} ${amountLabel(displayedAmount)}`}
+        {error ? "Retry" : `${displayedAction === "deposit" ? "Deposit" : "Withdraw"} ${amountLabel(displayedAmount)}`}
       </Button>
     </div>
   );

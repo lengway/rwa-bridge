@@ -76,7 +76,7 @@ async function fetchTransakQuote(amount: number): Promise<ProviderQuote> {
     fiatAmount,
     feeUsd,
     asOf: quoteTimestamp(quote.nonce),
-    source: { name: "Transak · тестовый режим", url: endpoint },
+    source: { name: "Transak · test mode", url: endpoint },
     stale: false,
   };
 }
@@ -130,7 +130,7 @@ async function fetchMoonPayQuote(side: "buy" | "sell", amount: number): Promise<
     // MoonPay's quote response has no timestamp field, so this is the quote observation time.
     asOf: new Date().toISOString(),
     source: {
-      name: currencyCode === "sol" ? "MoonPay · тестовый SOL" : "MoonPay · USDC в Solana",
+      name: currencyCode === "sol" ? "MoonPay · test SOL" : "MoonPay · USDC on Solana",
       url: endpoint,
     },
     stale: false,

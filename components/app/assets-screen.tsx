@@ -23,7 +23,7 @@ export function ArchivedAssetsScreen() {
     <div className="space-y-6">
       {holding ? (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Ваш тестовый актив</h2>
+          <h2 className="text-lg font-semibold">Your test asset</h2>
           <Link href={`/assets/${asset.slug}`} className="block">
             <ExistingHolding units={holding.units} costUsd={holding.costUsd} />
           </Link>
@@ -31,14 +31,14 @@ export function ArchivedAssetsScreen() {
       ) : null}
       <section className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold">Тестовый актив Devnet</h2>
+          <h2 className="text-lg font-semibold">Devnet test asset</h2>
           <Badge variant="secondary">SOLANA DEVNET</Badge>
           <Badge variant="outline">NO MONETARY VALUE</Badge>
         </div>
         <p className="text-sm leading-5 text-muted-foreground">
-          OFFICE — тестовый актив, контролируемый приложением в Solana Devnet. 1 OFFICE
-          выпускается за 1 TEST QUOTE; он не даёт прав на недвижимость и не имеет денежной
-          стоимости.
+          OFFICE is a test asset controlled by the app on Solana Devnet. 1 OFFICE
+          is issued for 1 TEST QUOTE; it grants no rights to real estate and has no monetary
+          value.
         </p>
       </section>
       <AssetListCard asset={asset} />
@@ -49,8 +49,8 @@ export function ArchivedAssetsScreen() {
           <Badge variant="secondary">SOLANA DEVNET</Badge>
         </div>
         <p className="text-sm leading-5 text-muted-foreground">
-          Цифровая доля в портфеле Solana Devnet. Откройте актив, чтобы
-          посмотреть условия покупки.
+          A digital share in a Solana Devnet portfolio. Open the asset to
+          see the purchase terms.
         </p>
         <Link href="/assets/rwa" className="block">
           <Card className="gap-2 rounded-2xl p-4 transition-colors hover:bg-muted/50">
@@ -58,13 +58,13 @@ export function ArchivedAssetsScreen() {
               <div>
                 <p className="font-semibold">RWA · Solana Devnet</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Выберите сумму, проверьте условия и подтвердите покупку.
+                  Choose an amount, review the terms and confirm the purchase.
                 </p>
               </div>
-              <span className="text-sm text-muted-foreground">Открыть →</span>
+              <span className="text-sm text-muted-foreground">Open →</span>
             </div>
             <p className="text-xs leading-5 text-muted-foreground">
-              Среда Solana Devnet · тестовые средства, без прав на реальный актив.
+              Solana Devnet environment · test funds, no rights to a real asset.
             </p>
           </Card>
         </Link>

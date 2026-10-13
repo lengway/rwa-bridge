@@ -12,7 +12,7 @@ export async function GET() {
     return NextResponse.json((await getVaultQuotes()).filter((quote) => publicIds.has(quote.productId)));
   } catch (error) {
     return NextResponse.json({
-      error: safeError(error, "Не удалось загрузить данные Solana Devnet."),
+      error: safeError(error, "Couldn't load Solana Devnet data."),
     }, { status: 502 });
   }
 }

@@ -256,7 +256,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!mintRow) continue;
     recordMerged(deposit.signature, deposit.mintSignature, {
       id: deposit.mintSignature,
-      title: `Solana Devnet · −${deposit.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE, +${deposit.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}`,
+      title: `Solana Devnet · −${deposit.amountUsd.toLocaleString("en-US", { maximumFractionDigits: 6 })} TEST QUOTE, +${deposit.shares.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${quote.ticker}`,
       type: "invest",
       amountUsd: deposit.amountUsd,
       at: Math.max(deposit.at, mintRow.at),
@@ -271,7 +271,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!quote || !payoutRow) continue;
     recordMerged(withdrawal.signature, withdrawal.payoutSignature, {
       id: withdrawal.payoutSignature,
-      title: `Devnet test-token redemption · −${withdrawal.shares.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} ${quote.ticker}, +${(withdrawal.amountUsd ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE`,
+      title: `Devnet test-token redemption · −${withdrawal.shares.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${quote.ticker}, +${(withdrawal.amountUsd ?? 0).toLocaleString("en-US", { maximumFractionDigits: 6 })} TEST QUOTE`,
       type: "withdraw",
       amountUsd: withdrawal.amountUsd ?? 0,
       at: Math.max(withdrawal.at, payoutRow.at),
@@ -284,7 +284,7 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     if (!mintRow) continue;
     recordMerged(purchase.paymentSignature, purchase.mintSignature, {
       id: purchase.mintSignature,
-      title: `App test asset · −${purchase.amountUsd.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} TEST QUOTE, +${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} OFFICE`,
+      title: `App test asset · −${purchase.amountUsd.toLocaleString("en-US", { maximumFractionDigits: 6 })} TEST QUOTE, +${purchase.units.toLocaleString("en-US", { maximumFractionDigits: 6 })} OFFICE`,
       type: "buy",
       amountUsd: purchase.amountUsd,
       at: Math.max(purchase.at, mintRow.at),
@@ -301,12 +301,12 @@ async function buildPortfolio(walletAddress: string): Promise<PortfolioResponse>
     const signature = sourceSignature ?? targetSignature;
     if (!signature) continue;
     const title = operation.kind === "topup"
-      ? "Перевод из резерва Intebix"
+      ? "Transfer from the Intebix reserve"
       : operation.kind === "exchange-kzte-usd"
-        ? "KZTE возвращены в резерв Intebix · обмен KZTE → $"
+        ? "KZTE returned to the Intebix reserve · exchange KZTE → $"
         : operation.kind === "exchange-usd-kzte"
-          ? "Перевод из резерва Intebix · обмен $ → KZTE"
-          : "KZTE возвращены в резерв Intebix · выплата в тенге";
+          ? "Transfer from the Intebix reserve · exchange $ → KZTE"
+          : "KZTE returned to the Intebix reserve · payout in tenge";
     kzteRows.push({
       id: signature,
       title,
@@ -387,7 +387,7 @@ async function buildPrimaryPortfolio(walletAddress: string) {
 export async function GET(request: Request) {
   const walletAddress = new URL(request.url).searchParams.get("wallet");
   if (!isValidWalletAddress(walletAddress)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
   if (process.env.ENABLE_KAMINO_LEND_DEVNET === "true") {
     try {
@@ -408,7 +408,7 @@ export async function GET(request: Request) {
     return NextResponse.json(value);
   } catch (error) {
     return NextResponse.json({
-      error: safeError(error, "Не удалось загрузить портфель из Solana devnet."),
+      error: safeError(error, "Couldn't load the portfolio from Solana devnet."),
     }, { status: 502 });
   }
 }

@@ -63,40 +63,40 @@ function fail(message: string): never {
 }
 
 function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) fail("Сервис кошелька вернул некорректный ответ.");
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("The wallet service returned an invalid response.");
   return value as Record<string, unknown>;
 }
 
 function canonicalWallet(value: unknown): string {
-  if (typeof value !== "string") fail("Сервис кошелька вернул некорректный адрес.");
+  if (typeof value !== "string") fail("The wallet service returned an invalid address.");
   try {
     const address = new PublicKey(value).toBase58();
-    if (address !== value) fail("Сервис кошелька вернул некорректный адрес.");
+    if (address !== value) fail("The wallet service returned an invalid address.");
     return address;
   } catch {
-    return fail("Сервис кошелька вернул некорректный адрес.");
+    return fail("The wallet service returned an invalid address.");
   }
 }
 
 function actionKind(value: unknown): SmartWalletActionKind {
   if (typeof value !== "string" || !ACTIONS.has(value as SmartWalletActionKind)) {
-    fail("Сервис кошелька вернул неизвестный тип операции.");
+    fail("The wallet service returned an unknown operation type.");
   }
   return value as SmartWalletActionKind;
 }
 
 function atomicAmount(value: unknown): string {
-  if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) fail("Сервис кошелька вернул некорректную сумму.");
+  if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) fail("The wallet service returned an invalid amount.");
   return value;
 }
 
 function feeMode(value: unknown): "project" {
-  if (value !== "project") fail("Для операции не подтверждена оплата сетевой комиссии со стороны Plain.");
+  if (value !== "project") fail("Plain has not confirmed it will pay the network fee for this operation.");
   return "project";
 }
 
 function network(value: unknown): "devnet" {
-  if (value !== "devnet") fail("Операция не ограничена сетью Solana Devnet.");
+  if (value !== "devnet") fail("The operation is not restricted to Solana Devnet.");
   return "devnet";
 }
 
@@ -109,37 +109,37 @@ export function parsePreparedSmartWalletOperation(
   const amountAtomicValue = atomicAmount(source.amountAtomic);
   const walletAddress = canonicalWallet(source.walletAddress);
   const stage = source.stage;
-  if (stage !== "READY" && stage !== "SETUP_REQUIRED") fail("Сервис кошелька вернул неизвестный статус подготовки.");
+  if (stage !== "READY" && stage !== "SETUP_REQUIRED") fail("The wallet service returned an unknown preparation status.");
   if (typeof source.actionId !== "string" || !UUID.test(source.actionId) || source.actionId !== expected.requestId
     || source.providerTransactionId !== undefined && source.providerTransactionId !== null
       && (typeof source.providerTransactionId !== "string" || source.providerTransactionId.length < 1 || source.providerTransactionId.length > 256)) {
-    fail("Сервис кошелька вернул некорректный идентификатор операции.");
+    fail("The wallet service returned an invalid operation ID.");
   }
   if (stage === "READY" && typeof source.providerTransactionId !== "string") {
-    fail("Сервис кошелька не вернул подготовленную транзакцию.");
+    fail("The wallet service did not return a prepared transaction.");
   }
   if (action !== expected.action || amountAtomicValue !== expected.amountAtomic
     || walletAddress !== canonicalWallet(expected.walletAddress)) {
-    fail("Подготовленная операция не совпадает с запросом для этого кошелька.");
+    fail("The prepared operation does not match the request for this wallet.");
   }
-  if (!source.simulation || typeof source.simulation !== "object") fail("Нет результата предварительной проверки операции.");
+  if (!source.simulation || typeof source.simulation !== "object") fail("No pre-check result for the operation.");
   const simulation = source.simulation as Record<string, unknown>;
-  if (typeof simulation.ok !== "boolean") fail("Нет результата предварительной проверки операции.");
+  if (typeof simulation.ok !== "boolean") fail("No pre-check result for the operation.");
   const initializationOnly = source.initializationOnly === true || simulation.initializationOnly === true;
   if (source.initializationOnly !== undefined && typeof source.initializationOnly !== "boolean"
     || simulation.initializationOnly !== undefined && typeof simulation.initializationOnly !== "boolean") {
-    fail("Сервис кошелька вернул некорректный режим инициализации.");
+    fail("The wallet service returned an invalid setup mode.");
   }
   if (initializationOnly && (stage !== "READY" || action !== "initialize" || amountAtomicValue !== "0")) {
-    fail("Инициализация должна быть отдельной операцией без перевода токенов.");
+    fail("Setup must be a separate operation with no token transfer.");
   }
   if (stage === "READY" && action !== "initialize" && simulation.ok !== true) {
-    fail("Предварительная симуляция операции не прошла.");
+    fail("The operation's pre-check simulation failed.");
   }
   if (stage === "READY" && action === "initialize" && simulation.ok !== true && !initializationOnly) {
-    fail("Для настройки кошелька не подтверждена отдельная операция без перевода токенов.");
+    fail("A separate setup operation with no token transfer was not confirmed for the wallet.");
   }
-  if (stage === "SETUP_REQUIRED" && action === "initialize") fail("Инициализация кошелька не может требовать собственной настройки.");
+  if (stage === "SETUP_REQUIRED" && action === "initialize") fail("Wallet setup cannot require its own setup.");
   return {
     actionId: source.actionId,
     ...(typeof source.providerTransactionId === "string" ? { providerTransactionId: source.providerTransactionId } : {}),
@@ -167,17 +167,17 @@ export function parseSmartWalletOperationStatus(
   if (source.actionId !== expected.actionId || !UUID.test(expected.actionId)
     || action !== expected.action
     || walletAddress !== canonicalWallet(expected.walletAddress)) {
-    fail("Статус операции не совпадает с этим кошельком.");
+    fail("The operation status does not match this wallet.");
   }
   if (typeof source.stage !== "string" || !STAGES.has(source.stage as SmartWalletOperationStage)) {
-    fail("Сервис кошелька вернул неизвестный статус операции.");
+    fail("The wallet service returned an unknown operation status.");
   }
-  if (typeof source.confirmed !== "boolean") fail("Сервис кошелька вернул некорректный статус подтверждения.");
+  if (typeof source.confirmed !== "boolean") fail("The wallet service returned an invalid confirmation status.");
   if (source.stage === "COMPLETED" && source.confirmed !== true) {
-    fail("Сервис кошелька ещё не подтвердил операцию.");
+    fail("The wallet service has not confirmed the operation yet.");
   }
   if (source.signature !== undefined && (typeof source.signature !== "string" || source.signature.length < 32 || source.signature.length > 100)) {
-    fail("Сервис кошелька вернул некорректную подпись транзакции.");
+    fail("The wallet service returned an invalid transaction signature.");
   }
   return {
     actionId: expected.actionId,
@@ -202,13 +202,13 @@ async function postJson<T>(path: string, body: unknown, parse: (value: unknown) 
       signal: AbortSignal.timeout(25_000),
     });
   } catch {
-    throw new KaminoSmartWalletClientError("Не удалось связаться с сервисом кошелька. Проверьте статус перед повтором.");
+    throw new KaminoSmartWalletClientError("Couldn't reach the wallet service. Check the status before retrying.");
   }
   const payload = await response.json().catch(() => null) as unknown;
   if (!response.ok) {
     const source = payload && typeof payload === "object" ? payload as Record<string, unknown> : null;
     throw new KaminoSmartWalletClientError(
-      typeof source?.error === "string" ? source.error : "Сервис кошелька не смог выполнить запрос.",
+      typeof source?.error === "string" ? source.error : "The wallet service couldn't complete the request.",
     );
   }
   return parse(payload);
@@ -218,14 +218,14 @@ export function prepareSmartWalletOperation(
   request: { action: "deposit" | "withdraw"; amountAtomic: string; requestId: string },
   walletAddress: string,
 ) {
-  if (!UUID.test(request.requestId)) fail("Нужен корректный идентификатор запроса.");
+  if (!UUID.test(request.requestId)) fail("A valid request ID is required.");
   return postJson("/api/kamino/smart-wallet/prepare", { ...request, walletAddress, cluster: "devnet" }, (value) =>
     parsePreparedSmartWalletOperation(value, { ...request, walletAddress }));
 }
 
 export function initializeSmartWallet(requestId: string, walletAddress: string, parentActionId: string) {
-  if (!UUID.test(requestId)) fail("Нужен корректный идентификатор запроса.");
-  if (!UUID.test(parentActionId)) fail("Нужен корректный идентификатор исходной операции.");
+  if (!UUID.test(requestId)) fail("A valid request ID is required.");
+  if (!UUID.test(parentActionId)) fail("A valid original operation ID is required.");
   return postJson("/api/kamino/smart-wallet/initialize", {
     requestId, parentActionId, walletAddress, cluster: "devnet",
   }, (value) => parsePreparedSmartWalletOperation(value, {
@@ -372,7 +372,7 @@ export async function continueSmartWalletChain(options: {
   while (true) {
     checkActive();
     if (needsPreparation) options.onProgress(current.action === "initialize"
-      ? "Подготавливаем кошелёк (один раз)…" : "Подготавливаем…");
+      ? "Preparing your wallet (one time)…" : "Preparing…");
     let status: SmartWalletOperationStatus | null = null;
     if (!needsPreparation) {
       try {
@@ -386,7 +386,7 @@ export async function continueSmartWalletChain(options: {
           return null; // An unknown operation is never signed or resubmitted.
         }
         if (cause instanceof KaminoSmartWalletClientError
-          && cause.message === "Не удалось связаться с сервисом кошелька. Проверьте статус перед повтором.") {
+          && cause.message === "Couldn't reach the wallet service. Check the status before retrying.") {
           // Transport interruptions cannot justify another transaction. Keep the
           // same journal and let the single progress line report a long wait.
           await dependencies.wait(options.signal);
@@ -396,13 +396,13 @@ export async function continueSmartWalletChain(options: {
       }
     }
     if (status?.stage === "FAILED") {
-      if (!allowFailedRetry) throw new Error("FAILED: операция не выполнена.");
+      if (!allowFailedRetry) throw new Error("FAILED: the operation did not complete.");
       allowFailedRetry = false;
       const saved = current.continuation ?? (current.action !== "initialize" ? current : null);
       // A legacy setup-only journal has no original action; fall back to what the user just tapped.
       const intent: { action: "deposit" | "withdraw"; amountAtomic: string } | null = saved && saved.action !== "initialize" ? { action: saved.action, amountAtomic: saved.amountAtomic }
         : options.userTap && /^[1-9]\d*$/.test(options.amountAtomic) ? { action: options.action, amountAtomic: options.amountAtomic } : null;
-      if (!intent) throw new Error("Не удалось восстановить исходную операцию.");
+      if (!intent) throw new Error("Couldn't restore the original operation.");
       dependencies.clear(current.walletAddress, current.actionId);
       current = fresh(intent.action, intent.amountAtomic);
       needsPreparation = true;
@@ -432,7 +432,7 @@ export async function continueSmartWalletChain(options: {
     if (status?.stage === "PENDING" && current.providerTransactionId
       || status?.stage === "COMPLETED") {
       options.onProgress(current.action === "initialize"
-        ? "Подготавливаем кошелёк (один раз)…" : "Подтверждаем в сети…");
+        ? "Preparing your wallet (one time)…" : "Confirming on-chain…");
       await dependencies.wait(options.signal);
       continue;
     }
@@ -456,7 +456,7 @@ export async function continueSmartWalletChain(options: {
         : await dependencies.prepare({ action: current.action, amountAtomic: current.amountAtomic,
           requestId: current.actionId }, current.walletAddress);
       checkActive();
-      if (!prepared) throw new Error("Не удалось восстановить параметры настройки кошелька.");
+      if (!prepared) throw new Error("Couldn't restore the wallet setup parameters.");
       current = save({ ...current, ...(prepared.providerTransactionId
         ? { providerTransactionId: prepared.providerTransactionId } : {}) });
       needsPreparation = false;
@@ -467,15 +467,15 @@ export async function continueSmartWalletChain(options: {
     if (status?.stage === "READY") {
       if (!current.userStarted && !options.userTap) return null;
       if (current.approvalRequested && !retryApproval) {
-        throw approvalError ?? new Error("Кошелёк ещё не подтвердил операцию.");
+        throw approvalError ?? new Error("The wallet has not confirmed the operation yet.");
       }
-      if (!current.providerTransactionId) throw new Error("Нет подготовленной транзакции.");
+      if (!current.providerTransactionId) throw new Error("No prepared transaction.");
       allowFailedRetry = false;
       const transactionId = current.providerTransactionId;
       current = save({ ...current, userStarted: true, approvalRequested: true });
       retryApproval = false;
       options.onProgress(current.action === "initialize"
-        ? "Подготавливаем кошелёк (один раз)…" : "Подтверждаем в сети…");
+        ? "Preparing your wallet (one time)…" : "Confirming on-chain…");
       // Never trust the wallet result as completion. Even an interrupted approval
       // is reconciled against the same persisted ID before any possible retry.
       try { await options.approve(transactionId); } catch (cause) { approvalError = cause; }

@@ -30,7 +30,7 @@ export const VAULT_PRODUCTS: Record<string, VaultProduct> = {
 export async function getVaultQuote(productId: string, now = Date.now()) {
   const strategy = ALL_YIELD_STRATEGIES.find((item) => item.id === productId);
   const vault = VAULT_PRODUCTS[productId];
-  if (!strategy || !vault || !vault.mint) throw new Error("Неизвестный продукт дохода.");
+  if (!strategy || !vault || !vault.mint) throw new Error("Unknown yield product.");
 
   return {
     productId,

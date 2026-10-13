@@ -125,7 +125,7 @@ export const devnetConfig = {
 
 function requiredConfig() {
   if (!authority || !usdMintAddress || !assetMintAddress) {
-    throw new Error("Сеть Solana devnet не настроена.");
+    throw new Error("Solana devnet is not configured.");
   }
   return {
     authority,
@@ -137,11 +137,11 @@ function requiredConfig() {
 export function vaultMintAddress(productId: string) {
   if (productId === "ondo-usdy" && vaultUsdyMintAddress) return new PublicKey(vaultUsdyMintAddress);
   if (productId === "kz-bond-demo" && vaultKzgbMintAddress) return new PublicKey(vaultKzgbMintAddress);
-  throw new Error("Неизвестный продукт дохода.");
+  throw new Error("Unknown yield product.");
 }
 
 function toTokenAmount(amountUi: number) {
-  if (!Number.isFinite(amountUi) || amountUi < 0) throw new Error("Некорректная сумма.");
+  if (!Number.isFinite(amountUi) || amountUi < 0) throw new Error("Invalid amount.");
   return BigInt(Math.round((amountUi + Number.EPSILON) * TOKEN_SCALE));
 }
 
@@ -182,7 +182,7 @@ export async function mintTestDollars(ownerAddress: string, amountUi: number) {
 export async function treasuryKzteTokenAccount() {
   await assertLegacyDevnetWriteAllowed();
   const { authority: mintAuthority } = requiredConfig();
-  if (!kzteMintAddress) throw new Error("Mint KZTE не настроен.");
+  if (!kzteMintAddress) throw new Error("The KZTE mint is not configured.");
   return getOrCreateAssociatedTokenAccount(
     connection,
     mintAuthority,
@@ -195,12 +195,12 @@ export async function treasuryKzteTokenAccount() {
 export async function sendKzteFromTreasury(ownerAddress: string, amountUi: number) {
   await assertLegacyDevnetWriteAllowed();
   const { authority: mintAuthority } = requiredConfig();
-  if (!kzteMintAddress) throw new Error("Mint KZTE не настроен.");
+  if (!kzteMintAddress) throw new Error("The KZTE mint is not configured.");
   const mint = new PublicKey(kzteMintAddress);
   const treasury = await treasuryKzteTokenAccount();
   const amount = toTokenAmount(amountUi);
   const balance = await getAccount(connection, treasury.address);
-  if (balance.amount < amount) throw new Error("В резерве Intebix недостаточно KZTE");
+  if (balance.amount < amount) throw new Error("Not enough KZTE in the Intebix reserve");
   const destination = await getOrCreateAssociatedTokenAccount(
     connection,
     mintAuthority,
@@ -213,7 +213,7 @@ export async function sendKzteFromTreasury(ownerAddress: string, amountUi: numbe
   } catch (error) {
     const currentBalance = await getAccount(connection, treasury.address).catch(() => null);
     if (currentBalance && currentBalance.amount < amount) {
-      throw new Error("В резерве Intebix недостаточно KZTE");
+      throw new Error("Not enough KZTE in the Intebix reserve");
     }
     throw error;
   }
@@ -221,7 +221,7 @@ export async function sendKzteFromTreasury(ownerAddress: string, amountUi: numbe
 
 export async function getKzteReserveStatus() {
   const { authority: mintAuthority } = requiredConfig();
-  if (!kzteMintAddress) throw new Error("Mint KZTE не настроен.");
+  if (!kzteMintAddress) throw new Error("The KZTE mint is not configured.");
   const mint = new PublicKey(kzteMintAddress);
   const reserveAddress = await getAssociatedTokenAddress(mint, mintAuthority.publicKey, true);
   const [mintInfo, reserveAccount] = await Promise.all([
@@ -261,7 +261,7 @@ export async function mintVaultShares(ownerAddress: string, productId: string, s
 
 export async function mintVaultSharesAtomic(ownerAddress: string, productId: string, sharesAtomic: bigint) {
   await assertLegacyDevnetWriteAllowed();
-  if (sharesAtomic <= BigInt(0)) throw new Error("Количество долей должно быть положительным.");
+  if (sharesAtomic <= BigInt(0)) throw new Error("The number of shares must be positive.");
   const { authority: mintAuthority } = requiredConfig();
   const mint = vaultMintAddress(productId);
   const owner = new PublicKey(ownerAddress);
@@ -301,7 +301,7 @@ export async function burnTreasuryVaultShares(productId: string, shares: number)
 
 export async function burnTreasuryVaultSharesAtomic(productId: string, sharesAtomic: bigint) {
   await assertLegacyDevnetWriteAllowed();
-  if (sharesAtomic <= BigInt(0)) throw new Error("Количество долей должно быть положительным.");
+  if (sharesAtomic <= BigInt(0)) throw new Error("The number of shares must be positive.");
   const { authority: mintAuthority } = requiredConfig();
   const mint = vaultMintAddress(productId);
   const treasury = await treasuryVaultTokenAccount(productId);
@@ -321,7 +321,7 @@ export async function sendFromTreasury(ownerAddress: string, amountUi: number, m
 
 export async function sendFromTreasuryAtomic(ownerAddress: string, amountAtomic: bigint, mintAddress = usdMintAddress) {
   await assertLegacyDevnetWriteAllowed();
-  if (amountAtomic <= BigInt(0)) throw new Error("Сумма должна быть положительной.");
+  if (amountAtomic <= BigInt(0)) throw new Error("The amount must be positive.");
   const { authority: mintAuthority } = requiredConfig();
   const mint = new PublicKey(mintAddress);
   const destinationOwner = new PublicKey(ownerAddress);
@@ -421,11 +421,11 @@ export async function verifyIncomingPaymentAtomic({
   minAmountAtomic: bigint;
   mintAddress?: string;
 }) {
-  if (minAmountAtomic <= BigInt(0)) throw new Error("Сумма должна быть положительной.");
+  if (minAmountAtomic <= BigInt(0)) throw new Error("The amount must be positive.");
   const { authority: mintAuthority, usdMint } = requiredConfig();
   const mint = mintAddress ? new PublicKey(mintAddress) : usdMint;
   if (pendingSignatures.has(signature)) {
-    throw new Error("Эта транзакция уже была использована.");
+    throw new Error("This transaction has already been used.");
   }
   pendingSignatures.add(signature);
   try {
@@ -439,12 +439,12 @@ export async function verifyIncomingPaymentAtomic({
       if (transaction) break;
       if (attempt < 8) await new Promise((resolve) => setTimeout(resolve, 2500));
     }
-    if (!transaction) throw new Error("Транзакция пока не найдена в Solana devnet.");
-    if (transaction.meta?.err) throw new Error("Перевод не прошёл в сети Solana.");
+    if (!transaction) throw new Error("The transaction was not found on Solana devnet yet.");
+    if (transaction.meta?.err) throw new Error("The transfer failed on Solana.");
 
     const accountKeys = transaction.transaction.message.accountKeys;
     const treasuryIndex = accountKeys.findIndex((key) => key.pubkey.toBase58() === treasuryAta.toBase58());
-    if (treasuryIndex < 0) throw new Error("В транзакции не найден перевод в казначейство.");
+    if (treasuryIndex < 0) throw new Error("No transfer to the treasury found in the transaction.");
     const treasuryBefore = (transaction.meta?.preTokenBalances ?? [])
       .filter((balance) => balance.accountIndex === treasuryIndex && balance.mint === mint.toBase58())
       .reduce((total, balance) => total + BigInt(balance.uiTokenAmount.amount), BigInt(0));
@@ -457,7 +457,7 @@ export async function verifyIncomingPaymentAtomic({
     const treasuryIncrease = treasuryAfter - treasuryBefore;
     const userDecrease = userBefore - userAfter;
     if (treasuryIncrease < minAmountAtomic || userDecrease < minAmountAtomic) {
-      throw new Error("В сети не найден перевод нужной суммы от вашего кошелька в казначейство.");
+      throw new Error("No transfer of the required amount from your wallet to the treasury was found on-chain.");
     }
     const received = treasuryIncrease < userDecrease ? treasuryIncrease : userDecrease;
     return received;
@@ -584,7 +584,7 @@ export async function getWalletSolBalance(ownerAddress: string) {
 }
 
 function formatTokenDelta(delta: number) {
-  const amount = Math.abs(delta).toLocaleString("ru-RU", { maximumFractionDigits: 6 });
+  const amount = Math.abs(delta).toLocaleString("en-US", { maximumFractionDigits: 6 });
   return `${delta > 0 ? "+" : "−"}${amount}`;
 }
 
@@ -656,16 +656,16 @@ export async function getWalletTransactionHistory(
     const vaultOut = changes.some((change) => change.kind === "vault" && change.delta < 0);
     const assetIn = changes.some((change) => change.kind === "asset" && change.delta > 0);
     const type = cashDelta < 0 && vaultDelta
-      ? "Вклад"
+      ? "Deposit"
       : cashDelta < 0 && assetIn
-        ? "Покупка доли"
+        ? "Share purchase"
         : cashDelta > 0 && vaultOut
-          ? "Вывод из вклада"
+          ? "Withdrawal from deposit"
           : cashDelta > 0
-            ? "Пополнение"
+            ? "Top-up"
             : vaultOut || vaultDelta
-              ? "Движение долей"
-              : "Операция с активом";
+              ? "Share movement"
+              : "Asset operation";
     const activityType: "withdraw" | "invest" | "buy" | "topup" = cashDelta > 0 && vaultOut
       ? "withdraw"
       : cashDelta < 0 && vaultDelta

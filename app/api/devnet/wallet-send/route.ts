@@ -15,13 +15,13 @@ export async function POST(request: Request) {
     signature?: unknown;
   } | null;
   if (!isValidWalletAddress(body?.walletAddress) || !isValidWalletAddress(body?.recipientAddress)) {
-    return NextResponse.json({ error: "Проверьте адреса кошельков Solana." }, { status: 400 });
+    return NextResponse.json({ error: "Check the Solana wallet addresses." }, { status: 400 });
   }
   if (!isValidAmount(body?.amountUsd, 0.01, 100_000)) {
-    return NextResponse.json({ error: "Проверьте сумму перевода." }, { status: 400 });
+    return NextResponse.json({ error: "Check the transfer amount." }, { status: 400 });
   }
   if (typeof body?.signature !== "string" || body.signature.length < 32 || body.signature.length > 100) {
-    return NextResponse.json({ error: "Не указана подпись перевода." }, { status: 400 });
+    return NextResponse.json({ error: "The transfer signature is missing." }, { status: 400 });
   }
 
   try {
@@ -32,18 +32,18 @@ export async function POST(request: Request) {
       minAmountUi: body.amountUsd,
     });
     if (amountUsd === null) {
-      return NextResponse.json({ error: "Перевод ещё не подтверждён в Solana devnet." }, { status: 409 });
+      return NextResponse.json({ error: "The transfer is not yet confirmed on Solana devnet." }, { status: 409 });
     }
     invalidateDevnetPortfolio(body.walletAddress);
     notifyReceipt(request, {
       kind: "wallet-send",
       amountUsd,
-      details: `Тестовые доллары отправлены на адрес ${body.recipientAddress}.`,
+      details: `Test dollars sent to address ${body.recipientAddress}.`,
       explorerUrl: explorerUrl(body.signature),
       receiptId: body.signature,
     });
     return NextResponse.json({ ok: true, amountUsd });
   } catch {
-    return NextResponse.json({ error: "Не удалось проверить перевод в Solana devnet." }, { status: 502 });
+    return NextResponse.json({ error: "Couldn't verify the transfer on Solana devnet." }, { status: 502 });
   }
 }

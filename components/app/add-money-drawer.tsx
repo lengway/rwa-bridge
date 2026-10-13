@@ -70,12 +70,12 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
   const complete = useCallback((value: number, sentence: string, note?: string, explorerUrl?: string, currency: "USD" | "KZT" = "USD", amountLabel?: string) => {
     setSuccess({ amount: value, sentence, note, explorerUrl, currency, amountLabel });
     void devnet.refreshPortfolio();
-    toast.success("Баланс обновлён");
+    toast.success("Balance updated");
   }, [devnet]);
 
   const issueFaucetDollars = useCallback(async (value: number, source: "faucet" | "bank-embed") => {
     if (!devnet.legacyFaucetEnabled) {
-      setError("Тестовый issuer выключен. Devnet-зачисление не создаёт фиатное пополнение.");
+      setError("The test issuer is disabled. A Devnet credit does not create a fiat top-up.");
       return;
     }
     if (!devnet.walletAddress || processing) return;
@@ -98,19 +98,19 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
       });
       const result = await response.json() as { signature?: unknown; explorerUrl?: unknown; error?: unknown };
       if (!response.ok || typeof result.signature !== "string" || typeof result.explorerUrl !== "string") {
-        throw new Error(typeof result.error === "string" ? result.error : "Не удалось выпустить тестовые токены.");
+        throw new Error(typeof result.error === "string" ? result.error : "Couldn't issue test tokens.");
       }
       faucetActionRef.current = null;
       complete(
         value,
-        "DEVNET TEST FUNDING: тестовые единицы зачислены.",
-        "Подтверждено в Solana Devnet; это не банковский или карточный платёж и не имеет денежной стоимости.",
+        "DEVNET TEST FUNDING: test units credited.",
+        "Confirmed on Solana Devnet; this is not a bank or card payment and has no monetary value.",
         result.explorerUrl,
         "USD",
         `${formatQuantity(value)} TEST QUOTE`,
       );
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Не удалось зачислить средства. Попробуйте ещё раз.");
+      setError(requestError instanceof Error ? requestError.message : "Couldn't credit the funds. Please try again.");
     } finally {
       setProcessing(false);
     }
@@ -131,8 +131,8 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
       bankRequestRef.current = null;
       setBankPaymentPending(false);
       if (data.status === "cancelled") {
-        setError("Оплата отменена");
-        toast.error("Оплата отменена");
+        setError("Payment cancelled");
+        toast.error("Payment cancelled");
       } else if (data.status === "paid") {
         handleBankPaymentResult(request);
       }
@@ -152,7 +152,7 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
       id: request.id,
       amountUsd: request.amountUsd,
       amountKzt: request.amountUsd * marketData.rate.usdKzt,
-      description: "Пополнение баланса Plain",
+      description: "Add to your Plain balance",
     }, window.location.origin);
   };
 
@@ -162,48 +162,48 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
     setMethod(methods[0]);
   }, [methods]);
   const completeTransak = useCallback((credit: { amountUsd: number; signature: string; explorerUrl: string }) => {
-    complete(credit.amountUsd, "Покупка подтверждена Transak. Тестовые доллары зачислены.", "Зачисление подтверждено в сети Solana devnet.", credit.explorerUrl);
+    complete(credit.amountUsd, "Purchase confirmed by Transak. Test dollars credited.", "Credit confirmed on Solana devnet.", credit.explorerUrl);
   }, [complete]);
 
   const completeMoonPay = useCallback((credit: { amountUsd: number; signature: string; explorerUrl: string }) => {
-    complete(credit.amountUsd, "Покупка подтверждена MoonPay. Тестовые доллары зачислены.", "Зачисление подтверждено в сети Solana devnet.", credit.explorerUrl);
+    complete(credit.amountUsd, "Purchase confirmed by MoonPay. Test dollars credited.", "Credit confirmed on Solana devnet.", credit.explorerUrl);
   }, [complete]);
 
   const completeCrossmint = useCallback((value: number) => {
-    complete(value, "Покупка подтверждена Crossmint.", "Данные кошелька обновлены.");
+    complete(value, "Purchase confirmed by Crossmint.", "Wallet data updated.");
   }, [complete]);
 
   const completeIntebix = useCallback((result: { amountKzt: number; explorerUrl: string }) => {
     complete(
       result.amountKzt,
-      "Переведено " + result.amountKzt.toLocaleString("ru-RU") + " KZTE из резерва Intebix.",
-      "Оплата в сети Solana devnet. Квитанция будет отправлена на email аккаунта.",
+      "Transferred " + result.amountKzt.toLocaleString("en-US") + " KZTE from the Intebix reserve.",
+      "Paid on Solana devnet. A receipt will be sent to your account email.",
       result.explorerUrl,
       "KZT",
-      result.amountKzt.toLocaleString("ru-RU") + " ₸",
+      result.amountKzt.toLocaleString("en-US") + " ₸",
     );
   }, [complete]);
 
   return (
-    <DrawerFrame open={open} onOpenChange={changeOpen} title="Подготовить Devnet-единицы" description="DEVNET TEST FUNDING · только Devnet-токены, без фиатного платежа.">
+    <DrawerFrame open={open} onOpenChange={changeOpen} title="Prepare Devnet units" description="DEVNET TEST FUNDING · Devnet tokens only, no fiat payment.">
       {success ? (
-        <DrawerSuccess amount={success.amount} currency={success.currency} amountLabel={success.amountLabel} sentence={success.sentence} note={success.note} explorerUrl={success.explorerUrl} onDone={() => changeOpen(false)} secondaryHref="/earn" secondaryLabel="Открыть вклад" />
+        <DrawerSuccess amount={success.amount} currency={success.currency} amountLabel={success.amountLabel} sentence={success.sentence} note={success.note} explorerUrl={success.explorerUrl} onDone={() => changeOpen(false)} secondaryHref="/earn" secondaryLabel="Open deposit" />
       ) : (
         <div className="space-y-5">
           {selectedMethod === "kzte-intebix" ? (
             <div className="space-y-3">
-              <label htmlFor="add-kzte-amount" className="text-sm font-medium">Сумма</label>
+              <label htmlFor="add-kzte-amount" className="text-sm font-medium">Amount</label>
               <div className="flex items-center gap-2">
                 <Input id="add-kzte-amount" type="number" min="5000" max="1000000" step="1" inputMode="numeric" value={kztAmount} onChange={(event) => setKztAmount(event.target.value)} className="h-11 text-lg tabular-nums" disabled={processing || bankPaymentPending} />
                 <span className="text-sm font-medium">₸</span>
               </div>
-              <p className="text-xs text-muted-foreground">≈ {formatMoney(kztAmountValue / marketData.rate.usdKzt, "USD")} по курсу НБ РК на {new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(marketData.rate.asOf + "T12:00:00Z"))}</p>
-              <p className="text-sm font-medium">Вы получите {Number.isFinite(kztAmountValue) ? kztAmountValue.toLocaleString("ru-RU") : "0"} KZTE</p>
-              {!validKztAmount ? <p className="text-xs text-destructive">Укажите целую сумму от 5 000 до 1 000 000 ₸.</p> : null}
+              <p className="text-xs text-muted-foreground">≈ {formatMoney(kztAmountValue / marketData.rate.usdKzt, "USD")} at the NBK rate as of {new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(marketData.rate.asOf + "T12:00:00Z"))}</p>
+              <p className="text-sm font-medium">You&apos;ll receive {Number.isFinite(kztAmountValue) ? kztAmountValue.toLocaleString("en-US") : "0"} KZTE</p>
+              {!validKztAmount ? <p className="text-xs text-destructive">Enter a whole amount from 5,000 to 1,000,000 ₸.</p> : null}
             </div>
           ) : (
             <div className="space-y-3">
-              <label htmlFor="add-amount" className="text-sm font-medium">Сумма</label>
+              <label htmlFor="add-amount" className="text-sm font-medium">Amount</label>
               <div className="flex items-center gap-2">
                 <Input id="add-amount" type="number" min="1" max="1000" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} className="h-11 text-lg tabular-nums" disabled={processing || bankPaymentPending} />
                 <span className="text-sm font-medium">TEST QUOTE</span>
@@ -211,12 +211,12 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
               <div className="grid grid-cols-3 gap-2">
                 {[30, 50, 100].map((value) => <Button key={value} type="button" variant={amount === String(value) ? "secondary" : "outline"} onClick={() => setAmount(String(value))} disabled={processing || bankPaymentPending}>{value} TEST</Button>)}
               </div>
-              {legacyFiatAdaptersEnabled ? <KztEstimate usd={Number(amount) || 0} /> : <p className="text-xs text-muted-foreground">NO MONETARY VALUE · фиатные, карточные и KZT-адаптеры выключены.</p>}
+              {legacyFiatAdaptersEnabled ? <KztEstimate usd={Number(amount) || 0} /> : <p className="text-xs text-muted-foreground">NO MONETARY VALUE · fiat, card and KZT adapters are disabled.</p>}
             </div>
           )}
 
           <div className="space-y-2">
-            <p className="text-sm font-medium">Способ подготовки</p>
+            <p className="text-sm font-medium">Preparation method</p>
             {methods.map((id) => (
               <MethodOption
                 key={id}
@@ -228,26 +228,26 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
             ))}
             {!legacyFiatAdaptersEnabled && !devnet.legacyFaucetEnabled ? (
               <p className="rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
-                Тестовый issuer выключен по умолчанию. Включайте его только для контролируемой Devnet-проверки;
-                фиатный платёж, карта и KZT-пополнение не выполняются.
+                The test issuer is disabled by default. Enable it only for controlled Devnet testing;
+                fiat payments, cards and KZT top-ups are not performed.
               </p>
             ) : null}
           </div>
 
           {selectedMethod === "bank-embed" ? (
             <Button className="w-full" onClick={requestBankPayment} disabled={!valid || processing || bankPaymentPending}>
-              {bankPaymentPending ? "Ожидаем подтверждение банка…" : `Оплатить ${formatMoney(amountValue || 0)}`}
+              {bankPaymentPending ? "Waiting for bank confirmation…" : `Pay ${formatMoney(amountValue || 0)}`}
             </Button>
           ) : null}
           {selectedMethod === "devnet-faucet" ? (
             <Button className="w-full" onClick={() => void issueFaucetDollars(amountValue, "faucet")} disabled={!valid || processing || !devnet.legacyFaucetEnabled}>
-              {processing ? "Зачисляем…" : devnet.legacyFaucetEnabled ? `Получить ${amountValue || 0} TEST QUOTE` : "Тестовый issuer недоступен"}
+              {processing ? "Crediting…" : devnet.legacyFaucetEnabled ? `Get ${amountValue || 0} TEST QUOTE` : "Test issuer unavailable"}
             </Button>
           ) : null}
           {selectedMethod === "kzte-intebix" ? (
             <>
               <Button className="w-full" onClick={() => setIntebixSheetOpen(true)} disabled={!validKztAmount}>
-                Пополнить через Intebix
+                Top up via Intebix
               </Button>
               {intebixSheetOpen ? (
                 <IntebixKztePath
@@ -271,7 +271,7 @@ function AddMoneyDrawerContent({ open, onOpenChange }: AddMoneyDrawerProps) {
             <CrossmintPath amount={amountValue} onComplete={completeCrossmint} onSelectAnotherMethod={selectAnotherMethod} />
           ) : null}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
-          {selectedMethod !== "kzte-intebix" && !valid ? <p className="text-xs text-destructive">Укажите сумму от 1 до 1 000 TEST QUOTE.</p> : null}
+          {selectedMethod !== "kzte-intebix" && !valid ? <p className="text-xs text-destructive">Enter an amount from 1 to 1,000 TEST QUOTE.</p> : null}
         </div>
       )}
     </DrawerFrame>

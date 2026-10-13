@@ -23,7 +23,7 @@ export function getMoonPayCurrencyParam(flow: MoonPayFlow = "sell") {
   } as const;
 }
 
-export const MOONPAY_MISSING_SECRET_MESSAGE = "Добавьте MOONPAY_SECRET_KEY в .env.local, чтобы подписывать ссылку MoonPay.";
+export const MOONPAY_MISSING_SECRET_MESSAGE = "Add MOONPAY_SECRET_KEY to .env.local to sign the MoonPay link.";
 
 const widgetHosts: Record<MoonPayFlow, Record<MoonPayEnvironment, string>> = {
   buy: {

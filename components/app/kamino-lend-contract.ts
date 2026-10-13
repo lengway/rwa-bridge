@@ -269,7 +269,7 @@ export function formatAtomicAmount(value: string, decimals: number) {
 
 export function formatBps(value: number | null) {
   if (value === null || !Number.isFinite(value) || value < 0) return "—";
-  return `${(value / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%`;
+  return `${(value / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
 }
 
 export function explorerForSignature(signature: string) {

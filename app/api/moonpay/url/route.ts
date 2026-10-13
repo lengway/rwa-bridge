@@ -26,27 +26,27 @@ export async function POST(request: Request) {
   } | null;
   const flow = body?.flow;
   if (!await getVerifiedEmailFromRequest(request)) {
-    return NextResponse.json({ error: "Войдите, чтобы открыть MoonPay." }, { status: 401 });
+    return NextResponse.json({ error: "Sign in to open MoonPay." }, { status: 401 });
   }
 
   if (flow !== "buy" && flow !== "sell") {
-    return NextResponse.json({ error: "Укажите сценарий MoonPay: покупка или вывод." }, { status: 400 });
+    return NextResponse.json({ error: "Specify the MoonPay flow: buy or withdraw." }, { status: 400 });
   }
   if (!isValidWalletAddress(body?.walletAddress)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
   if (typeof body?.userIp !== "string" || !normalizeMoonPayIp(body.userIp)) {
-    return NextResponse.json({ error: "Не удалось определить IP-адрес MoonPay." }, { status: 400 });
+    return NextResponse.json({ error: "Couldn't determine the IP address for MoonPay." }, { status: 400 });
   }
   const minimum = flow === "buy" ? 5 : 20;
   if (!isValidAmount(body?.amountUsd, minimum, 1000)) {
     return NextResponse.json({
-      error: flow === "buy" ? "Сумма покупки должна быть от $5 до $1 000." : "Сумма вывода должна быть от $20 до $1 000.",
+      error: flow === "buy" ? "The purchase amount must be between $5 and $1,000." : "The withdrawal amount must be between $20 and $1,000.",
     }, { status: 400 });
   }
   if (!moonpayConfig.publishableKey) {
     return NextResponse.json({
-      error: "Добавьте NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY в .env.local для подключения MoonPay.",
+      error: "Add NEXT_PUBLIC_MOONPAY_PUBLISHABLE_KEY to .env.local to enable MoonPay.",
     }, { status: 501 });
   }
   if (!moonpayConfig.canSign) {
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   const serverIp = forwardedIp || request.headers.get("cf-connecting-ip") || request.headers.get("x-real-ip") || "";
   const allowedIpAddress = getAllowedIpAddressHash([body.userIp, serverIp]);
   if (!allowedIpAddress) {
-    return NextResponse.json({ error: "Не удалось определить IP-адрес MoonPay." }, { status: 400 });
+    return NextResponse.json({ error: "Couldn't determine the IP address for MoonPay." }, { status: 400 });
   }
   params.set("allowedIpAddress", allowedIpAddress);
   const currency = getMoonPayCurrencyParam(flow);
@@ -89,6 +89,6 @@ export async function POST(request: Request) {
     const url = createWidgetUrl(params, flow);
     return NextResponse.json({ url, externalTransactionId });
   } catch {
-    return NextResponse.json({ error: "Не удалось подписать ссылку MoonPay. Проверьте настройки ключей." }, { status: 502 });
+    return NextResponse.json({ error: "Couldn't sign the MoonPay link. Check the key settings." }, { status: 502 });
   }
 }

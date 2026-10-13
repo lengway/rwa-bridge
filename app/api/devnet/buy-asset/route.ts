@@ -23,16 +23,16 @@ export async function POST(request: Request) {
     signature?: unknown;
   } | null;
   if (!isValidWalletAddress(body?.walletAddress)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
   if (!isValidAmount(body?.amountUsd)) {
-    return NextResponse.json({ error: "Сумма должна быть от $1 до $1 000." }, { status: 400 });
+    return NextResponse.json({ error: "The amount must be between $1 and $1,000." }, { status: 400 });
   }
   if (body?.assetId !== OFFICE_ASSET.id || OFFICE_ASSET.buyFlow !== "onchain") {
-    return NextResponse.json({ error: "Покупка этого актива недоступна." }, { status: 400 });
+    return NextResponse.json({ error: "Buying this asset is not available." }, { status: 400 });
   }
   if (typeof body?.signature !== "string" || body.signature.length < 32 || body.signature.length > 100) {
-    return NextResponse.json({ error: "Не указана подпись перевода." }, { status: 400 });
+    return NextResponse.json({ error: "The transfer signature is missing." }, { status: 400 });
   }
 
   const walletAddress = body.walletAddress;
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const existingPurchase = await findLedgerPurchase(walletAddress, paymentSignature);
     if (existingPurchase) {
       if (existingPurchase.assetId !== assetId || Math.abs(existingPurchase.amountUsd - amountUsd) > 0.000001) {
-        return NextResponse.json({ error: "Эта транзакция уже использовалась для другой покупки.", stage: "verify" }, { status: 409 });
+        return NextResponse.json({ error: "This transaction was already used for a different purchase.", stage: "verify" }, { status: 409 });
       }
       const response = {
         signature: existingPurchase.mintSignature,
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       notifyReceipt(request, {
         kind: "asset-purchase",
         amountUsd: existingPurchase.amountUsd,
-        details: `Выпущено ${existingPurchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долей OFFICE.`,
+        details: `Issued ${existingPurchase.units.toLocaleString("en-US", { maximumFractionDigits: 6 })} OFFICE shares.`,
         explorerUrl: response.explorerUrl,
         receiptId: existingPurchase.paymentSignature,
       });
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
     try {
       if (await hasLedgerSignature(paymentSignature)) {
-        return NextResponse.json({ error: "Эта транзакция уже была использована.", stage: "verify" }, { status: 409 });
+        return NextResponse.json({ error: "This transaction has already been used.", stage: "verify" }, { status: 409 });
       }
       await verifyIncomingPayment({
         signature: paymentSignature,
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       return NextResponse.json({
-        error: safeError(error, "Не удалось подтвердить покупку в Solana devnet."),
+        error: safeError(error, "Couldn't confirm the purchase on Solana devnet."),
         stage: "verify",
       }, { status: 400 });
     }
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       signature = await mintAsset(walletAddress, amountUsd);
     } catch (error) {
       return NextResponse.json({
-        error: safeError(error, "Не удалось выпустить долю после оплаты."),
+        error: safeError(error, "Couldn't issue the share after payment."),
         stage: "mint",
       }, { status: 502 });
     }
@@ -100,14 +100,14 @@ export async function POST(request: Request) {
       notifyReceipt(request, {
         kind: "asset-purchase",
         amountUsd: purchase.amountUsd,
-        details: `Выпущено ${purchase.units.toLocaleString("ru-RU", { maximumFractionDigits: 6 })} долей OFFICE.`,
+        details: `Issued ${purchase.units.toLocaleString("en-US", { maximumFractionDigits: 6 })} OFFICE shares.`,
         explorerUrl: response.explorerUrl,
         receiptId: purchase.paymentSignature,
       });
       return NextResponse.json(response);
     } catch (error) {
       return NextResponse.json({
-        error: safeError(error, "Доля выпущена, но не удалось сохранить покупку."),
+        error: safeError(error, "The share was issued, but the purchase couldn't be saved."),
         stage: "ledger",
       }, { status: 500 });
     }

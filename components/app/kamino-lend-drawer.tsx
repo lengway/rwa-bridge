@@ -547,22 +547,22 @@ export function KaminoLendDrawer({
 
   if (market?.execution === "crossmint-smart-wallet" && !currentPendingAction && !recoveryBlocked) {
     return (
-      <DrawerFrame open={open} onOpenChange={changeOpen} title={action === "deposit" ? "Вложить в Kamino" : "Вывести из Kamino"}
-        description={smartFlowActive ? "" : "Укажите сумму в USDC."}>
+      <DrawerFrame open={open} onOpenChange={changeOpen} title={action === "deposit" ? "Deposit into Kamino" : "Withdraw from Kamino"}
+        description={smartFlowActive ? "" : "Enter an amount in USDC."}>
         <div className="space-y-4">
           {!smartFlowActive ? <><div className="flex gap-2">
-            <Button variant={action === "deposit" ? "default" : "outline"} onClick={() => changeAction("deposit")}>Вложить</Button>
-            <Button variant={action === "withdraw" ? "default" : "outline"} onClick={() => changeAction("withdraw")}>Вывести</Button>
+            <Button variant={action === "deposit" ? "default" : "outline"} onClick={() => changeAction("deposit")}>Deposit</Button>
+            <Button variant={action === "withdraw" ? "default" : "outline"} onClick={() => changeAction("withdraw")}>Withdraw</Button>
           </div>
           <div className="space-y-2">
-            <label htmlFor="kamino-smart-amount" className="text-sm font-medium">Сумма · USDC</label>
+            <label htmlFor="kamino-smart-amount" className="text-sm font-medium">Amount · USDC</label>
             <Input id="kamino-smart-amount" inputMode="decimal" placeholder="0.10" value={amount} onChange={event => changeAmount(event.target.value)} />
-            <p className="text-xs text-muted-foreground">Доступно: {availableMaximum === null ? "—" : formatAtomicAmount(availableMaximum, 6)} USDC</p>
-            {exceedsMaximum || exceedsWalletMaximum ? <p className="text-sm text-destructive">Укажите сумму в пределах доступного баланса.</p> : null}
+            <p className="text-xs text-muted-foreground">Available: {availableMaximum === null ? "—" : formatAtomicAmount(availableMaximum, 6)} USDC</p>
+            {exceedsMaximum || exceedsWalletMaximum ? <p className="text-sm text-destructive">Enter an amount within your available balance.</p> : null}
             {balanceError ? <div className="space-y-2">
-              <p className="text-sm text-destructive">Не получилось загрузить баланс.</p>
-              <Button variant="outline" size="sm" disabled={walletLoading} onClick={() => void loadWalletSnapshot()}>Повторить</Button>
-              <details className="text-xs text-muted-foreground"><summary>Подробнее</summary><p>{balanceError}</p></details>
+              <p className="text-sm text-destructive">Couldn&apos;t load the balance.</p>
+              <Button variant="outline" size="sm" disabled={walletLoading} onClick={() => void loadWalletSnapshot()}>Retry</Button>
+              <details className="text-xs text-muted-foreground"><summary>Details</summary><p>{balanceError}</p></details>
             </div> : null}
           </div></> : null}
           {open ? <KaminoSmartWalletApproval action={action} amountAtomic={amountAtomic && !exceedsMaximum && !exceedsWalletMaximum && walletSnapshot ? amountAtomic : "0"}

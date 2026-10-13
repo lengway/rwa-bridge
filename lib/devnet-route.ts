@@ -2,6 +2,7 @@ import "server-only";
 
 import { PublicKey } from "@solana/web3.js";
 import { NextResponse } from "next/server";
+import { isUserFacingMessage } from "@/lib/action-errors";
 import { devnetConfig } from "@/lib/solana-server";
 
 export const SOLANA_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -32,14 +33,14 @@ export function isValidAmount(value: unknown, min = 1, max = 1000): value is num
 
 export function unavailableResponse() {
   return NextResponse.json(
-    { error: "Сеть Solana devnet не настроена. Выполните node scripts/setup-devnet.mjs." },
+    { error: "Solana devnet is not configured. Run node scripts/setup-devnet.mjs." },
     { status: 501 },
   );
 }
 
 export function safeError(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message : "";
-  return /[А-Яа-яЁё]/.test(message) ? message : fallback;
+  return isUserFacingMessage(message) ? message : fallback;
 }
 
 export function isConfigured() {

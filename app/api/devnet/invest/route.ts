@@ -57,7 +57,7 @@ function publicGatewayMetadata(strategy: EarnStrategy) {
 
 function actionNeedsReviewResponse() {
   return NextResponse.json({
-    error: "Эта операция уже отправлена на проверку. Не подписывайте новый перевод с тем же действием.",
+    error: "This operation was already submitted for review. Do not sign a new transfer for the same action.",
     code: "ACTION_NEEDS_REVIEW",
     actionState: "NEEDS_REVIEW",
   }, { status: 409 });
@@ -80,18 +80,18 @@ export async function POST(request: Request) {
     signature?: unknown;
   } | null;
   if (!isValidWalletAddress(body?.walletAddress)) {
-    return NextResponse.json({ error: "Укажите корректный адрес Solana-кошелька." }, { status: 400 });
+    return NextResponse.json({ error: "Provide a valid Solana wallet address." }, { status: 400 });
   }
   const strategy = typeof body?.productId === "string"
     ? APP_CONTROLLED_LEGACY_YIELD_STRATEGIES.find((item) => item.id === body.productId)
     : undefined;
   if (!strategy) {
-    return NextResponse.json({ error: "Неизвестный продукт дохода." }, { status: 400 });
+    return NextResponse.json({ error: "Unknown yield product." }, { status: 400 });
   }
   try {
     assertStrategyOperationSupported(strategy.gateway, "deposit");
   } catch (error) {
-    const message = error instanceof EarnGatewayError ? error.message : "Стратегия сейчас недоступна.";
+    const message = error instanceof EarnGatewayError ? error.message : "This strategy is currently unavailable.";
     return NextResponse.json({ error: message, code: "STRATEGY_UNSUPPORTED" }, { status: 409 });
   }
 
@@ -99,21 +99,21 @@ export async function POST(request: Request) {
   try {
     amountAtomic = requirePositiveDecimalToAtomic(body?.amount, DEVNET_DEMO_TOKEN_DECIMALS, "amount");
   } catch (error) {
-    const message = error instanceof EarnGatewayError ? error.message : "Укажите корректную сумму.";
+    const message = error instanceof EarnGatewayError ? error.message : "Provide a valid amount.";
     return NextResponse.json({ error: message, code: "INVALID_AMOUNT" }, { status: 400 });
   }
   if (amountAtomic < MIN_DEPOSIT_ATOMIC || amountAtomic > MAX_DEPOSIT_ATOMIC) {
-    return NextResponse.json({ error: "Сумма должна быть от 1 до 1 000 TEST QUOTE." }, { status: 400 });
+    return NextResponse.json({ error: "The amount must be between 1 and 1,000 TEST QUOTE." }, { status: 400 });
   }
   if (typeof body?.signature !== "string" || body.signature.length < 32 || body.signature.length > 100) {
-    return NextResponse.json({ error: "Не указана подпись перевода." }, { status: 400 });
+    return NextResponse.json({ error: "The transfer signature is missing." }, { status: 400 });
   }
   const paymentSignature = body.signature;
 
   const session = await getSessionWallet(request);
-  if (!session) return NextResponse.json({ error: "Требуется авторизованная сессия." }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "An authenticated session is required." }, { status: 401 });
   if (session.walletAddress !== body.walletAddress) {
-    return NextResponse.json({ error: "Адрес кошелька не соответствует текущей сессии." }, { status: 403 });
+    return NextResponse.json({ error: "The wallet address does not match the current session." }, { status: 403 });
   }
 
   const walletAddress = session.walletAddress;
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
     const existing = await findLedgerDeposit(walletAddress, paymentSignature);
     if (existing) {
       if (existing.productId !== productId || (existing.amountAtomic && existing.amountAtomic !== amountAtomicString)) {
-        return NextResponse.json({ error: "Эта транзакция уже использовалась для другого вклада." }, { status: 409 });
+        return NextResponse.json({ error: "This transaction was already used for a different deposit." }, { status: 409 });
       }
       if (
         existing.status === "MINT_PENDING"
@@ -151,7 +151,7 @@ export async function POST(request: Request) {
       notifyReceipt(request, {
         kind: "invest",
         amountUsd: existing.amountUsd,
-        details: `Выпущено ${response.sharesMintedAtomic} atomic-долей ${productId} в Solana Devnet.`,
+        details: `Issued ${response.sharesMintedAtomic} atomic shares ${productId} on Solana Devnet.`,
         explorerUrl: response.explorerUrl,
         receiptId: existing.signature,
       });
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
 
     try {
       if (await hasLedgerSignature(paymentSignature)) {
-        throw new Error("Эта транзакция уже была использована.");
+        throw new Error("This transaction has already been used.");
       }
       const receivedAtomic = await verifyIncomingPaymentAtomic({
         signature: paymentSignature,
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
         minAmountAtomic: amountAtomic,
       });
       if (receivedAtomic !== amountAtomic) {
-        throw new Error("Сумма в подтверждённом Devnet-переводе должна точно совпадать с суммой действия.");
+        throw new Error("The amount in the confirmed Devnet transfer must exactly match the action amount.");
       }
 
       // The first strategy intentionally settles one test quote token to one
@@ -209,7 +209,7 @@ export async function POST(request: Request) {
           status: "NEEDS_REVIEW",
           errorCode: "MINT_RECONCILIATION_REQUIRED",
         }).catch(() => undefined);
-        throw new Error("Выпуск долей отправлен, но запись требует сверки. Не повторяйте перевод.");
+        throw new Error("Share issuance was submitted, but the record needs reconciliation. Do not repeat the transfer.");
       }
 
       invalidateDevnetPortfolio(walletAddress);
@@ -228,14 +228,14 @@ export async function POST(request: Request) {
       notifyReceipt(request, {
         kind: "invest",
         amountUsd,
-        details: `Подтверждён Devnet-перевод; выпущено ${response.sharesMintedAtomic} atomic-долей ${productId}.`,
+        details: `Devnet transfer confirmed; issued ${response.sharesMintedAtomic} atomic shares ${productId}.`,
         explorerUrl: response.explorerUrl,
         receiptId: paymentSignature,
       });
       return NextResponse.json(response);
     } catch (error) {
       return NextResponse.json({
-        error: safeError(error, "Не удалось подтвердить перевод и выпустить доли в Solana Devnet."),
+        error: safeError(error, "Couldn't confirm the transfer and issue shares on Solana Devnet."),
         actionState: "TRANSACTION_FAILED",
       }, { status: 400 });
     }

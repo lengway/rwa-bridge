@@ -46,12 +46,12 @@ export function CrossmintOnramp({
         body: JSON.stringify({ walletAddress, email, amount: Number(amount) }),
       });
       const data = await res.json();
-      if (!res.ok || !data.orderId || !data.clientSecret) throw new Error(data.error ?? "заказ не создан");
+      if (!res.ok || !data.orderId || !data.clientSecret) throw new Error(data.error ?? "order was not created");
       setOrder({ orderId: data.orderId, clientSecret: data.clientSecret });
       setOrderAmount(amountUsd);
       setSheetOpen(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "ошибка");
+      setError(err instanceof Error ? err.message : "error");
     } finally {
       creating.current = false;
       setLoading(false);
@@ -65,14 +65,14 @@ export function CrossmintOnramp({
         disabled={loading}
         className="w-full"
       >
-        {loading ? "Создаём заказ…" : `Открыть оплату картой · $${amountUsd}`}
+        {loading ? "Creating order…" : `Open card payment · $${amountUsd}`}
       </Button>
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       <ProviderSheet
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         title="Crossmint"
-        testData={<p>Для sandbox: карта 4242 4242 4242 4242, любая будущая дата и CVC.</p>}
+        testData={<p>Sandbox: card 4242 4242 4242 4242, any future date and CVC.</p>}
       >
         {order ? (
           <CrossmintCheckoutProvider>
