@@ -1,21 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Chain, Wallet } from "@crossmint/wallets-sdk";
-import { Check, Clock3, RefreshCw, ShieldCheck } from "lucide-react";
+import { Check, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatAtomicToDecimal } from "@/lib/earn-gateway";
 import {
-  clearStoredSmartWalletOperation,
-  getSmartWalletOperationStatus,
-  initializeSmartWallet,
-  KaminoSmartWalletClientError,
-  prepareSmartWalletOperation,
+  continueSmartWalletChain,
   readStoredSmartWalletOperation,
-  storeSmartWalletOperation,
-  type PreparedSmartWalletOperation,
-  type SmartWalletActionKind,
   type SmartWalletOperationStatus,
   type StoredSmartWalletOperation,
 } from "@/lib/kamino-smart-wallet-client";
@@ -26,465 +19,176 @@ export type KaminoSmartWalletApprovalProps = {
   wallet: Wallet<Chain> | null;
   walletAddress: string | null;
   onCompleted?: (status: SmartWalletOperationStatus) => void;
+  onDone?: () => void;
+  onActiveChange?: (active: boolean) => void;
 };
 
-function isCanonicalAmount(value: string) {
-  return /^[1-9]\d*$/.test(value);
-}
-
 function amountLabel(amountAtomic: string) {
-  try {
-    return `${formatAtomicToDecimal(BigInt(amountAtomic), 6)} USDC`;
-  } catch {
-    return "USDC";
-  }
+  try { return `${formatAtomicToDecimal(BigInt(amountAtomic), 6)} USDC`; }
+  catch { return "USDC"; }
 }
 
-function actionLabel(action: SmartWalletActionKind) {
-  if (action === "initialize") return "Настройка смарт-кошелька";
-  return action === "deposit" ? "Депозит в Kamino" : "Вывод из Kamino";
-}
-
-function statusLabel(status: SmartWalletOperationStatus["stage"] | null) {
-  if (status === "READY") return "Ожидает подтверждения";
-  if (status === "PENDING") return "В обработке";
-  if (status === "SETUP_REQUIRED") return "Нужна настройка кошелька";
-  if (status === "FAILED") return "Не выполнено";
-  if (status === "COMPLETED") return "Подтверждено";
-  return "Проверяем…";
-}
-
-function friendlyError(error: unknown) {
-  return error instanceof KaminoSmartWalletClientError
-    ? error.message
-    : "Не удалось проверить операцию. Сначала проверьте её статус.";
-}
-
-function wait(milliseconds: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-}
-
-// A saved operation the server no longer knows (e.g. it was rejected before it was stored)
-// must not block new actions: drop it locally and start fresh.
-function isMissingOperation(cause: unknown): boolean {
-  return cause instanceof Error && cause.message.includes("Operation was not found");
-}
-
-export function KaminoSmartWalletApproval({
-  action,
-  amountAtomic,
-  wallet,
-  walletAddress,
-  onCompleted,
-}: KaminoSmartWalletApprovalProps) {
+export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps) {
+  const { action, amountAtomic, wallet, walletAddress, onDone, onActiveChange } = props;
   const [operation, setOperation] = useState<StoredSmartWalletOperation | null>(null);
-  const [operationStatus, setOperationStatus] = useState<SmartWalletOperationStatus | null>(null);
-  const [setupRequired, setSetupRequired] = useState(false);
-  const [preparing, setPreparing] = useState(false);
-  const [approving, setApproving] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [recovering, setRecovering] = useState(true);
+  const [progress, setProgress] = useState("Подготавливаем…");
+  const [stalled, setStalled] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [completed, setCompleted] = useState<SmartWalletOperationStatus | null>(null);
+  const [completedAmount, setCompletedAmount] = useState(amountAtomic);
+  const latest = useRef(props);
+  const currentOperation = useRef<StoredSmartWalletOperation | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  const wake = useRef<(() => void) | null>(null);
+  const inFlight = useRef<AbortSignal | null>(null);
+  useEffect(() => { latest.current = props; });
 
-  const walletMatchesSession = Boolean(wallet && walletAddress && wallet.address === walletAddress);
-
-  const applyStatus = useCallback((
-    current: StoredSmartWalletOperation,
-    status: SmartWalletOperationStatus,
-  ) => {
-    setOperationStatus(status);
-    if (status.stage === "COMPLETED" && status.confirmed && status.signature) {
-      clearStoredSmartWalletOperation(current.walletAddress, current.actionId);
-      setOperation(null);
-      setCompleted(status);
-      setNotice(null);
-      onCompleted?.(status);
-    } else if (status.stage === "COMPLETED" && !status.signature) {
-      setNotice("The service has not returned a confirmed transaction signature yet. Check status again.");
-    } else if (status.stage === "PENDING") {
-      setNotice("The operation is still processing. You can check again shortly.");
-    } else if (status.stage === "FAILED") {
-      setNotice("The operation failed. Review its status before starting another one.");
-    } else {
-      setNotice(null);
-    }
-  }, [onCompleted]);
-
-  const refreshStatus = useCallback(async (current = operation) => {
-    if (!current || !walletAddress || !walletMatchesSession) return null;
-    setCheckingStatus(true);
+  const run = useCallback(async (userTap: boolean, signal: AbortSignal) => {
+    const context = latest.current;
+    if (inFlight.current && !inFlight.current.aborted || !context.wallet || !context.walletAddress
+      || context.wallet.address !== context.walletAddress || signal.aborted) return;
+    inFlight.current = signal;
+    setRunning(true);
     setError(null);
-    try {
-      const status = await getSmartWalletOperationStatus(current.actionId, walletAddress, current.action);
-      applyStatus(current, status);
-      return status;
-    } catch (statusError) {
-      if (isMissingOperation(statusError)) {
-        clearStoredSmartWalletOperation(current.walletAddress, current.actionId);
-        setOperation(null);
-        return null;
-      }
-      setError(friendlyError(statusError));
-      return null;
-    } finally {
-      setCheckingStatus(false);
-    }
-  }, [applyStatus, operation, walletAddress, walletMatchesSession]);
-
-  useEffect(() => {
-    if (!walletMatchesSession || !walletAddress) {
-      return;
-    }
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setError(null);
-      setNotice(null);
-      setCompleted(null);
-      setOperationStatus(null);
-      setSetupRequired(false);
-      let stored: StoredSmartWalletOperation | null = null;
-      try {
-        stored = readStoredSmartWalletOperation(walletAddress);
-      } catch {
-      setError("Не удалось прочитать сохранённую операцию. Подтверждение не запрашивалось.");
-      }
-      setOperation(stored);
-      if (!stored) return;
-      void getSmartWalletOperationStatus(stored.actionId, walletAddress, stored.action)
-        .then((status) => {
-          if (!cancelled) applyStatus(stored!, status);
-        })
-        .catch((statusError: unknown) => {
-          if (cancelled) return;
-          if (isMissingOperation(statusError)) {
-            clearStoredSmartWalletOperation(walletAddress, stored!.actionId);
-            setOperation(null);
-            return;
-          }
-          setError(friendlyError(statusError));
-        });
-    });
-    return () => { cancelled = true; };
-  }, [applyStatus, walletAddress, walletMatchesSession]);
-
-  const savePreparedOperation = (prepared: PreparedSmartWalletOperation, parentActionId?: string) => {
-    if (!prepared.providerTransactionId) throw new Error("Сервис не вернул подготовленную транзакцию для подтверждения.");
-    const stored: StoredSmartWalletOperation = {
-      actionId: prepared.actionId,
-      providerTransactionId: prepared.providerTransactionId,
-      action: prepared.action,
-      amountAtomic: prepared.amountAtomic,
-      walletAddress: prepared.walletAddress,
-      ...(parentActionId ? { parentActionId } : {}),
-    };
-    // Persist before rendering the approval control or invoking the wallet.
-    storeSmartWalletOperation(stored);
-    setOperation(stored);
-    setOperationStatus({
-      actionId: stored.actionId,
-      action: stored.action,
-      stage: "READY",
-      confirmed: false,
-      walletAddress: stored.walletAddress,
-      network: "devnet",
-      feeMode: "project",
-    });
-    setCompleted(null);
-    setNotice(null);
-    return stored;
-  };
-
-  const prepare = async () => {
-    if (!walletMatchesSession || !walletAddress || !isCanonicalAmount(amountAtomic) || operation || preparing) return;
-    setPreparing(true);
-    setError(null);
-    setNotice(null);
-    setCompleted(null);
-    try {
-      const requestId = crypto.randomUUID();
-      const pending: StoredSmartWalletOperation = { actionId: requestId, action, amountAtomic, walletAddress };
-      storeSmartWalletOperation(pending);
-      setOperation(pending);
-      setOperationStatus({
-        actionId: requestId, action, stage: "PENDING", confirmed: false,
-        walletAddress, network: "devnet", feeMode: "project",
-      });
-      const prepared = await prepareSmartWalletOperation({
-        action,
-        amountAtomic,
-        requestId,
-      }, walletAddress);
-      if (prepared.stage === "SETUP_REQUIRED") {
-        const setupOperation: StoredSmartWalletOperation = {
-          actionId: prepared.actionId,
-          ...(prepared.providerTransactionId ? { providerTransactionId: prepared.providerTransactionId } : {}),
-          action: prepared.action,
-          amountAtomic: prepared.amountAtomic,
-          walletAddress: prepared.walletAddress,
-        };
-        storeSmartWalletOperation(setupOperation);
-        setOperation(setupOperation);
-        setOperationStatus({
-          actionId: setupOperation.actionId,
-          action: setupOperation.action,
-          stage: "SETUP_REQUIRED",
-          confirmed: false,
-          walletAddress: setupOperation.walletAddress,
-          network: "devnet",
-          feeMode: "project",
-        });
-        setSetupRequired(true);
-      setNotice("Перед работой с Kamino нужно отдельно настроить смарт-кошелёк.");
-        return;
-      }
-      setSetupRequired(false);
-      if (!prepared.providerTransactionId) throw new Error("Сервис не вернул подготовленную транзакцию.");
-      savePreparedOperation(prepared);
-    } catch (prepareError) {
-      setError(friendlyError(prepareError));
-    } finally {
-      setPreparing(false);
-    }
-  };
-
-  const prepareInitialization = async () => {
-    if (!walletMatchesSession || !walletAddress || !operation || operation.action === "initialize"
-      || operationStatus?.stage !== "SETUP_REQUIRED" || preparing) return;
-    setPreparing(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const requestId = operation.initializationRequestId ?? crypto.randomUUID();
-      const parentActionId = operation.actionId;
-      const withRequestId: StoredSmartWalletOperation = {
-        actionId: requestId,
-        action: "initialize",
-        amountAtomic: "0",
-        walletAddress,
-        parentActionId,
+    setStalled(false);
+    const intent = currentOperation.current?.continuation ?? currentOperation.current;
+    setCompletedAmount(intent && intent.action !== "initialize" ? intent.amountAtomic : context.amountAtomic);
+    const watchdog = window.setTimeout(() => { if (!signal.aborted) setStalled(true); }, 60_000);
+    const wait = (waitSignal: AbortSignal) => new Promise<void>((resolve) => {
+      const finish = () => {
+        window.clearTimeout(timer);
+        waitSignal.removeEventListener("abort", finish);
+        if (wake.current === finish) wake.current = null;
+        resolve();
       };
-      // Reuse the same idempotency key if the network times out and the user retries.
-      storeSmartWalletOperation(withRequestId);
-      setOperation(withRequestId);
-      setOperationStatus({
-        actionId: requestId, action: "initialize", stage: "PENDING", confirmed: false,
-        walletAddress, network: "devnet", feeMode: "project",
+      const timer = window.setTimeout(finish, 5_000);
+      wake.current = finish;
+      waitSignal.addEventListener("abort", finish, { once: true });
+      if (waitSignal.aborted) finish();
+    });
+    try {
+      const client = await import("@/lib/kamino-smart-wallet-client");
+      if (signal.aborted) return;
+      const result = await continueSmartWalletChain({
+        operation: currentOperation.current, action: context.action, amountAtomic: context.amountAtomic,
+        walletAddress: context.walletAddress, userTap, signal,
+        approve: async (transactionId) => {
+          // A stalled provider UI must not stop background status reconciliation.
+          // Timeout never causes another approval: the durable marker stays set.
+          let timer: number | undefined;
+          try {
+            return await Promise.race([
+              context.wallet!.approve({ transactionId }),
+              new Promise<never>((_, reject) => {
+                timer = window.setTimeout(() => reject(new Error("Ответ кошелька прервался.")), 25_000);
+              }),
+            ]);
+          } finally { window.clearTimeout(timer); }
+        },
+        onOperation: (next) => { currentOperation.current = next; setOperation(next); },
+        onProgress: setProgress,
+        dependencies: {
+          prepare: client.prepareSmartWalletOperation, initialize: client.initializeSmartWallet,
+          status: client.getSmartWalletOperationStatus, store: client.storeSmartWalletOperation,
+          clear: client.clearStoredSmartWalletOperation, newId: () => crypto.randomUUID(), wait,
+        },
       });
-      const prepared = await initializeSmartWallet(requestId, walletAddress, parentActionId);
-      if (!prepared.providerTransactionId) throw new Error("Сервис не вернул подготовленную транзакцию настройки.");
-      savePreparedOperation(prepared, parentActionId);
-      setSetupRequired(false);
-    } catch (prepareError) {
-      setError(friendlyError(prepareError));
-    } finally {
-      setPreparing(false);
-    }
-  };
-
-  const recoverPreparation = async () => {
-    if (!operation || !walletMatchesSession || !walletAddress || operation.providerTransactionId || preparing) return;
-    setPreparing(true);
-    setError(null);
-    setNotice("Проверяем сохранённый запрос подготовки…");
-    try {
-      const prepared = operation.action === "initialize"
-        ? operation.parentActionId
-          ? await initializeSmartWallet(operation.actionId, walletAddress, operation.parentActionId)
-          : null
-        : await prepareSmartWalletOperation({
-          action: operation.action,
-          amountAtomic: operation.amountAtomic,
-          requestId: operation.actionId,
-        }, walletAddress);
-      if (!prepared) throw new Error("Не удалось восстановить параметры настройки кошелька.");
-      if (prepared.stage === "SETUP_REQUIRED") {
-        const setupOperation: StoredSmartWalletOperation = {
-          actionId: prepared.actionId,
-          ...(prepared.providerTransactionId ? { providerTransactionId: prepared.providerTransactionId } : {}),
-          action: prepared.action,
-          amountAtomic: prepared.amountAtomic,
-          walletAddress: prepared.walletAddress,
-        };
-        storeSmartWalletOperation(setupOperation);
-        setOperation(setupOperation);
-        setOperationStatus({
-          actionId: setupOperation.actionId, action: setupOperation.action, stage: "SETUP_REQUIRED",
-          confirmed: false, walletAddress: setupOperation.walletAddress, network: "devnet", feeMode: "project",
-        });
-        setNotice("Перед работой с Kamino нужно отдельно настроить смарт-кошелёк.");
-      } else {
-        if (!prepared.providerTransactionId) throw new Error("Сервис не вернул подготовленную транзакцию.");
-        savePreparedOperation(prepared, operation.parentActionId);
+      if (!signal.aborted && result) {
+        setCompleted(result);
+        setProgress("Готово");
+        latest.current.onCompleted?.(result);
       }
-    } catch (recoveryError) {
-      setError(friendlyError(recoveryError));
-      setNotice("Используйте эту же операцию для восстановления. Новый запрос не создан.");
+    } catch (cause) {
+      if (!signal.aborted) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setPreparing(false);
+      window.clearTimeout(watchdog);
+      if (inFlight.current === signal) inFlight.current = null;
+      if (!signal.aborted) { setRunning(false); setRecovering(false); setStalled(false); }
     }
-  };
+  }, []);
 
-  const approve = async () => {
-    if (!operation || !walletMatchesSession || !wallet || !operationStatus
-      || operationStatus.stage !== "READY" || !operation.providerTransactionId || approving || checkingStatus) return;
-    setApproving(true);
-    setError(null);
-    setNotice("Ожидаем ответ кошелька и проверяем статус операции…");
-    try {
-      // The user must click this control after reviewing the operation summary.
-      // The returned wallet result is deliberately ignored; server status is authoritative.
-      await wallet.approve({ transactionId: operation.providerTransactionId });
-    } catch {
-      setNotice("Ответ кошелька прервался. Сначала проверяем статус операции…");
-    }
-
-    try {
-      let status: SmartWalletOperationStatus | null = null;
-      for (let attempt = 0; attempt < 7; attempt += 1) {
-        status = await getSmartWalletOperationStatus(operation.actionId, walletAddress!, operation.action);
-        applyStatus(operation, status);
-        if (status.stage !== "PENDING") break;
-        await wait(1_500);
+  const matches = Boolean(wallet && walletAddress && wallet.address === walletAddress);
+  useEffect(() => {
+    const abort = new AbortController();
+    controller.current = abort;
+    const timer = window.setTimeout(() => {
+      if (abort.signal.aborted) return;
+      setCompleted(null);
+      setError(null);
+      setRunning(false);
+      setStalled(false);
+      setRecovering(true);
+      try {
+        const stored = matches && walletAddress ? readStoredSmartWalletOperation(walletAddress) : null;
+        currentOperation.current = stored;
+        setOperation(stored);
+        if (stored) void run(false, abort.signal);
+        else setRecovering(false);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        setRecovering(false);
       }
-      if (status?.stage === "READY") {
-        setNotice("Операция ожидает подтверждения кошельком. Проверьте её перед повторным подтверждением.");
-      } else if (status?.stage === "PENDING") {
-        setNotice("Операция ещё обрабатывается. Проверьте статус перед запуском новой операции.");
-      }
-    } catch (statusError) {
-      setError(friendlyError(statusError));
-      setNotice("Подтверждение могло поступить в сервис кошелька. Проверьте операцию перед повтором.");
-    } finally {
-      setApproving(false);
-      setCheckingStatus(false);
-    }
+    }, 0);
+    return () => { window.clearTimeout(timer); abort.abort(); };
+  }, [matches, walletAddress, run]);
+
+  const active = running || recovering || Boolean(operation && (operation.action !== "initialize" || operation.continuation)) || Boolean(completed);
+  useEffect(() => { onActiveChange?.(active); }, [active, onActiveChange]);
+
+  const intent = operation?.continuation ?? operation;
+  const displayedAction = intent && intent.action !== "initialize" ? intent.action : action;
+  const displayedAmount = intent && intent.action !== "initialize" ? intent.amountAtomic : amountAtomic;
+  const start = () => {
+    if (!controller.current || controller.current.signal.aborted) controller.current = new AbortController();
+    void run(true, controller.current.signal);
   };
 
-  const dismissFailed = () => {
-    if (!operation || operationStatus?.stage !== "FAILED") return;
-    clearStoredSmartWalletOperation(operation.walletAddress, operation.actionId);
-    setOperation(null);
-    setOperationStatus(null);
-    setNotice(null);
-    setError(null);
-  };
+  if (!matches) return <Card className="rounded-2xl p-4">Подключите кошелёк этого аккаунта</Card>;
 
-  const clearCompleted = () => setCompleted(null);
-  const activeOperation = operation;
-  const activeAction = activeOperation?.action ?? action;
-  const activeAmount = activeOperation?.amountAtomic ?? amountAtomic;
-  const canPrepare = walletMatchesSession && isCanonicalAmount(amountAtomic) && !activeOperation && !preparing;
-  const canApprove = Boolean(activeOperation && walletMatchesSession && wallet
-    && activeOperation.providerTransactionId && operationStatus?.stage === "READY" && !approving && !checkingStatus);
-
-  if (!walletMatchesSession) {
-    return (
-      <Card className="gap-3 rounded-2xl p-4">
-        <p className="font-medium">Подключите кошелёк этого аккаунта</p>
-        <p className="text-sm leading-6 text-muted-foreground">Операция доступна, когда подключённый кошелёк совпадает с аккаунтом.</p>
-      </Card>
-    );
-  }
+  if (completed) return (
+    <Card className="gap-3 rounded-2xl p-4">
+      <p className="flex items-center gap-2 font-medium"><Check className="size-4" />
+        Готово — {amountLabel(completedAmount)} {completed.action === "deposit" ? "вложен в Kamino" : "выведен из Kamino"}
+      </p>
+      <a className="text-sm underline" href={`https://explorer.solana.com/tx/${completed.signature}?cluster=devnet`}
+        target="_blank" rel="noopener noreferrer">Посмотреть транзакцию</a>
+      <Button className="w-full" onClick={onDone}>Готово</Button>
+    </Card>
+  );
 
   return (
-    <div className="space-y-4">
-      {completed ? (
-        <Card className="gap-3 rounded-2xl p-4">
-          <div className="flex items-center gap-2 font-medium"><Check className="size-4" />Подтверждено в Solana Devnet</div>
-          <p className="text-sm leading-6 text-muted-foreground">
-            {actionLabel(completed.action)} завершён. Статус проверен в сети.
+    <Card className="gap-4 rounded-2xl p-4">
+      <p className="font-medium">Проверьте операцию</p>
+      <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-sm">
+        <Row label="Сумма" value={amountLabel(displayedAmount)} />
+        <Row label="Маршрут" value="Kamino · Solana Devnet" />
+        <Row label="Комиссия сети" value="Оплачивает Plain" />
+      </div>
+      {running || recovering ? (
+        <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircle className="size-4 shrink-0 animate-spin" />
+          {stalled ? "Операция ещё обрабатывается. Мы проверим её автоматически" : progress}
+        </p>
+      ) : null}
+      {stalled ? <button className="text-left text-sm underline" onClick={() => wake.current?.()}>Проверить ещё раз</button> : null}
+      {error ? (
+        <>
+          <p role="alert" className="text-sm text-destructive">
+            {displayedAction === "deposit" ? "Не получилось вложить. Деньги остались на вашем балансе." : "Не получилось вывести. Деньги остались в Kamino."}
           </p>
-          <Button variant="outline" onClick={clearCompleted}>Продолжить</Button>
-        </Card>
-      ) : activeOperation ? (
-        <Card className="gap-4 rounded-2xl p-4">
-          <div>
-            <p className="font-medium">Проверьте операцию</p>
-            <p className="mt-1 text-sm text-muted-foreground">{actionLabel(activeAction)}</p>
-          </div>
-          <div className="space-y-2 rounded-xl bg-muted/50 p-3 text-sm">
-            <Row label="Сумма" value={activeAction === "initialize" ? "Без перевода токенов" : amountLabel(activeAmount)} />
-            <Row label="Маршрут" value={activeAction === "initialize" ? "Настройка кошелька" : "Kamino · Solana Devnet"} />
-            <Row label="Комиссия сети" value="Оплачивает Plain" />
-            <Row label="Статус" value={statusLabel(operationStatus?.stage ?? null)} />
-          </div>
-          {activeAction === "initialize" ? (
-            <p className="text-xs leading-5 text-muted-foreground">
-              Настройка кошелька — отдельная операция. Она не переводит USDC в Kamino и не выводит его.
-            </p>
-          ) : null}
-          {operationStatus?.stage === "PENDING" ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground"><Clock3 className="size-4" />Ждём подтверждения…</p>
-          ) : null}
-          {operationStatus?.stage === "SETUP_REQUIRED" && activeAction !== "initialize" ? (
-            <div className="space-y-3 rounded-xl border p-3">
-              <p className="text-sm leading-5">Сначала настройте смарт-кошелёк. Депозит не будет отправлен автоматически.</p>
-              <Button className="w-full" onClick={prepareInitialization} disabled={preparing}>
-                {preparing ? "Готовим настройку…" : "Проверить настройку кошелька"}
-              </Button>
-            </div>
-          ) : null}
-          {notice ? <p className="text-sm leading-5 text-muted-foreground">{notice}</p> : null}
-          {error ? <p className="text-sm leading-5 text-destructive">{error}</p> : null}
-          <div className="flex flex-col gap-2">
-            {!activeOperation.providerTransactionId && operationStatus?.stage !== "SETUP_REQUIRED" ? (
-              <Button variant="outline" className="w-full" onClick={recoverPreparation} disabled={preparing || approving}>
-                <RefreshCw />{preparing ? "Проверяем…" : "Восстановить подготовку"}
-              </Button>
-            ) : null}
-            {operationStatus?.stage === "READY" ? (
-              <Button className="w-full" onClick={approve} disabled={!canApprove}>
-                <ShieldCheck />{approving ? "Ожидаем кошелёк…" : activeAction === "initialize" ? "Подтвердить настройку" : "Подтвердить кошельком"}
-              </Button>
-            ) : null}
-            {operationStatus?.stage === "PENDING" || operationStatus === null || Boolean(error) ? (
-              <Button variant="outline" className="w-full" onClick={() => void refreshStatus()} disabled={checkingStatus || approving}>
-                <RefreshCw />{checkingStatus ? "Проверяем…" : "Проверить статус"}
-              </Button>
-            ) : null}
-            {operationStatus?.stage === "FAILED" ? (
-              <Button variant="outline" className="w-full" onClick={dismissFailed}>Закрыть неудачную операцию</Button>
-            ) : null}
-          </div>
-        </Card>
-      ) : (
-        <Card className="gap-4 rounded-2xl p-4">
-          <div>
-            <p className="font-medium">Kamino · Solana Devnet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {action === "deposit" ? "Депозит" : "Вывод"} {amountLabel(amountAtomic)}. Комиссию сети оплачивает Plain.
-            </p>
-          </div>
-          {setupRequired ? (
-            <div className="space-y-3 rounded-xl border p-3">
-              <p className="text-sm leading-5">Перед работой с Kamino нужно настроить кошелёк. Эта отдельная операция не переводит USDC.</p>
-              <Button className="w-full" onClick={prepareInitialization} disabled={preparing}>
-                {preparing ? "Готовим настройку…" : "Проверить настройку кошелька"}
-              </Button>
-            </div>
-          ) : (
-            <Button className="w-full" onClick={prepare} disabled={!canPrepare}>
-              {preparing ? "Готовим операцию…" : action === "deposit" ? "Проверить депозит" : "Проверить вывод"}
-            </Button>
-          )}
-          {notice ? <p className="text-sm leading-5 text-muted-foreground">{notice}</p> : null}
-          {error ? <p className="text-sm leading-5 text-destructive">{error}</p> : null}
-          <p className="text-xs leading-5 text-muted-foreground">
-            Перед запросом подтверждения кошельку вы увидите детали операции.
-          </p>
-        </Card>
-      )}
-    </div>
+          <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Подробнее</summary><p className="mt-2 break-words">{error}</p></details>
+        </>
+      ) : null}
+      {!running && !recovering ? <Button className="w-full" onClick={start}
+        disabled={!operation && !/^[1-9]\d*$/.test(amountAtomic)}>
+        {error ? "Повторить" : `${displayedAction === "deposit" ? "Вложить" : "Вывести"} ${amountLabel(displayedAmount)}`}
+      </Button> : null}
+    </Card>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value}</span>
-    </div>
-  );
+  return <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>;
 }

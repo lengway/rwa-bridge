@@ -84,6 +84,7 @@ export function KaminoLendDrawer({
   const [walletSnapshotError, setWalletSnapshotError] = useState<{ walletAddress: string; message: string } | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [smartFlowActive, setSmartFlowActive] = useState(false);
 
   const activeWalletAddress = walletAddress ?? devnet.walletAddress;
   const activeWalletRef = useRef(activeWalletAddress);
@@ -546,22 +547,28 @@ export function KaminoLendDrawer({
 
   if (market?.execution === "crossmint-smart-wallet" && !currentPendingAction && !recoveryBlocked) {
     return (
-      <DrawerFrame open={open} onOpenChange={changeOpen} title={actionLabel}
-        description={action === "deposit" ? "Put your USDC to work in Kamino." : "Return USDC to your wallet."}>
+      <DrawerFrame open={open} onOpenChange={changeOpen} title={action === "deposit" ? "Вложить в Kamino" : "Вывести из Kamino"}
+        description={smartFlowActive ? "" : "Укажите сумму в USDC."}>
         <div className="space-y-4">
-          <div className="flex gap-2">
-            <Button variant={action === "deposit" ? "default" : "outline"} onClick={() => changeAction("deposit")}>Invest</Button>
-            <Button variant={action === "withdraw" ? "default" : "outline"} onClick={() => changeAction("withdraw")}>Withdraw</Button>
+          {!smartFlowActive ? <><div className="flex gap-2">
+            <Button variant={action === "deposit" ? "default" : "outline"} onClick={() => changeAction("deposit")}>Вложить</Button>
+            <Button variant={action === "withdraw" ? "default" : "outline"} onClick={() => changeAction("withdraw")}>Вывести</Button>
           </div>
           <div className="space-y-2">
-            <label htmlFor="kamino-smart-amount" className="text-sm font-medium">Amount · USDC</label>
+            <label htmlFor="kamino-smart-amount" className="text-sm font-medium">Сумма · USDC</label>
             <Input id="kamino-smart-amount" inputMode="decimal" placeholder="0.10" value={amount} onChange={event => changeAmount(event.target.value)} />
-            <p className="text-xs text-muted-foreground">Available: {availableMaximum === null ? "—" : formatAtomicAmount(availableMaximum, 6)} USDC</p>
-            {exceedsMaximum || exceedsWalletMaximum ? <p className="text-sm text-destructive">Choose an amount within your available balance.</p> : null}
-            {balanceError ? <p className="text-sm text-destructive">{balanceError}</p> : null}
-          </div>
-          <KaminoSmartWalletApproval action={action} amountAtomic={amountAtomic && !exceedsMaximum && !exceedsWalletMaximum && walletSnapshot ? amountAtomic : "0"}
+            <p className="text-xs text-muted-foreground">Доступно: {availableMaximum === null ? "—" : formatAtomicAmount(availableMaximum, 6)} USDC</p>
+            {exceedsMaximum || exceedsWalletMaximum ? <p className="text-sm text-destructive">Укажите сумму в пределах доступного баланса.</p> : null}
+            {balanceError ? <div className="space-y-2">
+              <p className="text-sm text-destructive">Не получилось загрузить баланс.</p>
+              <Button variant="outline" size="sm" disabled={walletLoading} onClick={() => void loadWalletSnapshot()}>Повторить</Button>
+              <details className="text-xs text-muted-foreground"><summary>Подробнее</summary><p>{balanceError}</p></details>
+            </div> : null}
+          </div></> : null}
+          {open ? <KaminoSmartWalletApproval action={action} amountAtomic={amountAtomic && !exceedsMaximum && !exceedsWalletMaximum && walletSnapshot ? amountAtomic : "0"}
             wallet={wallet} walletAddress={activeWalletAddress}
+            onActiveChange={setSmartFlowActive}
+            onDone={() => { setSmartFlowActive(false); onOpenChange(false); }}
             onCompleted={status => {
               void loadWalletSnapshot();
               void loadMarket();
@@ -570,7 +577,7 @@ export function KaminoLendDrawer({
                 action: status.action, actionId: status.actionId, confirmed: true, signature: status.signature,
                 explorerUrl: `https://explorer.solana.com/tx/${status.signature}?cluster=devnet`, status: "COMPLETED", actualLiquidityAmountAtomic: null,
               });
-            }} />
+            }} /> : null}
         </div>
       </DrawerFrame>
     );

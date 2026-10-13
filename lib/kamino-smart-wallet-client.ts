@@ -40,6 +40,10 @@ export type StoredSmartWalletOperation = {
   walletAddress: string;
   initializationRequestId?: string;
   parentActionId?: string;
+  /** Durable intent from the single review tap; never inferred during recovery. */
+  userStarted?: boolean;
+  approvalRequested?: boolean;
+  continuation?: { actionId: string; action: "deposit" | "withdraw"; amountAtomic: string };
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -257,6 +261,9 @@ export function readStoredSmartWalletOperation(walletAddress: string): StoredSma
       walletAddress: canonicalWallet(source.walletAddress),
       initializationRequestId: source.initializationRequestId,
       parentActionId: source.parentActionId,
+      userStarted: source.userStarted,
+      approvalRequested: source.approvalRequested,
+      continuation: source.continuation,
     };
     if (typeof result.actionId !== "string" || !UUID.test(result.actionId)
       || result.providerTransactionId !== undefined
@@ -269,6 +276,19 @@ export function readStoredSmartWalletOperation(walletAddress: string): StoredSma
         && typeof result.parentActionId !== "string"
       || result.walletAddress !== canonicalWallet(walletAddress)) {
       throw new Error("Invalid saved operation.");
+    }
+    // New journal metadata is checked independently of the existing operation checks.
+    if (result.userStarted !== undefined && typeof result.userStarted !== "boolean"
+      || result.approvalRequested !== undefined && typeof result.approvalRequested !== "boolean") {
+      throw new Error("Invalid saved approval intent.");
+    }
+    if (result.continuation !== undefined) {
+      const continuation = object(result.continuation);
+      if (typeof continuation.actionId !== "string" || !UUID.test(continuation.actionId)
+        || (continuation.action !== "deposit" && continuation.action !== "withdraw")
+        || typeof continuation.amountAtomic !== "string" || !/^[1-9]\d*$/.test(continuation.amountAtomic)) {
+        throw new Error("Invalid saved continuation.");
+      }
     }
     return result as StoredSmartWalletOperation;
   } catch {
@@ -290,4 +310,173 @@ export function clearStoredSmartWalletOperation(walletAddress: string, actionId?
     if (stored && stored.actionId !== actionId) return;
   }
   window.localStorage.removeItem(key);
+}
+
+export type SmartWalletChainDependencies = {
+  prepare: typeof prepareSmartWalletOperation;
+  initialize: typeof initializeSmartWallet;
+  status: typeof getSmartWalletOperationStatus;
+  store: typeof storeSmartWalletOperation;
+  clear: typeof clearStoredSmartWalletOperation;
+  newId: () => string;
+  wait: (signal: AbortSignal) => Promise<void>;
+};
+
+/** One durable journal, with server status as the only authority for signing/retrying. */
+export async function continueSmartWalletChain(options: {
+  operation: StoredSmartWalletOperation | null;
+  action: "deposit" | "withdraw";
+  amountAtomic: string;
+  walletAddress: string;
+  userTap: boolean;
+  signal: AbortSignal;
+  approve: (transactionId: string) => Promise<unknown>;
+  onOperation: (operation: StoredSmartWalletOperation | null) => void;
+  onProgress: (message: string) => void;
+  dependencies?: SmartWalletChainDependencies;
+}): Promise<SmartWalletOperationStatus | null> {
+  const dependencies = options.dependencies ?? {
+    prepare: prepareSmartWalletOperation,
+    initialize: initializeSmartWallet,
+    status: getSmartWalletOperationStatus,
+    store: storeSmartWalletOperation,
+    clear: clearStoredSmartWalletOperation,
+    newId: () => crypto.randomUUID(),
+    wait: (signal: AbortSignal) => new Promise<void>((resolve) => {
+      const finish = () => { window.clearTimeout(timer); signal.removeEventListener("abort", finish); resolve(); };
+      const timer = window.setTimeout(finish, 5_000);
+      signal.addEventListener("abort", finish, { once: true });
+    }),
+  };
+  const checkActive = () => options.signal.throwIfAborted();
+  const save = (operation: StoredSmartWalletOperation) => {
+    checkActive();
+    dependencies.store(operation); // Always persist before a provider request or approval.
+    options.onOperation(operation);
+    return operation;
+  };
+  const fresh = (action = options.action, amountAtomic = options.amountAtomic) => save({
+    actionId: dependencies.newId(), action, amountAtomic,
+    walletAddress: options.walletAddress, userStarted: options.userTap,
+  });
+  let current = options.operation;
+  if (!current) {
+    if (!options.userTap || !/^[1-9]\d*$/.test(options.amountAtomic)) return null;
+    current = fresh();
+  }
+  let needsPreparation = !options.operation;
+  // A retry may approve the SAME provider transaction only after a fresh READY status.
+  let retryApproval = options.userTap;
+  let approvalError: unknown;
+  let allowFailedRetry = options.userTap && Boolean(options.operation);
+  while (true) {
+    checkActive();
+    if (needsPreparation) options.onProgress(current.action === "initialize"
+      ? "Подготавливаем кошелёк (один раз)…" : "Подготавливаем…");
+    let status: SmartWalletOperationStatus | null = null;
+    if (!needsPreparation) {
+      try {
+        status = await dependencies.status(current.actionId, current.walletAddress, current.action);
+        checkActive();
+      } catch (cause) {
+        checkActive();
+        if (cause instanceof Error && cause.message.includes("Operation was not found")) {
+          dependencies.clear(current.walletAddress, current.actionId);
+          options.onOperation(null);
+          return null; // An unknown operation is never signed or resubmitted.
+        }
+        if (cause instanceof KaminoSmartWalletClientError
+          && cause.message === "Не удалось связаться с сервисом кошелька. Проверьте статус перед повтором.") {
+          // Transport interruptions cannot justify another transaction. Keep the
+          // same journal and let the single progress line report a long wait.
+          await dependencies.wait(options.signal);
+          continue;
+        }
+        throw cause;
+      }
+    }
+    if (status?.stage === "FAILED") {
+      if (!allowFailedRetry) throw new Error("FAILED: операция не выполнена.");
+      allowFailedRetry = false;
+      const intent = current.continuation ?? (current.action !== "initialize" ? current : null);
+      if (!intent || intent.action === "initialize") throw new Error("Не удалось восстановить исходную операцию.");
+      current = fresh(intent.action, intent.amountAtomic);
+      needsPreparation = true;
+      retryApproval = false;
+      continue;
+    }
+    if (status?.stage === "COMPLETED" && status.confirmed && status.signature) {
+      if (current.action !== "initialize") {
+        dependencies.clear(current.walletAddress, current.actionId);
+        options.onOperation(null);
+        return status;
+      }
+      // Initialization retires its setup-required parent on the server. The saved
+      // continuation allocates the next request once, before any network call.
+      if (!current.continuation) {
+        if (!options.userTap || !/^[1-9]\d*$/.test(options.amountAtomic)) return null;
+        current = save({ ...current, continuation: {
+          actionId: dependencies.newId(), action: options.action, amountAtomic: options.amountAtomic,
+        } });
+      }
+      current = save({ ...current.continuation!, walletAddress: current.walletAddress,
+        userStarted: current.userStarted || options.userTap });
+      needsPreparation = true;
+      retryApproval = false;
+      continue;
+    }
+    if (status?.stage === "PENDING" && current.providerTransactionId
+      || status?.stage === "COMPLETED") {
+      options.onProgress(current.action === "initialize"
+        ? "Подготавливаем кошелёк (один раз)…" : "Подтверждаем в сети…");
+      await dependencies.wait(options.signal);
+      continue;
+    }
+    if (status?.stage === "SETUP_REQUIRED") {
+      current = save({
+        actionId: current.initializationRequestId ?? dependencies.newId(),
+        action: "initialize", amountAtomic: "0", walletAddress: current.walletAddress,
+        parentActionId: current.actionId, userStarted: current.userStarted || options.userTap,
+        continuation: { actionId: dependencies.newId(), action: current.action as "deposit" | "withdraw",
+          amountAtomic: current.amountAtomic },
+      });
+      needsPreparation = true;
+      retryApproval = false;
+      continue;
+    }
+    if (needsPreparation || !current.providerTransactionId) {
+      const prepared = current.action === "initialize"
+        ? current.parentActionId
+          ? await dependencies.initialize(current.actionId, current.walletAddress, current.parentActionId)
+          : null
+        : await dependencies.prepare({ action: current.action, amountAtomic: current.amountAtomic,
+          requestId: current.actionId }, current.walletAddress);
+      checkActive();
+      if (!prepared) throw new Error("Не удалось восстановить параметры настройки кошелька.");
+      current = save({ ...current, ...(prepared.providerTransactionId
+        ? { providerTransactionId: prepared.providerTransactionId } : {}) });
+      needsPreparation = false;
+      if (prepared.stage === "SETUP_REQUIRED") continue;
+      // The prepare response has passed all existing wallet, simulation and fee checks.
+      status = { ...prepared, stage: "READY", confirmed: false };
+    }
+    if (status?.stage === "READY") {
+      if (!current.userStarted && !options.userTap) return null;
+      if (current.approvalRequested && !retryApproval) {
+        throw approvalError ?? new Error("Кошелёк ещё не подтвердил операцию.");
+      }
+      if (!current.providerTransactionId) throw new Error("Нет подготовленной транзакции.");
+      allowFailedRetry = false;
+      const transactionId = current.providerTransactionId;
+      current = save({ ...current, userStarted: true, approvalRequested: true });
+      retryApproval = false;
+      options.onProgress(current.action === "initialize"
+        ? "Подготавливаем кошелёк (один раз)…" : "Подтверждаем в сети…");
+      // Never trust the wallet result as completion. Even an interrupted approval
+      // is reconciled against the same persisted ID before any possible retry.
+      try { await options.approve(transactionId); } catch (cause) { approvalError = cause; }
+      checkActive();
+      await dependencies.wait(options.signal);
+    }
+  }
 }
