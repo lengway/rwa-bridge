@@ -58,11 +58,11 @@ test("merkle trees, proofs and snapshot hashes match shared vectors", () => {
     assert.deepEqual(tree.leaves.map(toHex), t.leaves, `${t.name} leaves`);
     assert.equal(toHex(tree.root), t.root, `${t.name} root`);
     assert.equal(tree.totalUnits.toString(), t.totalUnits);
-    for (const [holder, proof] of Object.entries(t.proofs as Record<string, string[]>)) {
+    for (const [holder, proof] of Object.entries(t.proofs as unknown as Record<string, string[]>)) {
       assert.deepEqual(tree.proof(holder).map(toHex), proof, `${t.name} proof ${holder}`);
       const units = tree.holdingOf(holder)!.units;
       assert.ok(verifyProof(leafHash(t.action, holder, units), proof.map(fromHex), tree.root));
-      assert.ok(!verifyProof(leafHash(t.action, holder, units + 1n), proof.map(fromHex), tree.root));
+      assert.ok(!verifyProof(leafHash(t.action, holder, units + BigInt(1)), proof.map(fromHex), tree.root));
     }
     const snap = parseCanonicalSnapshot(t.snapshot.json);
     assert.equal(canonicalSnapshotJson(snap), t.snapshot.json);
@@ -82,35 +82,35 @@ test("snapshot builder rejects duplicates and empty holdings; aggregator merges 
   const a = vectors.trees[1].holdings[0].holder;
   const b = vectors.trees[1].holdings[1].holder;
   assert.throws(() => buildSnapshotTree(a, []));
-  assert.throws(() => buildSnapshotTree(a, [{ holder: b, units: 1n }, { holder: b, units: 2n }]), /duplicate/);
-  assert.throws(() => buildSnapshotTree(a, [{ holder: b, units: 0n }]), /invalid units/);
+  assert.throws(() => buildSnapshotTree(a, [{ holder: b, units: BigInt(1) }, { holder: b, units: BigInt(2) }]), /duplicate/);
+  assert.throws(() => buildSnapshotTree(a, [{ holder: b, units: BigInt(0) }]), /invalid units/);
   const merged = aggregateHoldings([
-    { owner: b, amount: 3n },
-    { owner: a, amount: 0n },
-    { owner: b, amount: 2n },
+    { owner: b, amount: BigInt(3) },
+    { owner: a, amount: BigInt(0) },
+    { owner: b, amount: BigInt(2) },
   ]);
-  assert.deepEqual(merged, [{ holder: b, units: 5n }]);
+  assert.deepEqual(merged, [{ holder: b, units: BigInt(5) }]);
 });
 
 test("totals reconcile with on-chain formulas for every action kind", () => {
-  const instrument = { faceValue: 1_000_000_000n, couponBps: 1250, frequency: 2 };
+  const instrument = { faceValue: BigInt(1_000_000_000), couponBps: 1250, frequency: 2 };
   const holdings = [
-    { holder: "A", units: 50n },
-    { holder: "B", units: 30n },
-    { holder: "C", units: 20n },
+    { holder: "A", units: BigInt(50) },
+    { holder: "B", units: BigInt(30) },
+    { holder: "C", units: BigInt(20) },
   ];
   const coupon = actionTotals(instrument, { kind: "Coupon", rateBps: 0, redeemBps: 0, priceBps: 0 }, holdings);
-  assert.equal(coupon.perUnit, 62_500_000n);
-  assert.equal(coupon.totalEntitlement, 100n * 62_500_000n);
+  assert.equal(coupon.perUnit, BigInt(62_500_000));
+  assert.equal(coupon.totalEntitlement, BigInt(100) * BigInt(62_500_000));
 
   const partial = actionTotals(instrument, { kind: "PartialRedemption", rateBps: 0, redeemBps: 3333, priceBps: 10_000 }, holdings);
-  assert.equal(partial.totalRedeemUnits, 16n + 9n + 6n);
-  const [min, max] = partialRedeemBounds(100n, 3333, 3);
-  assert.deepEqual([min, max], [31n, 33n]);
-  assert.equal(partial.totalEntitlement, 31n * 1_000_000_000n);
+  assert.equal(partial.totalRedeemUnits, BigInt(16) + BigInt(9) + BigInt(6));
+  const [min, max] = partialRedeemBounds(BigInt(100), 3333, 3);
+  assert.deepEqual([min, max], [BigInt(31), BigInt(33)]);
+  assert.equal(partial.totalEntitlement, BigInt(31) * BigInt(1_000_000_000));
 
   const fin = { kind: "FinalRedemption" as const, rateBps: 1250, redeemBps: 0, priceBps: 10_000 };
-  assert.equal(amountPerUnit(instrument, fin), 1_062_500_000n);
-  assert.deepEqual(entitlementFor("FinalRedemption", 1_062_500_000n, 0, 20n), { amount: 21_250_000_000n, burnUnits: 20n, weight: 0n });
-  assert.deepEqual(entitlementFor("Vote", 0n, 0, 7n), { amount: 0n, burnUnits: 0n, weight: 7n });
+  assert.equal(amountPerUnit(instrument, fin), BigInt(1_062_500_000));
+  assert.deepEqual(entitlementFor("FinalRedemption", BigInt(1_062_500_000), 0, BigInt(20)), { amount: BigInt(21_250_000_000), burnUnits: BigInt(20), weight: BigInt(0) });
+  assert.deepEqual(entitlementFor("Vote", BigInt(0), 0, BigInt(7)), { amount: BigInt(0), burnUnits: BigInt(0), weight: BigInt(7) });
 });

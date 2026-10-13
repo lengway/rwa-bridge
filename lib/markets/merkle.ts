@@ -17,7 +17,7 @@ export type KeyLike = string | Uint8Array | { toBytes(): Uint8Array };
 
 export type Holding = { holder: string; units: bigint };
 
-const U64_MAX = (1n << 64n) - 1n;
+const U64_MAX = (BigInt(1) << BigInt(64)) - BigInt(1);
 
 export function keyBytes(key: KeyLike): Uint8Array {
   const bytes = typeof key === "string" ? bs58.decode(key) : key instanceof Uint8Array ? key : key.toBytes();
@@ -30,12 +30,12 @@ export function keyString(key: KeyLike): string {
 }
 
 export function u64Le(value: bigint): Uint8Array {
-  if (value < 0n || value > U64_MAX) throw new Error(`u64 out of range: ${value}`);
+  if (value < BigInt(0) || value > U64_MAX) throw new Error(`u64 out of range: ${value}`);
   const out = new Uint8Array(8);
   let v = value;
   for (let i = 0; i < 8; i++) {
-    out[i] = Number(v & 0xffn);
-    v >>= 8n;
+    out[i] = Number(v & BigInt(0xff));
+    v >>= BigInt(8);
   }
   return out;
 }
@@ -80,10 +80,10 @@ export function verifyProof(leaf: Uint8Array, proof: Uint8Array[], root: Uint8Ar
 export function aggregateHoldings(rows: Iterable<{ owner: string; amount: bigint }>): Holding[] {
   const byOwner = new Map<string, bigint>();
   for (const row of rows) {
-    if (row.amount < 0n) throw new Error(`negative balance for ${row.owner}`);
-    byOwner.set(row.owner, (byOwner.get(row.owner) ?? 0n) + row.amount);
+    if (row.amount < BigInt(0)) throw new Error(`negative balance for ${row.owner}`);
+    byOwner.set(row.owner, (byOwner.get(row.owner) ?? BigInt(0)) + row.amount);
   }
-  return sortHoldings([...byOwner].filter(([, units]) => units > 0n).map(([holder, units]) => ({ holder, units })));
+  return sortHoldings([...byOwner].filter(([, units]) => units > BigInt(0)).map(([holder, units]) => ({ holder, units })));
 }
 
 export function sortHoldings(holdings: Holding[]): Holding[] {
@@ -107,9 +107,9 @@ export function buildSnapshotTree(action: KeyLike, holdings: Holding[]): Snapsho
   if (holdings.length === 0) throw new Error("snapshot needs at least one holding");
   const sorted = sortHoldings(holdings);
   const index = new Map<string, number>();
-  let totalUnits = 0n;
+  let totalUnits = BigInt(0);
   sorted.forEach((h, i) => {
-    if (h.units <= 0n || h.units > U64_MAX) throw new Error(`invalid units for ${h.holder}: ${h.units}`);
+    if (h.units <= BigInt(0) || h.units > U64_MAX) throw new Error(`invalid units for ${h.holder}: ${h.units}`);
     const key = keyString(h.holder);
     if (index.has(key)) throw new Error(`duplicate holder ${key}`);
     index.set(key, i);

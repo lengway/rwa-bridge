@@ -23,7 +23,7 @@ const tryOrNull = (f: () => bigint) => {
   }
 };
 
-const MAX = ((1n << 64n) - 1n).toString();
+const MAX = ((BigInt(1) << BigInt(64)) - BigInt(1)).toString();
 
 const coupon = [
   ["1000000000", 1250, 2],
@@ -109,10 +109,10 @@ const vectors = {
     { a: toHex(new Uint8Array(32).fill(2)), b: toHex(new Uint8Array(32).fill(1)) },
   ].map((c) => ({ ...c, hash: toHex(nodeHash(Buffer.from(c.a, "hex"), Buffer.from(c.b, "hex"))) })),
   trees: [
-    treeCase("single", 1, () => 1000n),
-    treeCase("pair", 2, (i) => BigInt(i + 1) * 10n),
+    treeCase("single", 1, () => BigInt(1000)),
+    treeCase("pair", 2, (i) => BigInt(i + 1) * BigInt(10)),
     treeCase("five", 5, (i) => BigInt(7 * i + 3)),
-    treeCase("seven", 7, (i) => (i === 3 ? (1n << 63n) : BigInt(i + 1))),
+    treeCase("seven", 7, (i) => (i === 3 ? (BigInt(1) << BigInt(63)) : BigInt(i + 1))),
     treeCase("sixteen", 16, (i) => BigInt(1 + ((i * 37) % 11))),
   ],
 };

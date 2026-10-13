@@ -33,11 +33,11 @@ export type ActionTerms = {
 
 export type Entitlement = { amount: bigint; burnUnits: bigint; weight: bigint };
 
-const BPS = 10_000n;
-const U64_MAX = (1n << 64n) - 1n;
+const BPS = BigInt(10_000);
+const U64_MAX = (BigInt(1) << BigInt(64)) - BigInt(1);
 
 function u64(v: bigint, what: string): bigint {
-  if (v < 0n || v > U64_MAX) throw new Error(`${what} overflows u64`);
+  if (v < BigInt(0) || v > U64_MAX) throw new Error(`${what} overflows u64`);
   return v;
 }
 
@@ -67,7 +67,7 @@ export function partialRedeemUnits(units: bigint, redeemBps: number): bigint {
 export function partialRedeemBounds(totalUnits: bigint, redeemBps: number, holderCount: number): [bigint, bigint] {
   const max = partialRedeemUnits(totalUnits, redeemBps);
   const slack = BigInt(Math.max(holderCount - 1, 0));
-  return [max > slack ? max - slack : 0n, max];
+  return [max > slack ? max - slack : BigInt(0), max];
 }
 
 /** Effective coupon rate of a Coupon action (0 means "use the instrument rate"). */
@@ -85,7 +85,7 @@ export function amountPerUnit(instrument: InstrumentTerms, action: ActionTerms):
     case "FinalRedemption":
       return finalPerUnit(instrument.faceValue, action.priceBps, action.rateBps, instrument.frequency);
     case "Vote":
-      return 0n;
+      return BigInt(0);
   }
 }
 
@@ -94,15 +94,15 @@ export function entitlementFor(kind: ActionKind, perUnit: bigint, redeemBps: num
   u64(units, "units");
   switch (kind) {
     case "Coupon":
-      return { amount: u64(units * perUnit, "amount"), burnUnits: 0n, weight: 0n };
+      return { amount: u64(units * perUnit, "amount"), burnUnits: BigInt(0), weight: BigInt(0) };
     case "PartialRedemption": {
       const burnUnits = partialRedeemUnits(units, redeemBps);
-      return { amount: u64(burnUnits * perUnit, "amount"), burnUnits, weight: 0n };
+      return { amount: u64(burnUnits * perUnit, "amount"), burnUnits, weight: BigInt(0) };
     }
     case "FinalRedemption":
-      return { amount: u64(units * perUnit, "amount"), burnUnits: units, weight: 0n };
+      return { amount: u64(units * perUnit, "amount"), burnUnits: units, weight: BigInt(0) };
     case "Vote":
-      return { amount: 0n, burnUnits: 0n, weight: units };
+      return { amount: BigInt(0), burnUnits: BigInt(0), weight: units };
   }
 }
 
@@ -123,9 +123,9 @@ export function actionTotals(
   holdings: { holder: string; units: bigint }[],
 ): ActionTotals {
   const perUnit = amountPerUnit(instrument, action);
-  let totalUnits = 0n;
-  let totalRedeemUnits = 0n;
-  let sumAmount = 0n;
+  let totalUnits = BigInt(0);
+  let totalRedeemUnits = BigInt(0);
+  let sumAmount = BigInt(0);
   const rows = holdings.map((h) => {
     const e = entitlementFor(action.kind, perUnit, action.redeemBps, h.units);
     totalUnits += h.units;
@@ -138,7 +138,7 @@ export function actionTotals(
   // Per-denomination rounding makes these identical to the per-holder sum.
   const totalEntitlement =
     action.kind === "Vote"
-      ? 0n
+      ? BigInt(0)
       : action.kind === "PartialRedemption"
         ? u64(totalRedeemUnits * perUnit, "total entitlement")
         : u64(totalUnits * perUnit, "total entitlement");
