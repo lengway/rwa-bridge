@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { StrategyRoadmap } from "@/components/app/strategy-roadmap";
+import { YieldRoutesSection } from "@/components/app/yield-routes-section";
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { YIELD_STRATEGIES, type YieldStrategy } from "@/lib/yields";
@@ -26,6 +27,7 @@ export function EarnList() {
           <YieldCard key={strategy.id} strategy={strategy} />
         ))}
       </div>
+      <YieldRoutesSection />
       <StrategyRoadmap />
       <Card className="flex-row items-start gap-3 rounded-2xl p-4">
         <ShieldAlert className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
