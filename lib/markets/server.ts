@@ -58,16 +58,25 @@ export function marketsPublicConfig(): MarketsPublicConfig {
   };
 }
 
+let reader: DevnetLedger | null = null;
 let server: { ledger: DevnetLedger; issuer: DevnetIssuer } | null = null;
+
+/** The server's read-only ledger (indexer), or null outside devnet mode. */
+export function marketsReader() {
+  if (reader) return reader;
+  const config = marketsPublicConfig();
+  if (config.mode !== "devnet") return null;
+  const serverConfig: DevnetMarketsConfig = { ...config, rpcUrl: process.env.MARKETS_RPC_URL || config.rpcUrl };
+  reader = new DevnetLedger(serverConfig, null, { poll: false });
+  return reader;
+}
 
 /** The server's ledger + issuer, or null when devnet writes are not configured. */
 export function marketsServer() {
   if (server) return server;
-  const config = marketsPublicConfig();
+  const ledger = marketsReader();
   const key = issuerKeypair();
-  if (config.mode !== "devnet" || !key) return null;
-  const serverConfig: DevnetMarketsConfig = { ...config, rpcUrl: process.env.MARKETS_RPC_URL || config.rpcUrl };
-  const ledger = new DevnetLedger(serverConfig, null, { poll: false });
+  if (!ledger || !key) return null;
   server = { ledger, issuer: new DevnetIssuer(ledger, key) };
   return server;
 }

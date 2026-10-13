@@ -9,8 +9,9 @@ import { formatDate, formatDateTime, formatSettlement, formatUnits, shortAddress
 import { KIND_LABEL, stageLabel } from "@/lib/markets/lifecycle";
 import { isPaymentAction } from "@/lib/markets/math";
 import type { MarketsPublicConfig } from "@/lib/markets/devnet-service";
-import type { Evidence, PublishedSnapshot, VerificationReport } from "@/lib/markets/service";
-import { canonicalSnapshotJson } from "@/lib/markets/snapshot";
+import { registerCheck } from "@/lib/markets/derive";
+import type { Evidence, MarketsService, PublishedSnapshot, VerificationCheck, VerificationReport } from "@/lib/markets/service";
+import { canonicalHoldings, canonicalSnapshotJson } from "@/lib/markets/snapshot";
 import { MarketsProvider, useLedgerVersion, useMarkets } from "./markets-provider";
 import { ChainRef, CheckIcon, Eyebrow, Panel, PanelHeader, Skeleton, StatusPill, focusRing, pillButton } from "./primitives";
 
@@ -35,6 +36,61 @@ type RunState =
   | { phase: "running"; token: string }
   | { phase: "done"; token: string; report: VerificationReport; original: PublishedSnapshot | null }
   | { phase: "error"; token: string; error: Error };
+
+type ReplayState =
+  | { key: string; phase: "running"; done: number; total: number }
+  | { key: string; phase: "done"; result: Awaited<ReturnType<NonNullable<MarketsService["registerAt"]>>> }
+  | { key: string; phase: "error"; error: string };
+
+/**
+ * Independent check, run after the main report: replay every bond balance change of the
+ * instrument up to the record slot (one transaction at a time, paced for public RPC limits,
+ * cached in this browser) and compare with the published snapshot.
+ */
+function useRegisterReplay(report: VerificationReport | null) {
+  const svc = useMarkets();
+  const key = report && svc.registerAt && report.action.recordSlot != null && report.snapshot ? `${report.action.id}:${report.action.recordSlot}` : null;
+  const [state, setState] = useState<ReplayState | null>(null);
+  const mint = report?.instrument.mint;
+  const slot = report?.action.recordSlot;
+  useEffect(() => {
+    if (!key || !svc.registerAt || mint == null || slot == null) return;
+    let alive = true;
+    svc
+      .registerAt(mint, slot, (done, total) => alive && setState({ key, phase: "running", done, total }))
+      .then(
+        (result) => alive && setState({ key, phase: "done", result }),
+        (error: unknown) => alive && setState({ key, phase: "error", error: error instanceof Error ? error.message : String(error) }),
+      );
+    return () => {
+      alive = false;
+    };
+  }, [svc, key, mint, slot]);
+  return key && state?.key === key ? state : key ? ({ key, phase: "running", done: 0, total: 0 } as ReplayState) : null;
+}
+
+function withReplay(report: VerificationReport, replay: ReplayState | null): VerificationReport {
+  if (!replay || !report.snapshot) return report;
+  let check: VerificationCheck;
+  if (replay.phase === "done") {
+    check = registerCheck(report.action, canonicalHoldings(report.snapshot.holdings), replay.result);
+  } else {
+    check = {
+      ...registerCheck(report.action, [], null),
+      status: "pending",
+      explanation:
+        replay.phase === "error"
+          ? `Could not replay the history from this RPC: ${replay.error}`
+          : replay.total
+            ? `Replaying the bond balances of every transaction that touched the instrument up to record_slot: ${replay.done} of ${replay.total} fetched (public RPCs allow ~1 per second; results are cached in this browser).`
+            : "Listing the instrument's transactions…",
+    };
+  }
+  const at = report.checks.findIndex((c) => c.id === "total-units");
+  const checks = [...report.checks.slice(0, at + 1), check, ...report.checks.slice(at + 1)];
+  const verdict = checks.some((c) => c.status === "fail") ? "mismatch" : checks.some((c) => c.status === "pending") ? "incomplete" : "verified";
+  return { ...report, checks, verdict };
+}
 
 function tamper(s: PublishedSnapshot): PublishedSnapshot {
   // Give the largest holder one extra unit in the local copy only.
@@ -67,6 +123,7 @@ function Verifier({ actionId }: { actionId: string }) {
 
   const current = state.token === token ? state : ({ phase: "running", token } as RunState);
   const done = current.phase === "done" ? current : null;
+  const replay = useRegisterReplay(done?.report ?? null);
 
   // Reveal pipeline steps one by one once the computation has finished.
   useEffect(() => {
@@ -107,7 +164,7 @@ function Verifier({ actionId }: { actionId: string }) {
     );
   }
 
-  const report = done?.report;
+  const report = done ? withReplay(done.report, replay) : undefined;
   const allRevealed = revealed >= PIPELINE.length;
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createBrowserDevnetService, type MarketsPublicConfig } from "@/lib/markets/devnet-service";
 import { createSimulatedMarketsService } from "@/lib/markets/mock-service";
 import type { MarketsService } from "@/lib/markets/service";
@@ -54,15 +54,16 @@ export function useLedgerVersion() {
   const svc = useMarkets();
   if (!versions.has(svc)) versions.set(svc, { value: 0 });
   const box = versions.get(svc)!;
-  return useSyncExternalStore(
-    (onChange) =>
+  // A stable subscribe function, so React does not resubscribe on every render.
+  const subscribe = useCallback(
+    (onChange: () => void) =>
       svc.subscribe(() => {
         box.value += 1;
         onChange();
       }),
-    () => box.value,
-    () => 0,
+    [svc, box],
   );
+  return useSyncExternalStore(subscribe, () => box.value, () => 0);
 }
 
 export type Query<T> = { data: T | undefined; error: Error | null; loading: boolean };

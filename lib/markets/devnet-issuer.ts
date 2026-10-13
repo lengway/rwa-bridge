@@ -36,7 +36,9 @@ import {
   termsMemo,
   type TermsDocument,
 } from "./publication";
+import { replayRegister } from "./chain-history";
 import { readRegister } from "./register";
+import { rpcRetry } from "./signature-feed";
 import type { ActionDraft, Address, Instrument, TxResult } from "./service";
 
 const MAX_TX = 1232;
@@ -122,26 +124,41 @@ export class DevnetIssuer implements MarketsExecutor {
     return this.reader.client;
   }
 
-  /** Sign with the issuer (fee payer) and any extra signers, send, confirm. */
+  /** Sign with the issuer (fee payer) and any extra signers, send, confirm by polling. */
   async send(ixs: TransactionInstruction[], extra: Keypair[] = []): Promise<TxResult> {
-    const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("confirmed");
+    const c = this.connection;
+    const { blockhash, lastValidBlockHeight } = await rpcRetry(() => c.getLatestBlockhash("confirmed"));
     const tx = new Transaction({ feePayer: this.issuer.publicKey, blockhash, lastValidBlockHeight });
     tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }), ...ixs);
     tx.sign(this.issuer, ...extra);
+    const raw = tx.serialize();
     let signature: string;
     try {
-      signature = await this.connection.sendRawTransaction(tx.serialize(), { preflightCommitment: "confirmed" });
+      // Resending the same signed bytes is idempotent, so rate-limit retries are safe.
+      signature = await rpcRetry(() => c.sendRawTransaction(raw, { preflightCommitment: "confirmed", maxRetries: 3 }));
     } catch (error) {
       throw new IssuerError(programErrorMessage(error));
     }
-    const confirmed = await this.connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
-    if (confirmed.value.err) {
-      const failed = await this.connection.getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 }).catch(() => null);
-      throw new IssuerError(programErrorMessage(new Error(JSON.stringify(confirmed.value.err)), failed?.meta?.logMessages));
+    const deadline = Date.now() + 75_000;
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 1_200));
+      const { value } = await rpcRetry(() => c.getSignatureStatuses([signature]));
+      const st = value[0];
+      if (st?.err) {
+        const failed = await rpcRetry(() => c.getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 })).catch(() => null);
+        throw new IssuerError(programErrorMessage(new Error(JSON.stringify(st.err)), failed?.meta?.logMessages));
+      }
+      if (st && (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized")) {
+        const ts = (await rpcRetry(() => c.getBlockTime(st.slot)).catch(() => null)) ?? Math.floor(Date.now() / 1000);
+        this.reader.changed();
+        return { signature, slot: st.slot, ts };
+      }
+      if (Date.now() > deadline) {
+        const height = await rpcRetry(() => c.getBlockHeight("confirmed")).catch(() => 0);
+        if (height > lastValidBlockHeight) throw new IssuerError("The transaction expired before it landed. Try again.");
+        throw new IssuerError(`Not confirmed yet: ${signature}. Check the explorer before retrying.`, 504);
+      }
     }
-    const slot = confirmed.context.slot;
-    const ts = (await this.connection.getBlockTime(slot).catch(() => null)) ?? Math.floor(Date.now() / 1000);
-    return { signature, slot, ts };
   }
 
   /** Serialized size of a transaction with these instructions (issuer + extra signers). */
@@ -158,9 +175,9 @@ export class DevnetIssuer implements MarketsExecutor {
     } catch {
       throw new IssuerError("Not a valid action address.");
     }
-    const action = await this.client.fetchAction(key);
+    const action = await rpcRetry(() => this.client.fetchAction(key));
     if (!action) throw new IssuerError("Corporate action not found.", 404);
-    const inst = await this.client.fetchInstrument(action.account.instrument);
+    const inst = await rpcRetry(() => this.client.fetchInstrument(action.account.instrument));
     if (!inst) throw new IssuerError("Instrument not found.", 404);
     if (!inst.account.issuer.equals(this.issuer.publicKey)) throw new IssuerError("This server is not the issuer of that instrument.", 403);
     return { inst, action, status: enumName(action.account.status), kind: enumName(action.account.kind) };
@@ -173,7 +190,7 @@ export class DevnetIssuer implements MarketsExecutor {
     } catch {
       throw new IssuerError("Not a valid mint address.");
     }
-    const inst = await this.client.fetchInstrumentByMint(key);
+    const inst = await rpcRetry(() => this.client.fetchInstrumentByMint(key));
     if (!inst) throw new IssuerError("Instrument not found.", 404);
     if (!inst.account.issuer.equals(this.issuer.publicKey)) throw new IssuerError("This server is not the issuer of that instrument.", 403);
     return inst;
@@ -230,10 +247,7 @@ export class DevnetIssuer implements MarketsExecutor {
   async postSnapshot(actionId: Address) {
     const { inst, action, status, kind } = await this.load(actionId);
     if (status !== "RecordLocked") throw new IssuerError(`Lock the register first (status ${status}).`);
-    const history = await this.reader.history(inst);
-    await history.refresh();
-    const candidates = [...new Set([...history.owners(), ...this.holders.keys()])].map((a) => new PublicKey(a));
-    const register = await readRegister(this.connection, inst.account.mint, { candidates });
+    const register = await this.readRecordRegister(inst);
     const recordSupply = toBigInt(action.account.recordSupply);
     if (register.supply !== recordSupply) throw new IssuerError(`Supply changed since the record date (${register.supply} vs ${recordSupply}).`);
     const snapshot = {
@@ -269,6 +283,27 @@ export class DevnetIssuer implements MarketsExecutor {
     return this.send([memoInstruction(snapshotPartsMemo(register.slot, parts)), post]);
   }
 
+  /**
+   * The register to commit. Known holders (demo custody wallets, every earlier snapshot) are read
+   * directly and must reconcile with the supply; otherwise the full history is replayed to find
+   * holders that arrived through secondary transfers.
+   */
+  private async readRecordRegister(inst: InstrumentRef) {
+    const mint = inst.account.mint;
+    const candidates = new Set(this.holders.keys());
+    for (const a of await this.reader.listActions(mint.toBase58())) for (const h of (await this.reader.getSnapshot(a.id))?.holdings ?? []) candidates.add(h.holder);
+    try {
+      return await rpcRetry(() => readRegister(this.connection, mint, { candidates: [...candidates].map((a) => new PublicKey(a)) }));
+    } catch (error) {
+      if (!/does not reconcile/.test(error instanceof Error ? error.message : "")) throw error;
+      const feed = await this.reader.feed(inst.address);
+      await feed.refresh();
+      const replay = await replayRegister(this.connection, mint.toBase58(), feed.sigs, Number.MAX_SAFE_INTEGER);
+      for (const h of replay.holdings) candidates.add(h.holder);
+      return readRegister(this.connection, mint, { candidates: [...candidates].map((a) => new PublicKey(a)) });
+    }
+  }
+
   /** Deposits what is still owed. On devnet the issuer mints its own test USD if short. */
   async fund(actionId: Address) {
     const { inst, action, status, kind } = await this.load(actionId);
@@ -278,7 +313,7 @@ export class DevnetIssuer implements MarketsExecutor {
     if (owed <= BigInt(0)) throw new IssuerError("Already fully funded.");
     const { settlementMint, settlementTokenProgram } = inst.account;
     const ata = getAssociatedTokenAddressSync(settlementMint, this.issuer.publicKey, true, settlementTokenProgram);
-    const [ataInfo, mintInfo] = await this.connection.getMultipleAccountsInfo([ata, settlementMint], "confirmed");
+    const [ataInfo, mintInfo] = await rpcRetry(() => this.connection.getMultipleAccountsInfo([ata, settlementMint], "confirmed"));
     const balance = ataInfo ? unpackAccount(ata, ataInfo, settlementTokenProgram).amount : BigInt(0);
     const ixs: TransactionInstruction[] = [];
     if (balance < owed) {
@@ -293,11 +328,17 @@ export class DevnetIssuer implements MarketsExecutor {
     return this.send(ixs);
   }
 
+  /** Snapshot trees are immutable once posted: cache them per action. */
+  private readonly trees = new Map<string, ReturnType<typeof buildSnapshotTree>>();
+
   private async proof(actionId: Address, holder: Address) {
-    this.reader.changed();
-    const snapshot = await this.reader.getSnapshot(actionId);
-    if (!snapshot) throw new IssuerError("No published snapshot for this action.");
-    const tree = buildSnapshotTree(actionId, snapshot.holdings);
+    let tree = this.trees.get(actionId);
+    if (!tree) {
+      const snapshot = await this.reader.getSnapshot(actionId);
+      if (!snapshot) throw new IssuerError("No published snapshot for this action.");
+      tree = buildSnapshotTree(actionId, snapshot.holdings);
+      this.trees.set(actionId, tree);
+    }
     const leaf = tree.holdingOf(holder);
     if (!leaf) throw new IssuerError("This wallet is not in the record-date snapshot.");
     return { units: leaf.units, proof: tree.proof(holder) };

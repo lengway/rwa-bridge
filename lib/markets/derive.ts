@@ -102,13 +102,13 @@ export function withDerivedViews<L extends MarketsLedger>(ledger: L): L & Market
     const action = await ledger.getAction(actionId);
     if (!action) throw new Error("Corporate action not found");
     const instrument = await instrumentOf(action);
-    const [published, receipts, votes, snapshotSource, terms, registerAtRecord] = await Promise.all([
+    // The full register replay is slow on public RPCs; the verifier UI runs it as a separate step (registerCheck).
+    const [published, receipts, votes, snapshotSource, terms] = await Promise.all([
       ledger.getSnapshot(actionId),
       ledger.listReceipts(actionId),
       ledger.listVotes(actionId),
       ledger.snapshotSource ? ledger.snapshotSource(actionId) : Promise.resolve(null),
       ledger.termsDocument ? ledger.termsDocument(actionId) : Promise.resolve(undefined),
-      ledger.registerAt ? (action.recordSlot != null ? ledger.registerAt(instrument.mint, action.recordSlot) : Promise.resolve(null)) : Promise.resolve(undefined),
     ]);
     return verifyCorporateAction({
       instrument,
@@ -118,7 +118,6 @@ export function withDerivedViews<L extends MarketsLedger>(ledger: L): L & Market
       receipts,
       votes,
       terms,
-      registerAtRecord,
       now: ledger.now(),
     });
   };
@@ -298,7 +297,8 @@ async function termsCheck(action: CorporateAction, terms: { text: string; signat
   };
 }
 
-function registerCheck(
+/** Compares the snapshot with the register replayed from chain history (null replay = unavailable). */
+export function registerCheck(
   action: CorporateAction,
   snapshot: Holding[],
   replay: { holdings: Holding[]; transactions: number; lastSignature: string | null } | null,
@@ -334,11 +334,13 @@ function registerCheck(
 function timelineCheck(action: CorporateAction): VerificationCheck {
   const datesOk = action.announcedTs <= action.recordTs && action.recordTs < action.paymentTs && action.paymentTs <= action.claimDeadlineTs;
   let orderOk = true;
+  // Transitions whose transaction is not known yet (slot 0) are ordered by status only.
   const ordered = action.transitions.filter((t) => t.status !== "Cancelled");
   for (let i = 1; i < ordered.length; i++) {
     const a = ordered[i - 1];
     const b = ordered[i];
-    if (stageIndex(b.status) <= stageIndex(a.status) || b.ts < a.ts || b.slot < a.slot) orderOk = false;
+    const known = a.slot > 0 && b.slot > 0;
+    if (stageIndex(b.status) <= stageIndex(a.status) || (known && (b.ts < a.ts || b.slot < a.slot))) orderOk = false;
   }
   const last = action.transitions[action.transitions.length - 1];
   if (last && last.status !== action.status) orderOk = false;
@@ -352,7 +354,7 @@ function timelineCheck(action: CorporateAction): VerificationCheck {
         : "Dates or status transitions are out of order for this action.",
     evidence: [
       { label: "status (CorporateAction)", value: action.status, address: action.id },
-      ...action.transitions.map((t) => ({ label: `${t.status} · slot ${t.slot}`, value: t.signature, signature: t.signature })),
+      ...action.transitions.map((t) => (t.signature ? { label: `${t.status} · slot ${t.slot}`, value: t.signature, signature: t.signature } : { label: t.status, value: "transaction not indexed yet", address: action.id })),
     ],
   };
 }

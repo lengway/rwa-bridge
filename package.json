@@ -13,7 +13,8 @@
     "markets:build": "cd programs/plain-markets && anchor build && cd ../.. && node scripts/markets-sync-idl.mjs",
     "markets:test": "cd programs/plain-markets && cargo test",
     "markets:vectors": "tsx scripts/markets-vectors.ts",
-    "markets:demo": "tsx scripts/markets-demo.ts"
+    "markets:demo": "tsx scripts/markets-demo.ts",
+    "markets:seed": "tsx scripts/markets-seed.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.1",

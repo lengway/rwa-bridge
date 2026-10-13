@@ -321,7 +321,7 @@ export interface MarketsLedger {
    * every transaction that touched the instrument up to `slot`, where the published snapshot came
    * from, and the announcement document behind `terms_hash`.
    */
-  registerAt?(mint: Address, slot: number): Promise<{ holdings: Holding[]; transactions: number; lastSignature: Signature | null } | null>;
+  registerAt?(mint: Address, slot: number, onProgress?: (done: number, total: number) => void): Promise<{ holdings: Holding[]; transactions: number; lastSignature: Signature | null }>;
   snapshotSource?(actionId: Address): Promise<Evidence | null>;
   termsDocument?(actionId: Address): Promise<{ text: string; signature: Signature } | null>;
 
