@@ -162,6 +162,7 @@ export function nextStep(a: CorporateAction, instrument: Instrument, sheet: Enti
       };
     }
     case "Settled":
+    case "Cancelled":
       return null;
   }
 }
@@ -170,7 +171,7 @@ export function nextStep(a: CorporateAction, instrument: Instrument, sheet: Enti
 export function upcomingEvents(actions: CorporateAction[], now: UnixTs) {
   const out: { ts: UnixTs; label: string; action: CorporateAction }[] = [];
   for (const a of actions) {
-    if (a.status === "Settled") continue;
+    if (a.status === "Settled" || a.status === "Cancelled") continue;
     if (stageIndex(a.status) < stageIndex("RecordLocked")) out.push({ ts: a.recordTs, label: "Record date", action: a });
     out.push({ ts: a.paymentTs, label: a.kind === "Vote" ? "Voting closes" : "Payment date", action: a });
     if (isPaymentAction(a.params)) out.push({ ts: a.claimDeadlineTs, label: "Claim deadline", action: a });

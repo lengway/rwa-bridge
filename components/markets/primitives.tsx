@@ -50,6 +50,7 @@ const STATUS_TONE: Record<ActionStatus, string> = {
   Funded: "bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20",
   Settling: "bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20",
   Settled: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20",
+  Cancelled: "bg-muted text-muted-foreground ring-border",
 };
 
 export function StatusPill({ status, label, className }: { status: ActionStatus; label: string; className?: string }) {

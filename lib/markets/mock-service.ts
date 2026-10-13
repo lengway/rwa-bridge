@@ -2,7 +2,7 @@ import bs58 from "bs58";
 import { withDerivedViews } from "./derive";
 import { formatDateTime, formatSettlement } from "./format";
 import { actionTitle } from "./lifecycle";
-import { holderEntitlement, isPaymentAction, isRedemption, programTotal } from "./math";
+import { holderEntitlement, isPaymentAction, isRedemption, perUnitAmount, programTotal } from "./math";
 import type {
   ActionDraft,
   ActionStatus,
@@ -59,7 +59,7 @@ type State = {
   events: MarketEvent[];
 };
 
-const STATE_VERSION = 3;
+const STATE_VERSION = 4;
 const STORAGE_KEY = "plain-markets-simulated-ledger";
 const ZERO = BigInt(0);
 const MICRO = BigInt(1_000_000);
@@ -117,7 +117,6 @@ function initialState(): State {
     settlementMint: simAddress("mint:tUSD"),
     settlementSymbol: "USD",
     settlementDecimals: 6,
-    payingVault: simAddress(`vault:${MINT}`),
     name: "Plain Test Bond 10% 2027",
     symbol: "PTB27",
     faceValue: BigInt(1_000) * MICRO,
@@ -126,10 +125,12 @@ function initialState(): State {
     issueTs: ISSUE_TS,
     maturityTs: ts("2027-10-15T12:00:00Z"),
     status: "Active",
+    lockFrom: 0,
     lockUntil: 0,
     allowlist: true,
     issuedUnits: BigInt(1_000),
     supply: BigInt(1_000),
+    redeemedUnits: ZERO,
     actionCount: 0,
   };
   return {
@@ -423,8 +424,9 @@ function opAnnounce(s: State, mint: Address, d: ActionDraft) {
   const r = tx(s, "announce");
   i.actionCount += 1;
   const seq = i.actionCount;
+  const id = simAddress(`action:${i.address}:${seq}`);
   const action: CorporateAction = {
-    id: simAddress(`action:${i.address}:${seq}`),
+    id,
     seq,
     instrument: i.address,
     kind: d.kind,
@@ -435,6 +437,11 @@ function opAnnounce(s: State, mint: Address, d: ActionDraft) {
     recordTs: d.recordTs,
     paymentTs: d.paymentTs,
     claimDeadlineTs: d.claimDeadlineTs,
+    vault: isPaymentAction(d.params) ? simAddress(`vault:${id}`) : null,
+    amountPerUnit: perUnitAmount(i, d.params),
+    termsHash: Array.from(bytes(`terms:${id}`, 32), (b) => b.toString(16).padStart(2, "0")).join(""),
+    recordSlot: null,
+    totalRedeemUnits: null,
     merkleRoot: null,
     snapshotHash: null,
     snapshotSlot: null,
@@ -446,7 +453,9 @@ function opAnnounce(s: State, mint: Address, d: ActionDraft) {
     paidAmount: ZERO,
     paidCount: 0,
     redeemedUnits: ZERO,
+    sweptAmount: ZERO,
     tally: p.kind === "Vote" ? p.options.map(() => ZERO) : null,
+    winningOption: null,
     transitions: [],
   };
   transition(action, "Announced", r);
@@ -460,6 +469,9 @@ function opLock(s: State, id: Address) {
   expectStatus(a, ["Announced"], "lock the register");
   if (s.clock < a.recordTs) throw new MarketsError("RecordDateNotReached", `The register can be locked from the record date, ${formatDateTime(a.recordTs)}.`);
   const r = tx(s, `lock:${a.seq}`);
+  a.recordSlot = r.slot;
+  a.supplyAtRecord = s.instrument.supply;
+  if (s.instrument.lockUntil <= s.clock) s.instrument.lockFrom = a.recordTs;
   s.instrument.lockUntil = Math.max(s.instrument.lockUntil, a.paymentTs);
   transition(a, "RecordLocked", r);
   event(s, r, { name: "RecordLocked", action: a.id, actionSeq: a.seq, holder: null, amount: null, units: null, detail: `Transfers locked by the transfer hook until ${formatDateTime(s.instrument.lockUntil)}` });
@@ -481,14 +493,15 @@ async function opSnapshot(s: State, id: Address) {
   };
   const total = snapshot.holdings.reduce((n, h) => n + h.units, ZERO);
   if (total !== s.instrument.supply) throw new MarketsError("SupplyMismatch", "Snapshot units do not equal the bond supply.");
-  const tree = await buildMerkleTree(snapshot.holdings);
+  const tree = await buildMerkleTree(a.id, snapshot.holdings);
   a.merkleRoot = tree.root;
   a.snapshotHash = await snapshotHash(snapshot);
   a.snapshotSlot = r.slot;
   a.totalUnits = total;
   a.supplyAtRecord = s.instrument.supply;
   a.holderCount = snapshot.holdings.length;
-  a.totalEntitlement = programTotal(s.instrument, a.params, total);
+  a.totalRedeemUnits = snapshot.holdings.reduce((n, h) => n + holderEntitlement(s.instrument, a.params, h.units).redeemUnits, ZERO);
+  a.totalEntitlement = programTotal(s.instrument, a.params, total, a.totalRedeemUnits);
   s.snapshots[a.id] = snapshot;
   transition(a, "SnapshotPosted", r);
   event(s, r, {
@@ -534,9 +547,10 @@ function opPay(s: State, id: Address, holder: Address, mode: "push" | "claim") {
     const entry = s.register.find((x) => x.holder === holder);
     if (entry) entry.units -= e.redeemUnits;
     s.instrument.supply -= e.redeemUnits;
+    s.instrument.redeemedUnits += e.redeemUnits;
     a.redeemedUnits += e.redeemUnits;
   }
-  s.receipts.push({ address: simAddress(`claim:${a.id}:${holder}`), action: a.id, holder, amount: e.amount, burnedUnits: e.redeemUnits, mode, slot: r.slot, ts: r.ts, signature: r.signature });
+  s.receipts.push({ address: simAddress(`claim:${a.id}:${holder}`), action: a.id, holder, units: leaf.units, amount: e.amount, burnedUnits: e.redeemUnits, mode, slot: r.slot, ts: r.ts, signature: r.signature });
   transition(a, "Settling", r);
   event(s, r, {
     name: isRedemption(a.params) ? "UnitsRedeemed" : "EntitlementPaid",
@@ -578,6 +592,7 @@ function opSettle(s: State, id: Address) {
     const tally = a.tally ?? [];
     const options = a.params.options;
     const winner = tally.reduce((best, t, i) => (t > tally[best] ? i : best), 0);
+    a.winningOption = tally.filter((t) => t === tally[winner]).length === 1 ? winner : null;
     event(s, r, { name: "ActionSettled", action: a.id, actionSeq: a.seq, holder: null, amount: null, units: tally.reduce((n, t) => n + t, ZERO), detail: `Vote closed · “${options[winner]}” leads with ${tally[winner]} units` });
     return r;
   }
@@ -589,6 +604,7 @@ function opSettle(s: State, id: Address) {
   }
   const r = tx(s, `settle:${a.seq}`);
   const residue = a.fundedAmount - a.paidAmount;
+  a.sweptAmount = residue;
   transition(a, "Settled", r);
   event(s, r, {
     name: "ActionSettled",

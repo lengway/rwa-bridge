@@ -13,12 +13,14 @@ test("coupon: 10% semi-annual on $1,000 face pays $50 per unit", () => {
   assert.equal(perUnitAmount(terms, { kind: "Coupon", period: 1, couponBps: 1_000 }), usd(50));
 });
 
-test("partial redemption rounds units down per holder; program total keeps the residue", () => {
+test("partial redemption rounds units down per holder; program total is Σ burns × price, no residue", () => {
   const params = { kind: "PartialRedemption" as const, redeemBps: 2_500, priceBps: 10_000 };
   const rows = SIM_HOLDERS.map((h) => holderEntitlement(terms, params, h.units));
   assert.deepEqual(rows.map((r) => Number(r.redeemUnits)), [100, 62, 45, 30, 12]);
   const sum = rows.reduce((n, r) => n + r.amount, BigInt(0));
   assert.equal(sum, usd(249_000));
+  assert.equal(programTotal(terms, params, BigInt(1_000), BigInt(249)), usd(249_000));
+  // Without the posted burn total the formula gives the upper bound floor(T × share) × price.
   assert.equal(programTotal(terms, params, BigInt(1_000)), usd(250_000));
 });
 
@@ -28,14 +30,27 @@ test("final redemption pays principal plus the last coupon", () => {
   assert.equal(e.redeemUnits, BigInt(3));
 });
 
-test("merkle proofs verify for every holder and fail for a changed balance", async () => {
-  const tree = await buildMerkleTree(SIM_HOLDERS);
+test("merkle proofs verify for every holder, fail for a changed balance and for another action", async () => {
+  const tree = await buildMerkleTree(SIM_MINT, SIM_HOLDERS);
   assert.match(tree.root, /^[0-9a-f]{64}$/);
-  for (const h of tree.holdings) assert.ok(await verifyProof(tree.root, h, merkleProof(tree, h.holder)));
+  for (const h of tree.holdings) assert.ok(await verifyProof(tree.root, SIM_MINT, h, merkleProof(tree, h.holder)));
   const h = tree.holdings[0];
-  assert.equal(await verifyProof(tree.root, { ...h, units: h.units + BigInt(1) }, merkleProof(tree, h.holder)), false);
-  const reordered = await buildMerkleTree([...SIM_HOLDERS].reverse());
+  assert.equal(await verifyProof(tree.root, SIM_MINT, { ...h, units: h.units + BigInt(1) }, merkleProof(tree, h.holder)), false);
+  const other = SIM_HOLDERS[1].holder;
+  assert.equal(await verifyProof(tree.root, other, h, merkleProof(tree, h.holder)), false);
+  const reordered = await buildMerkleTree(SIM_MINT, [...SIM_HOLDERS].reverse());
   assert.equal(reordered.root, tree.root);
+});
+
+test("UI commitment wrappers match the program's shared test vectors", async () => {
+  const vectors = (await import("../lib/markets/test-vectors.json")).default as unknown as {
+    trees: { action: string; holdings: { holder: string; units: string }[]; root: string; proofs: Record<string, string[]> }[];
+  };
+  for (const v of vectors.trees) {
+    const tree = await buildMerkleTree(v.action, v.holdings.map((h) => ({ holder: h.holder, units: BigInt(h.units) })));
+    assert.equal(tree.root, v.root);
+    for (const [holder, proof] of Object.entries(v.proofs)) assert.deepEqual(merkleProof(tree, holder), proof);
+  }
 });
 
 test("snapshot hash is order independent", async () => {
@@ -102,7 +117,8 @@ test("program rules: record date, payment date, double payment, full lifecycle",
   const instrument = await svc.getInstrument(SIM_MINT);
   assert.equal(instrument?.supply, BigInt(751));
   const events = await svc.listEvents(SIM_MINT);
-  assert.match(events[0].detail, /\$1,000\.00 returned to the issuer/);
+  assert.doesNotMatch(events[0].detail, /returned to the issuer/);
+  assert.equal(report.action.paidAmount, usd(249_000));
 });
 
 test("formats settlement amounts", () => {

@@ -8,7 +8,7 @@ import { downloadText } from "@/lib/markets/csv";
 import { formatDate, formatDateTime, formatSettlement, formatUnits, shortAddress } from "@/lib/markets/format";
 import { KIND_LABEL, stageLabel } from "@/lib/markets/lifecycle";
 import { isPaymentAction } from "@/lib/markets/math";
-import type { PublishedSnapshot, VerificationReport } from "@/lib/markets/service";
+import type { Evidence, PublishedSnapshot, VerificationReport } from "@/lib/markets/service";
 import { canonicalSnapshotJson } from "@/lib/markets/snapshot";
 import { MarketsProvider, useLedgerVersion, useMarkets } from "./markets-provider";
 import { ChainRef, CheckIcon, Eyebrow, Panel, PanelHeader, Skeleton, StatusPill, focusRing, pillButton } from "./primitives";
@@ -172,6 +172,7 @@ function Verifier({ actionId }: { actionId: string }) {
                               <div className="flex gap-2"><dt className="w-20 shrink-0 font-sans text-muted-foreground">Recomputed</dt><dd className={cn("break-all", c.status === "fail" && "text-red-600 dark:text-red-400")}>{c.actual}</dd></div>
                             </dl>
                           ) : null}
+                          {c.evidence?.length ? <EvidenceList items={c.evidence} /> : null}
                         </div>
                       </li>
                     ))
@@ -382,11 +383,41 @@ function Leaves({ report }: { report: VerificationReport }) {
   );
 }
 
+/** The exact on-chain values a check used, each with its account or transaction. */
+function EvidenceList({ items }: { items: Evidence[] }) {
+  return (
+    <details className="group mt-2 rounded-xl border bg-muted/30 text-xs">
+      <summary className={cn("cursor-pointer select-none list-none rounded-xl px-2.5 py-1.5 text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden", focusRing)}>
+        <span className="group-open:hidden">Show on-chain values ({items.length})</span>
+        <span className="hidden group-open:inline">Hide on-chain values</span>
+      </summary>
+      <dl className="grid gap-1 px-2.5 pb-2">
+        {items.map((e, i) => (
+          <div key={`${e.label}-${i}`} className="grid min-w-0 gap-x-3 gap-y-0.5 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] sm:items-center">
+            <dt className="truncate text-muted-foreground" title={e.label}>{e.label}</dt>
+            <dd className="flex min-w-0 items-center gap-1 font-mono text-[11px]">
+              {e.signature && e.value === e.signature ? (
+                <ChainRef value={e.signature} kind="tx" label={e.label} size={8} />
+              ) : (
+                <>
+                  <span className="min-w-0 break-all">{e.value}</span>
+                  {e.address ? <ChainRef value={e.address} kind="address" label={e.label} size={0} className="shrink-0 [&>span:first-child]:hidden" /> : null}
+                  {e.signature ? <ChainRef value={e.signature} kind="tx" label={e.label} size={0} className="shrink-0 [&>span:first-child]:hidden" /> : null}
+                </>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
 function HowItWorks() {
   const items = [
     {
       title: "What you trust",
-      text: "Only the Solana ledger. The snapshot file comes from the issuer's indexer, but its sha256 is committed on-chain, so a changed file fails the first check.",
+      text: "Only the Solana ledger. The snapshot is published in the memo of the post_snapshot transaction and its sha256 is committed on-chain, so a changed file fails the hash check. On devnet your browser also replays every balance change of the bond up to the record slot.",
     },
     {
       title: "What the program enforced",

@@ -278,10 +278,10 @@ function ConfirmStep({ open, onOpenChange, action, instrument, sheet, step }: { 
                 <dt className="text-muted-foreground">Action account</dt>
                 <dd><ChainRef value={action.id} kind="address" label="action account" /></dd>
               </div>
-              {step.op === "fund" || step.op === "payAll" ? (
+              {(step.op === "fund" || step.op === "payAll") && action.vault ? (
                 <div>
                   <dt className="text-muted-foreground">Paying vault</dt>
-                  <dd><ChainRef value={instrument.payingVault} kind="address" label="paying vault" /></dd>
+                  <dd><ChainRef value={action.vault} kind="address" label="paying vault" /></dd>
                 </div>
               ) : null}
               <div>

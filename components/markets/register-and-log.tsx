@@ -88,6 +88,10 @@ export function RegisterView({ instrument, now }: { instrument: Instrument; now:
 
 const EVENT_LABEL: Record<MarketEventName, string> = {
   InstrumentCreated: "Instrument created",
+  UnitsIssued: "Units issued",
+  ActionCancelled: "Cancelled",
+  InstrumentMatured: "Matured",
+  InstrumentRedeemed: "Fully redeemed",
   ActionAnnounced: "Announced",
   RecordLocked: "Record locked",
   SnapshotPosted: "Snapshot posted",

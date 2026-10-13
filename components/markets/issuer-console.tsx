@@ -134,7 +134,7 @@ function defaultSelection(list: CorporateAction[], now: number) {
     (a.status === "Announced" && now >= a.recordTs) ||
     (a.status === "SnapshotPosted" && a.kind !== "Vote") ||
     ((a.status === "Funded" || a.status === "Settling") && now >= a.paymentTs);
-  const open = list.filter((a) => a.status !== "Settled");
+  const open = list.filter((a) => a.status !== "Settled" && a.status !== "Cancelled");
   const nextDate = (a: CorporateAction) => (a.status === "Announced" ? a.recordTs : a.paymentTs);
   return open.find(actionable) ?? open.sort((a, b) => nextDate(a) - nextDate(b))[0] ?? list[0];
 }
@@ -201,7 +201,7 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
               <Term label="Outstanding" value={`${formatUnits(instrument.supply)} units`} sub={`${money(instrument.supply * instrument.faceValue)} face`} />
               <Term label="Settlement" value="Test USD" sub={`${instrument.settlementDecimals} decimals · devnet`} />
               <Term label="Transfer rules" value={instrument.allowlist ? "Allowlist" : "Open"} sub="+ ex-date lock hook" />
-              <Term label="Actions" value={String(instrument.actionCount)} sub={`${actions.filter((a) => a.status !== "Settled").length} open`} />
+              <Term label="Actions" value={String(instrument.actionCount)} sub={`${actions.filter((a) => a.status !== "Settled" && a.status !== "Cancelled").length} open`} />
             </dl>
             <div className="mt-6 border-t pt-4">
               <p className="text-xs text-muted-foreground">Coupon schedule</p>
@@ -279,8 +279,9 @@ function Term({ label, value, sub }: { label: string; value: string; sub?: strin
 
 function ActionListItem({ action, selected, now, onSelect }: { action: CorporateAction; selected: boolean; now: number; onSelect: () => void }) {
   const p = progress(action);
-  const keyDate = action.status === "Settled" ? action.transitions.at(-1)!.ts : action.status === "Announced" ? action.recordTs : action.paymentTs;
-  const keyLabel = action.status === "Settled" ? "Settled" : action.status === "Announced" ? "Record" : action.kind === "Vote" ? "Closes" : "Pays";
+  const closed = action.status === "Settled" || action.status === "Cancelled";
+  const keyDate = closed ? (action.transitions.at(-1)?.ts ?? action.paymentTs) : action.status === "Announced" ? action.recordTs : action.paymentTs;
+  const keyLabel = closed ? action.status : action.status === "Announced" ? "Record" : action.kind === "Vote" ? "Closes" : "Pays";
   return (
     <button
       type="button"
@@ -303,7 +304,7 @@ function ActionListItem({ action, selected, now, onSelect }: { action: Corporate
         <StatusPill status={action.status} label={stageLabel(action)} />
         <span className="text-xs tabular-nums text-muted-foreground">
           {keyLabel} {formatDate(keyDate)}
-          {action.status !== "Settled" ? <span className="sr-only">, {formatRelative(keyDate, now)}</span> : null}
+          {!closed ? <span className="sr-only">, {formatRelative(keyDate, now)}</span> : null}
         </span>
       </div>
       <div className="mt-3 flex gap-1" aria-hidden="true">
