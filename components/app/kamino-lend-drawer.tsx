@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { DrawerSuccess } from "@/components/app/drawer-success";
 import { KaminoSmartWalletApproval } from "@/components/app/kamino-smart-wallet-approval";
+import { TestUsdcButton } from "@/components/app/test-usdc-button";
 import {
   type KaminoLendAction,
   type KaminoLendConfirmation,
@@ -558,6 +559,7 @@ export function KaminoLendDrawer({
             <label htmlFor="kamino-smart-amount" className="text-sm font-medium">Amount · USDC</label>
             <Input id="kamino-smart-amount" inputMode="decimal" placeholder="0.10" value={amount} onChange={event => changeAmount(event.target.value)} />
             <p className="text-xs text-muted-foreground">Available: {availableMaximum === null ? "—" : formatAtomicAmount(availableMaximum, 6)} USDC</p>
+            {action === "deposit" ? <TestUsdcButton onFunded={() => { window.setTimeout(() => void loadWalletSnapshot(), 4_000); }} /> : null}
             {exceedsMaximum || exceedsWalletMaximum ? <p className="text-sm text-destructive">Enter an amount within your available balance.</p> : null}
             {balanceError ? <div className="space-y-2">
               <p className="text-sm text-destructive">Couldn&apos;t load the balance.</p>
