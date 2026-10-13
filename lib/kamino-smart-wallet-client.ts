@@ -398,8 +398,12 @@ export async function continueSmartWalletChain(options: {
     if (status?.stage === "FAILED") {
       if (!allowFailedRetry) throw new Error("FAILED: операция не выполнена.");
       allowFailedRetry = false;
-      const intent = current.continuation ?? (current.action !== "initialize" ? current : null);
-      if (!intent || intent.action === "initialize") throw new Error("Не удалось восстановить исходную операцию.");
+      const saved = current.continuation ?? (current.action !== "initialize" ? current : null);
+      // A legacy setup-only journal has no original action; fall back to what the user just tapped.
+      const intent: { action: "deposit" | "withdraw"; amountAtomic: string } | null = saved && saved.action !== "initialize" ? { action: saved.action, amountAtomic: saved.amountAtomic }
+        : options.userTap && /^[1-9]\d*$/.test(options.amountAtomic) ? { action: options.action, amountAtomic: options.amountAtomic } : null;
+      if (!intent) throw new Error("Не удалось восстановить исходную операцию.");
+      dependencies.clear(current.walletAddress, current.actionId);
       current = fresh(intent.action, intent.amountAtomic);
       needsPreparation = true;
       retryApproval = false;
