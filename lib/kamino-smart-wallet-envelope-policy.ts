@@ -150,7 +150,7 @@ export async function verifyKaminoSmartWalletFinalized(connection: Connection, p
     const tokenBalances = (entries: typeof raw.meta.preTokenBalances) => (entries ?? []).map(entry => ({ accountIndex: entry.accountIndex, mint: entry.mint, owner: entry.owner ?? "", amount: entry.uiTokenAmount.amount, decimals: entry.uiTokenAmount.decimals }));
     const receipt = validateFinalizedSmartWalletReceipt({
       intent: { ...intent, feePayerAddress: record.envelope.feePayerAddress, computeUnitLimit: record.envelope.computeUnitLimit, computeUnitPriceMicroLamports: record.envelope.computeUnitPriceMicroLamports },
-      expectedDecodedWrapperInstructions: record.envelope.decodedInstructions,
+      expectedDecodedWrapperInstructions: withTemplateAccountFlags(record.envelope.decodedInstructions, record.template?.intentInstructions ?? []),
       receipt: { commitment: "finalized", signature, accountKeys: keys.map(k => k.toBase58()), requiredSignerAddresses: signers, signatures: raw.transaction.signatures,
         topLevelInstructions: actualTopLevel.map(ix => ({ programId: ix.programId, accounts: ix.accounts.map(a => a.address), dataBase58: ix.dataBase58 })),
         meta: { err: raw.meta.err, fee: raw.meta.fee, preBalances: raw.meta.preBalances, postBalances: raw.meta.postBalances,
@@ -174,4 +174,20 @@ async function readSmartWalletResultBalances(connection: Connection, walletAddre
   ]);
   if (!Number.isSafeInteger(lamports)) reject("Invalid wallet lamport balance.");
   return { liquidityAmountAtomic: liquidity.amount.toString(), collateralAmountAtomic: collateral.amount.toString(), solBalanceLamports: lamports.toString() };
+}
+
+/**
+ * Crossmint's wrapper payload carries transaction-level merged signer/writable flags.
+ * The exact payload was already pinned by the reviewed envelope digest, so for the
+ * intent re-check use the server template's flags wherever the account address matches.
+ */
+function withTemplateAccountFlags(decoded: CanonicalInstruction[], template: CanonicalInstruction[]): CanonicalInstruction[] {
+  return decoded.map(instruction => {
+    const match = template.find(candidate => candidate.programId === instruction.programId && candidate.dataBase58 === instruction.dataBase58);
+    if (!match) return instruction;
+    return { ...instruction, accounts: instruction.accounts.map((account, index) => {
+      const expected = match.accounts[index];
+      return expected && expected.address === account.address ? { ...account, isSigner: expected.isSigner, isWritable: expected.isWritable } : account;
+    }) };
+  });
 }

@@ -240,12 +240,24 @@ function assertAtaCreationCpis(
 ) {
   if (parent.programId !== ASSOCIATED_TOKEN_PROGRAM_ID) reject("unexpected ATA parent instruction.");
   if (children.length === 0) return;
-  if (children.length !== 2) reject("ATA CPI trace does not match the supported classic SPL ATA flow.");
-  const [systemCreate, initialize] = children;
   const expectedAta = parent.accounts[1];
   const expectedPayer = parent.accounts[0];
   const expectedOwner = parent.accounts[2];
   const expectedMint = parent.accounts[3];
+  // Current ATA program: GetAccountDataSize(21) -> CreateAccount -> InitializeImmutableOwner(22) -> InitializeAccount3.
+  if (children.length === 4) {
+    const [sizeQuery, , immutableOwner] = children;
+    const sizeData = decode(sizeQuery.dataBase58, "SPL GetAccountDataSize data");
+    const ownerData = decode(immutableOwner.dataBase58, "SPL InitializeImmutableOwner data");
+    if (sizeQuery.programId !== TOKEN_PROGRAM_ID || sizeData[0] !== 21 || !sameStrings(sizeQuery.accounts, [expectedMint])
+      || immutableOwner.programId !== TOKEN_PROGRAM_ID || ownerData.length !== 1 || ownerData[0] !== 22
+      || !sameStrings(immutableOwner.accounts, [expectedAta])) {
+      reject("ATA CPI trace does not match the supported SPL ATA flow.");
+    }
+    children = [children[1], children[3]];
+  }
+  if (children.length !== 2) reject("ATA CPI trace does not match the supported classic SPL ATA flow.");
+  const [systemCreate, initialize] = children;
   if (systemCreate.programId !== SYSTEM_PROGRAM_ID || !sameStrings(systemCreate.accounts, [expectedPayer, expectedAta])) {
     reject("ATA System Program create-account CPI does not match payer and ATA.");
   }
