@@ -178,7 +178,10 @@ function assertSameAccounts(
   for (let index = 0; index < expected.length; index += 1) {
     const a = actual[index];
     const e = expected[index];
-    if (a.address !== e.address || a.isSigner !== e.isSigner || a.isWritable !== e.isWritable) {
+    // Kamino declares the owner as a signer; whether the builder also marks it writable
+    // varies with the SDK version, so for the owner slot only signer status is enforced.
+    const ownerSlot = index === 0 && e.isSigner;
+    if (a.address !== e.address || a.isSigner !== e.isSigner || (!ownerSlot && a.isWritable !== e.isWritable)) {
       invalid(`${label} account ${index} does not match the canonical ${e.address} role.`);
     }
   }
