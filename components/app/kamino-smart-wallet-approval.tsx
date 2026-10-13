@@ -64,6 +64,12 @@ function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+// A saved operation the server no longer knows (e.g. it was rejected before it was stored)
+// must not block new actions: drop it locally and start fresh.
+function isMissingOperation(cause: unknown): boolean {
+  return cause instanceof Error && cause.message.includes("Operation was not found");
+}
+
 export function KaminoSmartWalletApproval({
   action,
   amountAtomic,
@@ -114,6 +120,11 @@ export function KaminoSmartWalletApproval({
       applyStatus(current, status);
       return status;
     } catch (statusError) {
+      if (isMissingOperation(statusError)) {
+        clearStoredSmartWalletOperation(current.walletAddress, current.actionId);
+        setOperation(null);
+        return null;
+      }
       setError(friendlyError(statusError));
       return null;
     } finally {
@@ -146,7 +157,13 @@ export function KaminoSmartWalletApproval({
           if (!cancelled) applyStatus(stored!, status);
         })
         .catch((statusError: unknown) => {
-          if (!cancelled) setError(friendlyError(statusError));
+          if (cancelled) return;
+          if (isMissingOperation(statusError)) {
+            clearStoredSmartWalletOperation(walletAddress, stored!.actionId);
+            setOperation(null);
+            return;
+          }
+          setError(friendlyError(statusError));
         });
     });
     return () => { cancelled = true; };

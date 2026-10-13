@@ -277,7 +277,7 @@ export async function getSmartWalletStatus(input: { email: string; walletAddress
   requireEnabled();
   const id = actionId(input.actionId);
   const record = await actionStore.get(id);
-  if (!record || record.walletAddress !== input.walletAddress) bad("Operation was not found for this wallet.");
+  if (!record || record.walletAddress !== input.walletAddress) throw new KaminoLendDevnetError("ACTION_NOT_FOUND", "Operation was not found for this wallet.");
   if (record.stage === "COMPLETED" || record.stage === "FAILED") return statusOutput(record);
   if (!record.providerTransactionId) {
     const provider = await findProvider(record.walletAddress, record.immutableWire);
