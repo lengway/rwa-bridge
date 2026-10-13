@@ -295,13 +295,13 @@ export default function LandingPage() {
             <div className="grid gap-8 rounded-[2rem] border bg-card p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="space-y-3">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">For issuers</p>
-                <h2 id="issuers-title" className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">Bond lifecycle on Solana.</h2>
+                <h2 id="issuers-title" className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">Corporate actions on Solana.</h2>
                 <p className="max-w-2xl text-pretty text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
-                  Yield needs instruments that are serviced end to end. Run a tokenized bond through issuance, record date, coupon, buyback and redemption on devnet, with every step verifiable on Solana Explorer.
+                  Tokenization does not end at issuance. Announce coupons, redemptions and bondholder votes: the register locks at the record date, payments settle against a Merkle snapshot, and anyone can re-derive the result.
                 </p>
               </div>
-              <Link href="/kase" className={secondaryCta}>
-                <FileText className="size-4" aria-hidden="true" /> Explore corporate actions
+              <Link href="/issuers" className={secondaryCta}>
+                <FileText className="size-4" aria-hidden="true" /> Open the issuer console
               </Link>
             </div>
           </div>
