@@ -1,214 +1,383 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Building2, ChartNoAxesCombined, CircleHelp, Copy, ExternalLink, ShieldCheck } from "lucide-react";
-import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DemoBadge } from "@/components/app/demo-badge";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Building2,
+  Fingerprint,
+  Landmark,
+  LockKeyhole,
+  Mail,
+  ReceiptText,
+  ShieldCheck,
+  Wallet,
+} from "lucide-react";
+import { CopyAddressButton } from "@/components/site/copy-address-button";
+import { SiteFooter, SiteHeader, primaryCta, secondaryCta } from "@/components/site/site-chrome";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 
-type KaminoMarketStatus = {
-  ready?: boolean;
-  network?: string;
-  market?: { address?: string; name?: string };
-  reserve?: { address?: string; mint?: string; symbol?: string };
+export const metadata: Metadata = {
+  title: { absolute: SITE_TITLE },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
 };
 
 const KAMINO_DEVNET_MARKET = "8tBETkxcw3RcivkCw7LT8ujBe1qj8xZusoVtqE2sR6oa";
 const KAMINO_DEVNET_USDC_RESERVE = "8w8UVLPfVEVvvwi3QC8GTohUBqqzK6rC1Qg6HfoepsWn";
 const DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+const KLEND_PROGRAM = "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD";
 
-const questions = [
-  { question: "How do I sign in?", answer: "Enter your email. A Solana wallet is created automatically." },
-  { question: "How do I supply to Kamino Lend?", answer: "Choose an amount of USDC. Plain checks and simulates the transaction; you approve it with your wallet. The lending position is represented by cUSDC." },
-  { question: "What rate applies?", answer: "The rate is set by the Kamino Lend protocol and may change. It is not a yield guarantee or a fixed APR." },
-  { question: "Where can I verify activity?", answer: "After the transaction is confirmed, you can view it, the market, and the reserve in Solana Explorer." },
-  { question: "Is this a financial product?", answer: "No. This is Solana Devnet: Devnet USDC and positions have no monetary value." },
+const steps = [
+  {
+    icon: Mail,
+    title: "Sign in with email",
+    text: "Enter your email and a one-time code. No extension, no seed phrase, no new password.",
+  },
+  {
+    icon: Wallet,
+    title: "Get a smart wallet",
+    text: "A Crossmint smart wallet on Solana is created for your account automatically.",
+  },
+  {
+    icon: Landmark,
+    title: "Supply USDC to Kamino Lend",
+    text: "Choose an amount, review the checks and approve. Withdraw whenever the reserve has liquidity.",
+  },
 ];
+
+const trust = [
+  {
+    icon: Fingerprint,
+    title: "Your wallet, your approval",
+    text: "Every supply or withdrawal is approved from your smart wallet. Plain prepares and simulates the transaction; it cannot move funds on its own.",
+  },
+  {
+    icon: ReceiptText,
+    title: "Verifiable on-chain",
+    text: "Each confirmed action links to Solana Explorer, together with the pinned Kamino market and reserve addresses below.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Network fees paid by Plain",
+    text: "You do not need to hold SOL to use Kamino Lend through Plain. The transaction fee is sponsored for you.",
+  },
+  {
+    icon: LockKeyhole,
+    title: "Honest about the rate",
+    text: "The rate is variable and set by the Kamino Lend protocol. Plain never shows a fixed APR or promises returns.",
+  },
+];
+
+const faq = [
+  {
+    question: "What is Plain?",
+    answer:
+      "Plain is a yield layer that makes on-chain lending feel like a normal app. You sign in with email, Plain creates a smart wallet for you, and you can supply USDC to Kamino Lend on Solana in a few taps.",
+  },
+  {
+    question: "Do I need a crypto wallet or a seed phrase?",
+    answer:
+      "No. A Crossmint smart wallet is created automatically when you sign in with your email. There is no browser extension to install and no seed phrase to write down.",
+  },
+  {
+    question: "Where does the yield come from?",
+    answer:
+      "From Kamino Lend, a lending protocol on Solana. Borrowers pay interest to the USDC reserve and suppliers earn a share of it. The rate is variable, set by the protocol and not guaranteed.",
+  },
+  {
+    question: "Do I pay network fees?",
+    answer:
+      "No. Plain pays the Solana network fee for Kamino Lend actions made through your smart wallet, so you do not need to hold SOL.",
+  },
+  {
+    question: "Is this real money?",
+    answer:
+      "Not yet. Plain currently runs on Solana devnet with devnet USDC, which has no monetary value. It lets you try the full flow — sign-in, wallet, supply and withdraw — end to end.",
+  },
+  {
+    question: "Which countries is Plain for?",
+    answer:
+      "Plain is built as a global layer between everyday finance apps and on-chain yield. Kazakhstan is the first market we are designing for, with more to follow.",
+  },
+  {
+    question: "Can banks and fintech apps embed Plain?",
+    answer:
+      "Yes. Plain ships as an embeddable widget, so a partner app can offer Earn inside its own interface. You can see it running inside a fictional sample bank.",
+  },
+];
+
+const addresses = [
+  { label: "Kamino Lend program", value: KLEND_PROGRAM },
+  { label: "Kamino Lend market", value: KAMINO_DEVNET_MARKET },
+  { label: "USDC reserve", value: KAMINO_DEVNET_USDC_RESERVE },
+  { label: "Devnet USDC mint", value: DEVNET_USDC_MINT },
+];
+
+function jsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${SITE_URL}/#organization`,
+        name: SITE_NAME,
+        url: SITE_URL,
+        logo: `${SITE_URL}/icon2`,
+        sameAs: ["https://github.com/lengway/rwa-bridge"],
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: SITE_NAME,
+        description: SITE_DESCRIPTION,
+        inLanguage: "en",
+        publisher: { "@id": `${SITE_URL}/#organization` },
+      },
+      {
+        "@type": "WebApplication",
+        "@id": `${SITE_URL}/#app`,
+        name: SITE_NAME,
+        url: `${SITE_URL}/home`,
+        applicationCategory: "FinanceApplication",
+        operatingSystem: "Web",
+        browserRequirements: "Requires JavaScript",
+        description: SITE_DESCRIPTION,
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        publisher: { "@id": `${SITE_URL}/#organization` },
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${SITE_URL}/#faq`,
+        mainEntity: faq.map(({ question, answer }) => ({
+          "@type": "Question",
+          name: question,
+          acceptedAnswer: { "@type": "Answer", text: answer },
+        })),
+      },
+    ],
+  };
+}
 
 export default function LandingPage() {
   return (
-    <main className="min-h-dvh bg-muted/40">
-      <DemoBadge />
-      <div className="mx-auto max-w-5xl px-4 py-5 sm:px-8 sm:py-8">
-        <header className="flex items-center justify-between">
-          <Link href="/" className="text-base font-semibold tracking-tight">Plain</Link>
-        </header>
-
-        <section className="grid gap-8 py-12 sm:grid-cols-[1.2fr_0.8fr] sm:items-center sm:py-20">
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <Badge variant="secondary">Earn, made simple</Badge>
-              <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-6xl">
-                Put your USDC to work.
-              </h1>
-              <p className="max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-                Sign in with email, explore lending strategies and approve transactions from your wallet. Supply USDC, track your position and withdraw when liquidity is available.
+    <>
+      <script
+        type="application/ld+json"
+        // Escape "<" so the JSON payload can never close the script tag.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()).replace(/</g, "\\u003c") }}
+      />
+      <SiteHeader />
+      <main id="main" className="flex-1">
+        <section className="relative isolate overflow-hidden border-b">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_60%_at_85%_0%,rgb(16_185_129/0.14),transparent_70%),radial-gradient(50%_50%_at_0%_100%,rgb(14_165_233/0.10),transparent_70%)]" />
+          <div className="mx-auto grid max-w-6xl gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-16 lg:px-8 lg:py-28">
+            <div className="space-y-7">
+              <p className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground">
+                <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                Live on Solana devnet
               </p>
+              <h1 className="max-w-2xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+                On-chain yield, as simple as your banking app.
+              </h1>
+              <p className="max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+                Plain is a Web2-simple layer over on-chain lending. Sign in with email, get a smart wallet automatically and put USDC to work in Kamino Lend — no seed phrase, no SOL for fees.
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Link href="/home" className={primaryCta}>
+                  Open the app <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+                <a href="#how-it-works" className={secondaryCta}>How it works</a>
+              </div>
+              <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                <li className="flex items-center gap-2"><Mail className="size-4" aria-hidden="true" /> Email sign-in</li>
+                <li className="flex items-center gap-2"><Wallet className="size-4" aria-hidden="true" /> Crossmint smart wallet</li>
+                <li className="flex items-center gap-2"><Landmark className="size-4" aria-hidden="true" /> Kamino Lend</li>
+              </ul>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button size="lg" nativeButton={false} render={<Link href="/home" />}>
-                Open app <ArrowRight />
-              </Button>
-              <Button variant="outline" size="lg" nativeButton={false} render={<Link href="/earn" />}>
-                Explore Earn
-              </Button>
+            <HeroPreview />
+          </div>
+        </section>
+
+        <section id="how-it-works" aria-labelledby="how-it-works-title" className="scroll-mt-20 py-16 sm:py-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              id="how-it-works-title"
+              eyebrow="How it works"
+              title="From email to earning in three steps"
+              description="Plain hides the wallet plumbing, not the facts. Every step is a real Solana transaction you can verify."
+            />
+            <ol className="mt-10 grid gap-4 md:grid-cols-3">
+              {steps.map(({ icon: Icon, title, text }, index) => (
+                <li key={title} className="rounded-3xl border bg-card p-6 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+                  <div className="flex items-center justify-between">
+                    <span className="flex size-11 items-center justify-center rounded-2xl bg-muted text-foreground"><Icon className="size-5" aria-hidden="true" /></span>
+                    <span className="font-mono text-xs text-muted-foreground" aria-hidden="true">0{index + 1}</span>
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold tracking-tight">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section id="security" aria-labelledby="security-title" className="scroll-mt-20 border-y bg-muted/40 py-16 sm:py-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              id="security-title"
+              eyebrow="Security & transparency"
+              title="Built so you can check, not just trust"
+              description="Plain is non-custodial by design: the server prepares transactions, your smart wallet approves them."
+            />
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+              {trust.map(({ icon: Icon, title, text }) => (
+                <div key={title} className="flex gap-4 rounded-3xl border bg-card p-6">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"><Icon className="size-5" aria-hidden="true" /></span>
+                  <div>
+                    <h3 className="font-semibold tracking-tight">{title}</h3>
+                    <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-10 overflow-hidden rounded-3xl border bg-card">
+              <div className="flex flex-col gap-1 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                <h3 className="font-semibold tracking-tight">Pinned addresses · Solana devnet</h3>
+                <p className="text-sm text-muted-foreground">Open any address in Solana Explorer.</p>
+              </div>
+              <ul className="divide-y">
+                {addresses.map(({ label, value }) => (
+                  <li key={label} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{label}</p>
+                      <p className="truncate font-mono text-xs text-muted-foreground" title={value}>{value}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <CopyAddressButton address={value} label={label} />
+                      <a
+                        href={`https://explorer.solana.com/address/${value}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        Explorer <ArrowUpRight className="size-4" aria-hidden="true" />
+                        <span className="sr-only">: {label} (opens in a new tab)</span>
+                      </a>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
+        </section>
 
-          <Card className="gap-4 rounded-3xl p-5 sm:p-7">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Your first strategy</span>
-              <ChartNoAxesCombined className="size-4 text-emerald-700 dark:text-emerald-400" />
+        <section id="partners" aria-labelledby="partners-title" className="scroll-mt-20 py-16 sm:py-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div className="grid gap-8 rounded-[2rem] border bg-card p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">For banks and fintech apps</p>
+                <h2 id="partners-title" className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">Plain, inside your app.</h2>
+                <p className="max-w-2xl text-pretty text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
+                  Plain is a yield layer partners can embed: one script, one iframe, your interface around it. See Earn running inside a fictional sample bank — account balances stay separate from the user&apos;s wallet.
+                </p>
+              </div>
+              <Link href="/widget-demo" className={secondaryCta}>
+                <Building2 className="size-4" aria-hidden="true" /> See the bank embed
+              </Link>
             </div>
-            <div className="grid gap-3">
-              <ProductMetric label="Protocol" value="Kamino Lend" />
-              <ProductMetric label="Rate" value="Variable" />
-              <ProductMetric label="Assets" value="Supply USDC · Receive cUSDC" />
+          </div>
+        </section>
+
+        <section id="faq" aria-labelledby="faq-title" className="scroll-mt-20 border-t bg-muted/40 py-16 sm:py-24">
+          <div className="mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+            <SectionHeading
+              id="faq-title"
+              eyebrow="FAQ"
+              title="Questions, answered plainly"
+              description="Short answers about how Plain works today."
+            />
+            <div className="space-y-3">
+              {faq.map(({ question, answer }) => (
+                <details key={question} className="group rounded-2xl border bg-card transition-colors hover:border-foreground/20">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-2xl p-5 font-medium focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+                    <h3 className="text-base">{question}</h3>
+                    <span aria-hidden="true" className="relative size-4 shrink-0 text-muted-foreground before:absolute before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2 before:bg-current after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-current after:transition-transform group-open:after:rotate-90 motion-reduce:after:transition-none" />
+                  </summary>
+                  <p className="px-5 pb-5 text-sm leading-6 text-muted-foreground">{answer}</p>
+                </details>
+              ))}
             </div>
-          </Card>
-        </section>
-
-        <section className="space-y-5 py-8">
-          <SectionHeading eyebrow="How it works" title="Your Kamino Lend flow" description="Sign in with email, get an automatically created Solana wallet, and verify your confirmed on-chain transaction." />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <ValueCard icon={<ShieldCheck />} title="Sign in with email" text="A Solana wallet is created automatically; no seed phrase is needed." />
-            <ValueCard icon={<ChartNoAxesCombined />} title="Add USDC" text="Use your wallet balance to supply USDC. Keep SOL for network fees; card and bank payments are not connected." />
-            <ValueCard icon={<Building2 />} title="Sign the transaction" text="The app checks the market and reserve, then your wallet signs a supply or withdrawal on Kamino Lend." />
           </div>
         </section>
 
-        <section className="space-y-5 py-8">
-          <SectionHeading eyebrow="Strategy" title="Start with Kamino Lend" description="A lending reserve with a variable rate. You stay in control of every transaction." />
-          <div className="grid gap-3 sm:grid-cols-1">
-            <ProductCard title="Kamino Lend" ticker="USDC" label="Lending" detail="Supply USDC and receive cUSDC representing your position. The protocol rate changes with reserve conditions; returns are not guaranteed." href="/earn/kamino-lend" />
+        <section aria-labelledby="cta-title" className="py-16 sm:py-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div className="relative isolate overflow-hidden rounded-[2rem] bg-primary px-6 py-12 text-primary-foreground sm:px-12 sm:py-16">
+              <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 -z-10 size-72 rounded-full bg-emerald-400/20 blur-3xl" />
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-3">
+                  <h2 id="cta-title" className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Try the whole flow in a minute.</h2>
+                  <p className="max-w-xl text-pretty text-sm leading-6 text-primary-foreground/75 sm:text-base">Sign in with email, get your smart wallet and supply devnet USDC to Kamino Lend. Devnet funds have no monetary value.</p>
+                </div>
+                <Link href="/home" className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-primary-foreground px-6 text-sm font-medium text-primary transition-[opacity,transform] hover:opacity-90 active:translate-y-px focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary-foreground/50 motion-reduce:transition-none">
+                  Get started <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
-
-        <details className="my-8 rounded-2xl border p-4"><summary className="cursor-pointer text-sm font-medium">Network and contract details</summary><NetworkAssets /></details>
-
-        <section className="my-8 grid gap-5 rounded-3xl border bg-card p-6 sm:grid-cols-[1fr_auto] sm:items-center sm:p-8">
-          <div className="space-y-2">
-            <Badge variant="secondary">For banks and partner apps</Badge>
-            <h2 className="text-2xl font-semibold tracking-tight">Plain, inside your app.</h2>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">See the embedded Earn experience in a fictional bank. Open Plain without leaving the bank interface; account balances remain separate from the user&apos;s wallet.</p>
-          </div>
-          <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/widget-demo" />}>Try the bank demo <ArrowRight /></Button>
-        </section>
-
-        <section className="space-y-5 py-8">
-          <SectionHeading eyebrow="FAQs" title="Frequently asked questions" description="Key information about products and transactions." />
-          <div className="space-y-2">
-            {questions.map(({ question, answer }) => (
-              <Collapsible key={question}>
-                <Card className="rounded-2xl p-0">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 p-4 text-left font-medium">
-                    <span>{question}</span><CircleHelp className="size-4 text-muted-foreground" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="border-t px-4 py-3 text-sm leading-5 text-muted-foreground">{answer}</CollapsibleContent>
-                </Card>
-              </Collapsible>
-            ))}
-          </div>
-        </section>
-
-        <section className="my-8 flex flex-col gap-4 rounded-3xl border bg-card p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-          <div>
-            <h2 className="text-xl font-semibold">Open the app</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Sign in with email and explore Earn.</p>
-          </div>
-          <Button size="lg" nativeButton={false} render={<Link href="/home" />}>Get started <ArrowRight /></Button>
-        </section>
-
-        <footer className="border-t py-5 text-xs leading-5 text-muted-foreground">
-          Plain · Not a bank deposit. Returns are not guaranteed. Not investment advice.
-        </footer>
-      </div>
-    </main>
+      </main>
+      <SiteFooter />
+    </>
   );
 }
 
-function NetworkAssets() {
-  const [status, setStatus] = useState<KaminoMarketStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/kamino/market", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<KaminoMarketStatus> : null)
-      .then((nextStatus) => {
-        if (!active) return;
-        setStatus(nextStatus);
-      })
-      .catch(() => {
-        if (active) setStatus(null);
-      })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
-
-  const addresses = [
-    { label: "Kamino Lend market", ticker: "SOLANA DEVNET", address: status?.market?.address ?? KAMINO_DEVNET_MARKET },
-    { label: "Kamino Lend reserve", ticker: status?.reserve?.symbol ?? "DEVNET USDC", address: status?.reserve?.address ?? KAMINO_DEVNET_USDC_RESERVE },
-    { label: "Devnet USDC mint", ticker: "DEVNET USDC", address: status?.reserve?.mint ?? DEVNET_USDC_MINT },
-  ];
-
+function HeroPreview() {
   return (
-    <section className="space-y-5 py-8">
-      <SectionHeading eyebrow="Verifiable infrastructure" title="Kamino Lend · Solana Devnet" description="Pinned market, reserve, and Devnet USDC mint addresses. View each on Solana Explorer." />
-      <Card className="divide-y rounded-2xl p-0">
-        {addresses.map((item) => <NetworkAddressRow key={item.label} {...item} loading={loading} />)}
-      </Card>
-      {!loading ? <p className="text-xs text-muted-foreground">{status?.ready ? "The server checks the route before preparing each transaction." : "The server checks route availability before preparing a transaction."}</p> : null}
-    </section>
+    <figure className="relative mx-auto w-full max-w-md motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-700 lg:max-w-none">
+      <div aria-hidden="true" className="absolute -inset-4 -z-10 rounded-[2.5rem] bg-gradient-to-br from-emerald-500/15 via-transparent to-sky-500/15 blur-2xl" />
+      <div className="rounded-[2rem] border bg-card p-5 shadow-xl sm:p-6" aria-hidden="true">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-sm font-bold text-primary-foreground">P</span>
+            <div>
+              <p className="text-sm font-semibold">Kamino Lend</p>
+              <p className="text-xs text-muted-foreground">USDC reserve · Solana</p>
+            </div>
+          </div>
+          <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">Variable rate</span>
+        </div>
+        <div className="mt-6 rounded-2xl bg-muted/60 p-4">
+          <p className="text-xs text-muted-foreground">You supply</p>
+          <p className="mt-1 text-3xl font-semibold tracking-tight">1.00 <span className="text-lg text-muted-foreground">USDC</span></p>
+          <p className="mt-1 text-xs text-muted-foreground">You receive cUSDC representing your position</p>
+        </div>
+        <ul className="mt-4 space-y-2.5 text-sm">
+          {[
+            ["Wallet", "Crossmint smart wallet"],
+            ["Network fee", "Paid by Plain"],
+            ["Approval", "Your wallet"],
+          ].map(([label, value]) => (
+            <li key={label} className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">{label}</span>
+              <span className="font-medium">{value}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-6 flex h-11 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">Supply USDC</div>
+      </div>
+      <figcaption className="sr-only">Preview of supplying USDC to Kamino Lend in Plain: smart wallet, network fee paid by Plain, approval from your wallet.</figcaption>
+    </figure>
   );
 }
 
-function NetworkAddressRow({ label, ticker, address, loading }: { label: string; ticker: string; address?: string | null; loading: boolean }) {
-  const shortAddress = address ? `${address.slice(0, 7)}…${address.slice(-6)}` : null;
-  const copy = async () => {
-    if (!address) return;
-    try {
-      await navigator.clipboard.writeText(address);
-      toast.success("Address copied");
-    } catch {
-      toast.error("Could not copy address");
-    }
-  };
-
+function SectionHeading({ id, eyebrow, title, description }: { id: string; eyebrow: string; title: string; description: string }) {
   return (
-    <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">{ticker} · {loading ? "Loading address…" : shortAddress ?? "Not configured yet"}</p>
-      </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={copy} disabled={!address} aria-label={`Copy ${ticker}`}><Copy />Copy</Button>
-        {address ? <Button variant="ghost" size="sm" nativeButton={false} render={<a href={`https://explorer.solana.com/address/${encodeURIComponent(address)}?cluster=devnet`} target="_blank" rel="noopener noreferrer" />}><ExternalLink />Explorer</Button> : null}
-      </div>
+    <div className="max-w-2xl space-y-3">
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{eyebrow}</p>
+      <h2 id={id} className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h2>
+      <p className="text-pretty text-base leading-7 text-muted-foreground">{description}</p>
     </div>
-  );
-}
-
-function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
-  return <div className="space-y-1"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{eyebrow}</p><h2 className="text-2xl font-semibold tracking-tight">{title}</h2><p className="max-w-2xl text-sm leading-5 text-muted-foreground">{description}</p></div>;
-}
-
-function ValueCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
-  return <Card className="gap-3 rounded-2xl p-5"><span className="flex size-10 items-center justify-center rounded-full bg-muted [&_svg]:size-5">{icon}</span><div><h3 className="font-semibold">{title}</h3><p className="mt-1 text-sm leading-5 text-muted-foreground">{text}</p></div></Card>;
-}
-
-function ProductMetric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl bg-muted/60 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-semibold">{value}</p></div>;
-}
-
-function ProductCard({ title, ticker, label, detail, href }: { title: string; ticker: string; label: string; detail: string; href: string }) {
-  return (
-    <Card className="h-full gap-3 rounded-2xl p-5 transition-colors hover:bg-muted/40">
-      <Link href={href} className="block flex-1 space-y-3"><Badge variant="secondary" className="w-fit">{label}</Badge><h3 className="font-semibold">{title}</h3><p className="text-xs font-medium text-muted-foreground">{ticker}</p><p className="text-sm leading-5 text-muted-foreground">{detail}</p><span className="inline-flex items-center gap-1 text-sm font-medium">Learn more <ArrowRight className="size-4" /></span></Link>
-    </Card>
   );
 }
