@@ -266,10 +266,11 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
   }, [bankEmbed]);
 
   return (
-    <div className="min-h-dvh bg-muted/40">
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background shadow-sm ring-1 ring-border/60">
+    <div className="min-h-dvh bg-muted/40 lg:flex">
+      {!embedded ? <DesktopSidebar pathname={pathname} /> : null}
+      <div className={`mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background shadow-sm ring-1 ring-border/60 ${embedded ? "" : "lg:mx-0 lg:max-w-none lg:flex-1 lg:shadow-none lg:ring-0"}`}>
         {!embedded && pathname !== "/portfolio" ? (
-          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-5 backdrop-blur">
+          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-5 backdrop-blur lg:h-16 lg:px-10">
             {isDetail ? (
               <Link
                 href={isEarnDetail ? "/earn" : "/assets"}
@@ -279,22 +280,22 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
                 <ArrowLeft className="size-5" />
               </Link>
             ) : null}
-            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{title}</h1>
+            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold lg:text-lg">{title}</h1>
           </header>
         ) : null}
         <main
-          className={`flex-1 px-4 pt-5 ${isDetail ? "pb-[calc(12rem_+_env(safe-area-inset-bottom))]" : "pb-28"}`}
+          className={`flex-1 px-4 pt-5 ${isDetail ? "pb-[calc(12rem_+_env(safe-area-inset-bottom))]" : "pb-28"} ${embedded ? "" : "lg:mx-auto lg:w-full lg:max-w-3xl lg:px-10 lg:pt-10 lg:pb-16"}`}
         >
           {portfolioError ? <div role="alert" className="mb-4 space-y-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
             <p>{presentEnglishError(portfolioError, "We couldn't load your portfolio. Please try again.")}</p>
             <Button variant="outline" size="sm" onClick={() => void refreshPortfolio()}>Refresh portfolio</Button>
           </div> : null}
           {children}
-          {!embedded ? <div className="mt-8 flex justify-center gap-6 border-t pt-4 text-sm text-muted-foreground">{accountLinks.map(link => <Link key={link.href} href={link.href}>{link.label}</Link>)}</div> : null}
+          {!embedded ? <div className="mt-8 flex justify-center gap-6 border-t pt-4 text-sm text-muted-foreground lg:hidden">{accountLinks.map(link => <Link key={link.href} href={link.href}>{link.label}</Link>)}</div> : null}
         </main>
         {!embedded ? <nav
           aria-label="Primary navigation"
-          className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t bg-background/95 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur"
+          className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t bg-background/95 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
         >
           <div className="grid grid-cols-4">
             {tabs.map(({ href, label, icon: Icon }) => {
@@ -315,5 +316,30 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
         </nav> : null}
       </div>
     </div>
+  );
+}
+
+function DesktopSidebar({ pathname }: { pathname: string }) {
+  const linkClass = (active: boolean) => `flex h-10 items-center gap-3 rounded-xl px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"}`;
+  return (
+    <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r bg-background px-4 py-6 lg:flex">
+      <Link href="/home" className="mb-8 px-3 text-xl font-semibold tracking-tight">Plain</Link>
+      <nav aria-label="Primary navigation" className="flex flex-col gap-1">
+        {tabs.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href || pathname.startsWith(`${href}/`);
+          return (
+            <Link key={href} href={href} aria-current={active ? "page" : undefined} className={linkClass(active)}>
+              <Icon className={`size-4 ${active ? "stroke-[2.25]" : ""}`} />
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="mt-auto flex flex-col gap-1 border-t pt-4">
+        {accountLinks.map(link => (
+          <Link key={link.href} href={link.href} className={linkClass(pathname === link.href)}>{link.label}</Link>
+        ))}
+      </div>
+    </aside>
   );
 }

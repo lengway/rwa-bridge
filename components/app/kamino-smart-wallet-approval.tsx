@@ -83,9 +83,11 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
           try {
             // The server requests approval from the wallet's email signer; the SDK
             // otherwise approves with its device signer and finds no pending approval.
+            console.info("[smart-wallet] switching to email signer", transactionId);
             if (context.email) await context.wallet!.useSigner({ type: "email", email: context.email });
+            console.info("[smart-wallet] approving", transactionId);
             return await Promise.race([
-              context.wallet!.approve({ transactionId }),
+              context.wallet!.approve({ transactionId }).then(result => { console.info("[smart-wallet] approved", transactionId); return result; }),
               new Promise<never>((_, reject) => {
                 timer = window.setTimeout(() => reject(new Error("Ответ кошелька прервался.")), 180_000);
               }),
