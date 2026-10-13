@@ -10,7 +10,7 @@ const sectionLinks = [
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#security", label: "Security" },
   { href: "/#partners", label: "For partners" },
-  { href: "/kase", label: "For issuers" },
+  { href: "/issuers", label: "For issuers" },
   { href: "/#faq", label: "FAQ" },
 ];
 
@@ -70,7 +70,7 @@ export function SiteFooter() {
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             <li><Link href="/home" className="transition-colors hover:text-foreground">Open the app</Link></li>
             <li><Link href="/widget-demo" className="transition-colors hover:text-foreground">Bank embed</Link></li>
-            <li><Link href="/kase" className="transition-colors hover:text-foreground">For issuers: bond lifecycle</Link></li>
+            <li><Link href="/issuers" className="transition-colors hover:text-foreground">For issuers: corporate actions</Link></li>
             <li><a href="https://github.com/lengway/rwa-bridge" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-foreground">Source on GitHub</a></li>
           </ul>
         </nav>

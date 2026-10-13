@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
       { source: "/kamino", destination: "/earn/kamino-lend", permanent: false },
       { source: "/login", destination: "/home", permanent: false },
       { source: "/signin", destination: "/home", permanent: false },
+      // The issuer console moved to /issuers; keep old links working.
+      { source: "/kase", destination: "/issuers", permanent: true },
       { source: "/faq", destination: "/#faq", permanent: true },
       { source: "/security", destination: "/#security", permanent: true },
       { source: "/how-it-works", destination: "/#how-it-works", permanent: true },
