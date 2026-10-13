@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatBps, formatDate, formatDateTime, formatRelative, formatSettlement, formatUnits } from "@/lib/markets/format";
 import { KIND_LABEL, couponPeriods, progress, stageLabel, upcomingEvents } from "@/lib/markets/lifecycle";
+import type { MarketsPublicConfig } from "@/lib/markets/devnet-service";
 import type { CorporateAction, Instrument } from "@/lib/markets/service";
 import { ActionDetail } from "./action-detail";
 import { MarketsProvider, useLedgerNow, useLedgerQuery, useMarkets } from "./markets-provider";
@@ -14,9 +15,9 @@ import { NewActionDialog } from "./new-action-dialog";
 import { ChainRef, ErrorNote, Eyebrow, KindIcon, Panel, Skeleton, StatusPill, focusRing, pillButton, primaryButton } from "./primitives";
 import { AuditLog, RegisterView } from "./register-and-log";
 
-export function IssuerConsole() {
+export function IssuerConsole({ config }: { config?: MarketsPublicConfig }) {
   return (
-    <MarketsProvider>
+    <MarketsProvider config={config}>
       <Console />
     </MarketsProvider>
   );

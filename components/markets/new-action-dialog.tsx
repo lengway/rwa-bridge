@@ -32,7 +32,12 @@ type Form = {
   includeCoupon: boolean;
   question: string;
   options: string[];
+  /** Live-chain demo timing: record date in a minute, payment a few minutes later. */
+  fast: boolean;
 };
+
+/** Offsets for the live demo schedule, in seconds from now. */
+const FAST = { record: 60, payment: 180, votePayment: 300, deadline: 7 * DAY };
 
 const KINDS: { kind: ActionKind; blurb: string }[] = [
   { kind: "Coupon", blurb: "Periodic interest to every holder at the record date." },
@@ -41,7 +46,7 @@ const KINDS: { kind: ActionKind; blurb: string }[] = [
   { kind: "Vote", blurb: "Ask bondholders to consent; weight equals snapshot units." },
 ];
 
-function defaults(kind: ActionKind, instrument: Instrument, actions: CorporateAction[], now: number): Form {
+function defaults(kind: ActionKind, instrument: Instrument, actions: CorporateAction[], now: number, fast = false): Form {
   const nextPeriod = actions.filter((a) => a.kind === "Coupon").length + 1;
   const periodMonths = 12 / instrument.frequency;
   let payment: number;
@@ -62,16 +67,18 @@ function defaults(kind: ActionKind, instrument: Instrument, actions: CorporateAc
     includeCoupon: true,
     question: "",
     options: ["For", "Against", "Abstain"],
+    fast,
   };
 }
 
 const pctToBps = (v: string) => Math.round(Number(v) * 100);
 
-function toDraft(f: Form, period: number): { draft: ActionDraft | null; errors: Partial<Record<keyof Form, string>> } {
+function toDraft(f: Form, period: number, now: number): { draft: ActionDraft | null; errors: Partial<Record<keyof Form, string>> } {
   const errors: Partial<Record<keyof Form, string>> = {};
-  const recordTs = toTs(f.record);
-  const paymentTs = toTs(f.payment);
-  const deadlineTs = f.kind === "Vote" ? paymentTs : toTs(f.deadline);
+  const recordTs = f.fast ? now + FAST.record : toTs(f.record);
+  const paymentTs = f.fast ? now + (f.kind === "Vote" ? FAST.votePayment : FAST.payment) : toTs(f.payment);
+  const deadlineTs = f.kind === "Vote" ? paymentTs : f.fast ? paymentTs + FAST.deadline : toTs(f.deadline);
+  if (!f.fast && Number.isFinite(recordTs) && recordTs <= now) errors.record = "The record date must be in the future.";
   if (!Number.isFinite(recordTs)) errors.record = "Pick a record date.";
   if (!Number.isFinite(paymentTs)) errors.payment = "Pick a date.";
   else if (paymentTs <= recordTs) errors.payment = f.kind === "Vote" ? "Voting must close after the record date." : "Payment must come after the record date.";
@@ -127,10 +134,11 @@ export function NewActionDialog({
 }) {
   const svc = useMarkets();
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [form, setForm] = useState<Form>(() => defaults("Coupon", instrument, actions, now));
+  const live = svc.source.kind === "chain";
+  const [form, setForm] = useState<Form>(() => defaults("Coupon", instrument, actions, now, live));
   const [submit, setSubmit] = useState<{ busy: boolean; error: Error | null }>({ busy: false, error: null });
   const period = actions.filter((a) => a.kind === "Coupon").length + 1;
-  const { draft, errors } = useMemo(() => toDraft(form, period), [form, period]);
+  const { draft, errors } = useMemo(() => toDraft(form, period, now), [form, period, now]);
   const [touched, setTouched] = useState(false);
 
   const previewKey = draft ? `preview:${JSON.stringify({ ...draft, params: draft.params })}` : null;
@@ -138,7 +146,7 @@ export function NewActionDialog({
 
   const reset = () => {
     setStep(1);
-    setForm(defaults("Coupon", instrument, actions, now));
+    setForm(defaults("Coupon", instrument, actions, now, live));
     setTouched(false);
     setSubmit({ busy: false, error: null });
   };
@@ -150,7 +158,10 @@ export function NewActionDialog({
     if (!draft) return;
     setSubmit({ busy: true, error: null });
     try {
-      const r = await svc.announce(instrument.mint, draft);
+      // Live timing is relative to the moment of signing, not to when the dialog opened.
+      const fresh = form.fast ? toDraft(form, period, svc.now()).draft : draft;
+      if (!fresh) return;
+      const r = await svc.announce(instrument.mint, fresh);
       onOpenChange(false);
       reset();
       onCreated(r.actionId);
@@ -209,7 +220,7 @@ export function NewActionDialog({
                           selected ? "border-foreground/60 bg-muted/60 shadow-sm" : "hover:border-foreground/25 hover:bg-muted/30",
                         )}
                       >
-                        <input type="radio" name="kind" value={kind} checked={selected} onChange={() => setForm(defaults(kind, instrument, actions, now))} className="sr-only" />
+                        <input type="radio" name="kind" value={kind} checked={selected} onChange={() => setForm(defaults(kind, instrument, actions, now, form.fast))} className="sr-only" />
                         <KindIcon kind={kind} />
                         <span className="min-w-0">
                           <span className="block text-sm font-medium">{KIND_LABEL[kind]}{kind === "Coupon" ? ` ${period}` : ""}</span>
@@ -226,7 +237,7 @@ export function NewActionDialog({
             ) : null}
 
             {step === 2 ? (
-              <TermsFields form={form} set={set} errors={showErrors ? errors : {}} instrument={instrument} period={period} onBlur={() => setTouched(true)} />
+              <TermsFields form={form} set={set} errors={showErrors ? errors : {}} instrument={instrument} period={period} live={live} onBlur={() => setTouched(true)} />
             ) : null}
 
             {step === 3 && draft ? (
@@ -311,14 +322,13 @@ function PreviewFigures({ draft, instrument, money, sheet }: { draft: ActionDraf
     );
   }
   const perUnit = perUnitAmount(instrument, draft.params);
-  const total = programTotal(instrument, draft.params, instrument.supply);
-  const residue = sheet ? total - sheet.totalAmount : BigInt(0);
+  // Program total: units × per-unit amount (partials: Σ per-holder burns × price). No rounding residue.
+  const total = sheet ? sheet.totalAmount : programTotal(instrument, draft.params, instrument.supply);
   return (
     <dl className="mt-3 grid grid-cols-2 gap-3">
       <Fig label="Per unit" value={money(perUnit)} />
       <Fig label="Funding required" value={money(total)} />
       {draft.params.kind !== "Coupon" ? <Fig label="Units burned" value={sheet ? formatUnits(sheet.totalRedeemUnits) : "—"} /> : null}
-      {residue > BigInt(0) ? <Fig label="Rounding residue to issuer" value={money(residue)} /> : null}
     </dl>
   );
 }
@@ -338,6 +348,7 @@ function TermsFields({
   errors,
   instrument,
   period,
+  live,
   onBlur,
 }: {
   form: Form;
@@ -345,6 +356,7 @@ function TermsFields({
   errors: Partial<Record<keyof Form, string>>;
   instrument: Instrument;
   period: number;
+  live: boolean;
   onBlur: () => void;
 }) {
   const vote = form.kind === "Vote";
@@ -403,11 +415,22 @@ function TermsFields({
           </fieldset>
         </div>
       ) : null}
-      <div className={cn("grid gap-4", vote ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
+      {live ? (
+        <label className={cn("flex items-start gap-3 rounded-2xl border p-3 text-sm has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50")}>
+          <input type="checkbox" checked={form.fast} onChange={(e) => set("fast", e.target.checked)} className="mt-0.5 size-4 accent-current" />
+          <span>
+            <span className="font-medium">Live demo timing</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Record date 1 minute after signing, {vote ? "voting closes 5 minutes" : "payment 3 minutes"} after signing{vote ? "" : ", claim deadline in 7 days"}. The program enforces real cluster time, so a day-scale schedule cannot be run through in one sitting.
+            </span>
+          </span>
+        </label>
+      ) : null}
+      {form.fast ? null : <div className={cn("grid gap-4", vote ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
         <Field type="date" label="Record date" value={form.record} onChange={(v) => set("record", v)} error={errors.record} hint="Register locks at 12:00 UTC" />
         <Field type="date" label={vote ? "Voting closes" : "Payment date"} value={form.payment} onChange={(v) => set("payment", v)} error={errors.payment} hint={form.kind === "FinalRedemption" ? `Maturity ${formatDate(instrument.maturityTs)}` : "Lock lifts here"} />
-        {!vote ? <Field type="date" label="Claim deadline" value={form.deadline} onChange={(v) => set("deadline", v)} error={errors.deadline} hint="Then residue returns to issuer" /> : null}
-      </div>
+        {!vote ? <Field type="date" label="Claim deadline" value={form.deadline} onChange={(v) => set("deadline", v)} error={errors.deadline} hint="Then unclaimed funds return to the issuer" /> : null}
+      </div>}
     </div>
   );
 }

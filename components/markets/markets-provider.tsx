@@ -1,12 +1,13 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createBrowserDevnetService, type MarketsPublicConfig } from "@/lib/markets/devnet-service";
 import { createSimulatedMarketsService } from "@/lib/markets/mock-service";
 import type { MarketsService } from "@/lib/markets/service";
 
 /**
- * Supplies the MarketsService to Plain Markets screens. Today it is the simulated ledger;
- * swapping in the program client is a one-line change in `createService`.
+ * Supplies the MarketsService to Plain Markets screens: the real program on devnet when the
+ * server is configured with `MARKETS_MODE=devnet`, otherwise the simulated ledger.
  */
 
 function browserStorage() {
@@ -17,20 +18,26 @@ function browserStorage() {
   }
 }
 
-function createService(): MarketsService {
+function createService(config: MarketsPublicConfig): MarketsService {
+  if (config.mode === "devnet") return createBrowserDevnetService(config);
   return createSimulatedMarketsService({ storage: browserStorage(), latencyMs: 420 });
 }
 
-let singleton: MarketsService | null = null;
-function getService() {
-  singleton ??= createService();
-  return singleton;
+const singletons = new Map<string, MarketsService>();
+function getService(config: MarketsPublicConfig) {
+  const key = JSON.stringify(config);
+  let svc = singletons.get(key);
+  if (!svc) {
+    svc = createService(config);
+    singletons.set(key, svc);
+  }
+  return svc;
 }
 
 const Ctx = createContext<MarketsService | null>(null);
 
-export function MarketsProvider({ children }: { children: ReactNode }) {
-  const [service] = useState(getService);
+export function MarketsProvider({ config = { mode: "mock" }, children }: { config?: MarketsPublicConfig; children: ReactNode }) {
+  const [service] = useState(() => getService(config));
   return <Ctx.Provider value={service}>{children}</Ctx.Provider>;
 }
 

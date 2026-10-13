@@ -8,14 +8,15 @@ import { downloadText } from "@/lib/markets/csv";
 import { formatDate, formatDateTime, formatSettlement, formatUnits, shortAddress } from "@/lib/markets/format";
 import { KIND_LABEL, stageLabel } from "@/lib/markets/lifecycle";
 import { isPaymentAction } from "@/lib/markets/math";
+import type { MarketsPublicConfig } from "@/lib/markets/devnet-service";
 import type { Evidence, PublishedSnapshot, VerificationReport } from "@/lib/markets/service";
 import { canonicalSnapshotJson } from "@/lib/markets/snapshot";
 import { MarketsProvider, useLedgerVersion, useMarkets } from "./markets-provider";
 import { ChainRef, CheckIcon, Eyebrow, Panel, PanelHeader, Skeleton, StatusPill, focusRing, pillButton } from "./primitives";
 
-export function ActionVerifier({ actionId }: { actionId: string }) {
+export function ActionVerifier({ actionId, config }: { actionId: string; config?: MarketsPublicConfig }) {
   return (
-    <MarketsProvider>
+    <MarketsProvider config={config}>
       <Verifier actionId={actionId} />
     </MarketsProvider>
   );
