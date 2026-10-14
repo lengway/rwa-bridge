@@ -8,6 +8,7 @@
  * secret is needed and their public keys can be listed in the console's directory.
  */
 import {
+  TOKEN_2022_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   createMintToInstruction,
   getAssociatedTokenAddressSync,
@@ -18,9 +19,10 @@ import { ComputeBudgetProgram, Keypair, PublicKey, SendTransactionError, Transac
 import { sha256 } from "@noble/hashes/sha256";
 import bs58 from "bs58";
 
-import { enumName, marketsErrorFromCode, toBigInt, type ActionKind, type ActionRef, type ActionStatus, type InstrumentRef } from "./client";
-import type { DevnetLedger, MarketsExecutor } from "./devnet-service";
+import { bondAta, enumName, marketsErrorFromCode, pda, toBigInt, type ActionKind, type ActionRef, type ActionStatus, type InstrumentRef } from "./client";
+import { issueStateOf, type DevnetLedger, type MarketsExecutor } from "./devnet-service";
 import { actionTotals } from "./entitlements";
+import { allocationMemo, checkAllocation, type AllocationLimits } from "./investor";
 import { actionTitle } from "./lifecycle";
 import { actionTerms } from "./math";
 import { buildSnapshotTree, snapshotHash } from "./merkle";
@@ -290,7 +292,7 @@ export class DevnetIssuer implements MarketsExecutor {
    */
   private async readRecordRegister(inst: InstrumentRef) {
     const mint = inst.account.mint;
-    const candidates = new Set(this.holders.keys());
+    const candidates = new Set([...this.holders.keys(), ...(await this.reader.plainInvestors(mint.toBase58()))]);
     for (const a of await this.reader.listActions(mint.toBase58())) for (const h of (await this.reader.getSnapshot(a.id))?.holdings ?? []) candidates.add(h.holder);
     try {
       return await rpcRetry(() => readRegister(this.connection, mint, { candidates: [...candidates].map((a) => new PublicKey(a)) }));
@@ -376,6 +378,36 @@ export class DevnetIssuer implements MarketsExecutor {
     if (!Number.isInteger(choice) || choice < 0 || choice >= action.account.options.length) throw new IssuerError("Unknown option.");
     const { units, proof } = await this.proof(actionId, holder);
     return this.send([await this.client.castVote(inst, action.address, key.publicKey, units, proof, choice)], [key]);
+  }
+
+  // ---- primary allocation ------------------------------------------------------------------------
+
+  /**
+   * Issues bond units to a Plain investor's smart wallet (a PDA owner: its bond account is the
+   * off-curve associated token account the program creates). Re-reads the instrument and the
+   * wallet's balance right before signing, so callers must run this inside the issuer's
+   * single-flight queue for the cap to hold. Allowlists the wallet first when the allowlist is on.
+   * The memo marks the wallet as a Plain investor for the register and the console.
+   */
+  async allocate(mint: Address, holder: Address, units: unknown, limits: AllocationLimits): Promise<TxResult & { units: string }> {
+    const inst = await this.instrumentByMint(mint);
+    let wallet: PublicKey;
+    try {
+      wallet = new PublicKey(holder);
+    } catch {
+      throw new IssuerError("Not a valid wallet address.");
+    }
+    const now = await this.reader.clusterNow();
+    const ata = bondAta(wallet, inst.account.mint);
+    const allow = pda.allow(inst.address, wallet, this.client.programId);
+    const [ataInfo, allowInfo] = await rpcRetry(() => this.connection.getMultipleAccountsInfo([ata, allow], "confirmed"));
+    const held = ataInfo ? unpackAccount(ata, ataInfo, TOKEN_2022_PROGRAM_ID).amount : BigInt(0);
+    const check = checkAllocation({ units, heldUnits: held, state: issueStateOf(inst.account), now, limits });
+    if (!check.ok) throw new IssuerError(check.message, check.status);
+    const ixs: TransactionInstruction[] = [memoInstruction(allocationMemo(holder, check.units))];
+    if (inst.account.allowlistEnabled && !allowInfo) ixs.push(await this.client.allowHolder(inst, wallet));
+    ixs.push(await this.client.issue(inst, wallet, check.units));
+    return { ...(await this.send(ixs)), units: check.units.toString() };
   }
 
   async settle(actionId: Address) {

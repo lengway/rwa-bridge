@@ -103,8 +103,8 @@ export const SIM_HOLDERS: RegisterEntry[] = [
   { holder: simAddress("holder:pension"), units: BigInt(400), label: "Pension fund · custody account", custody: "custodian" },
   { holder: simAddress("holder:asset-manager"), units: BigInt(250), label: "Asset manager", custody: "self" },
   { holder: simAddress("holder:broker"), units: BigInt(180), label: "Broker omnibus account", custody: "custodian" },
-  { holder: simAddress("holder:retail-1"), units: BigInt(120), label: "Retail investor · Plain smart wallet", custody: "smart-wallet" },
-  { holder: simAddress("holder:retail-2"), units: BigInt(50), label: "Retail investor · Plain smart wallet", custody: "smart-wallet" },
+  { holder: simAddress("holder:retail-1"), units: BigInt(120), label: "Retail investor · Plain smart wallet", custody: "smart-wallet", plainInvestor: true },
+  { holder: simAddress("holder:retail-2"), units: BigInt(50), label: "Retail investor · Plain smart wallet", custody: "smart-wallet", plainInvestor: true },
 ];
 
 function initialState(): State {

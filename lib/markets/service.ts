@@ -128,7 +128,12 @@ export type CorporateAction = {
 export type Holding = { holder: Address; units: bigint };
 
 /** A register entry as the issuer console shows it. `label` is off-chain directory data. */
-export type RegisterEntry = Holding & { label?: string; custody?: "self" | "smart-wallet" | "custodian" };
+export type RegisterEntry = Holding & {
+  label?: string;
+  custody?: "self" | "smart-wallet" | "custodian";
+  /** Received units through Plain's primary allocation (a signed-in Plain user's smart wallet). */
+  plainInvestor?: boolean;
+};
 
 export type Register = {
   mint: Address;

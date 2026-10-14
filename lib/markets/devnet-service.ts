@@ -32,6 +32,7 @@ import {
   type VoteRecordAccount,
 } from "./client";
 import { withDerivedViews } from "./derive";
+import { ALLOCATION_MEMO, parseAllocationMemo, type IssueState } from "./investor";
 import { formatSettlement } from "./format";
 import { toHex } from "./merkle";
 import { decodeHoldings, hex32, parseSnapshotMemo, parseSnapshotPart, parseTermsMemo, snapshotFromMemo, SNAPSHOT_MEMO, TERMS_MEMO, type TermsDocument } from "./publication";
@@ -112,6 +113,18 @@ const STAGE: Record<ProgramActionStatus, number> = { Announced: 0, RecordLocked:
 
 function short(a: string) {
   return `${a.slice(0, 4)}…${a.slice(-4)}`;
+}
+
+/** The fields of an Instrument account that gate `issue` (see `allocationWindow`). */
+export function issueStateOf(account: InstrumentRef["account"]): IssueState {
+  return {
+    status: enumName(account.status),
+    maturityTs: num(account.maturityTs),
+    lockFrom: num(account.lockFrom),
+    lockUntil: num(account.lockUntil),
+    pendingAction: account.pendingAction != null,
+    openRedemption: account.openRedemption,
+  };
 }
 
 /** A tiny generation-keyed cache: everything is refetched after `invalidate()`. */
@@ -599,8 +612,10 @@ export class DevnetLedger implements MarketsLedger {
       const inst = await this.instrumentByMint(mint);
       const refs = await this.actionRefs(inst);
       const bundles = await Promise.all(refs.map((r) => this.bundle(inst, r)));
-      // Candidate owners: the directory plus everyone who appeared in a published snapshot.
-      const candidates = new Set(this.config.directory.map((d) => d.address));
+      // Candidate owners: the directory, everyone who appeared in a published snapshot and every
+      // wallet that received a Plain allocation (memo in the issue transaction).
+      const plain = await this.plainInvestors(mint);
+      const candidates = new Set([...this.config.directory.map((d) => d.address), ...plain]);
       for (const b of bundles) for (const h of b.snapshot?.holdings ?? []) candidates.add(h.holder);
       let holdings: Holding[];
       let slot: number;
@@ -623,10 +638,27 @@ export class DevnetLedger implements MarketsLedger {
         supply,
         entries: holdings.map((h) => {
           const d = this.labels.get(h.holder);
+          if (plain.has(h.holder)) return { ...h, label: d?.label ?? "Plain investor · email sign-in", custody: "smart-wallet" as const, plainInvestor: true };
           return { ...h, label: d?.label, custody: d?.custody ?? "self" };
         }),
       };
     });
+  }
+
+  /**
+   * Wallets that received units through Plain's primary allocation. Each allocation's `issue`
+   * transaction carries a `pm:alloc:1 <wallet> <units>` memo, so the instrument's signature feed
+   * lists them with no extra RPC call.
+   */
+  async plainInvestors(mint: Address): Promise<Set<Address>> {
+    const inst = await this.instrumentByMint(mint);
+    const feed = await this.feed(inst.address);
+    const out = new Set<Address>();
+    for (const s of feed.withMemo(ALLOCATION_MEMO)) {
+      const parsed = parseAllocationMemo(s.memo);
+      if (parsed) out.add(parsed.holder);
+    }
+    return out;
   }
 
   async getSnapshot(actionId: Address): Promise<PublishedSnapshot | null> {

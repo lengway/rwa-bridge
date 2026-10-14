@@ -1,8 +1,9 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { GuardError, createIdempotencyStore, createRateLimiter, createSerialQueue } from "@/lib/markets/api-guard";
+import { GuardError, createIdempotencyStore, createRateLimiter } from "@/lib/markets/api-guard";
 import { IssuerError } from "@/lib/markets/devnet-issuer";
+import { issuerQueue as queue } from "@/lib/markets/issuer-queue";
 import { EXECUTOR_OPS, type ExecutorOp } from "@/lib/markets/devnet-service";
 import { marketsServer } from "@/lib/markets/server";
 import type { ActionDraft, TxResult } from "@/lib/markets/service";
@@ -13,7 +14,6 @@ export const maxDuration = 60;
 
 const ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const limiter = createRateLimiter({ windowMs: 60_000, perClient: 20, global: 120 });
-const queue = createSerialQueue(8);
 const idempotent = createIdempotencyStore<TxResult>();
 
 type Body = { mint?: unknown; draft?: unknown; actionId?: unknown; holder?: unknown; choice?: unknown };
