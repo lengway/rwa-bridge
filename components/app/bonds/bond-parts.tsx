@@ -13,6 +13,8 @@ import type { BondActionView, BondOffering, BondPayment, BondPosition, BondVote,
 import { devnetTxUrl, refreshBonds, requestAllocation } from "@/lib/useBonds";
 import { cn } from "@/lib/utils";
 
+const unitsLabel = (n: string | number) => `${n} unit${String(n) === "1" ? "" : "s"}`;
+
 export const money = (amount: string | bigint, decimals: number, symbol: string) => formatSettlement(typeof amount === "bigint" ? amount : BigInt(amount), decimals, symbol);
 
 /** Estimates (accrued coupon) shown to the cent, rounded down. */
@@ -128,7 +130,7 @@ function AllocationDrawer({ offering, max, onClose }: { offering: BondOffering; 
     try {
       const receipt = await requestAllocation(offering.mint, units, key);
       setDone({ signature: receipt.signature, units: receipt.units });
-      toast.success(`${receipt.units} ${offering.symbol} units are in your wallet`);
+      toast.success(`${unitsLabel(receipt.units)} of ${offering.symbol} in your wallet`);
       void refreshBonds();
     } catch (e) {
       setError(e instanceof Error ? e.message : "The allocation didn't go through. Try again.");
@@ -145,7 +147,7 @@ function AllocationDrawer({ offering, max, onClose }: { offering: BondOffering; 
             <Check className="size-6" />
           </span>
           <div>
-            <p className="text-lg font-semibold">{done.units} units issued to your wallet</p>
+            <p className="text-lg font-semibold">{unitsLabel(done.units)} issued to your wallet</p>
             <p className="mt-1 text-sm text-muted-foreground">The issuer signed the issue transaction on Solana devnet. Coupons will be paid to this wallet automatically.</p>
           </div>
           <a href={devnetTxUrl(done.signature)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 text-sm underline underline-offset-4">

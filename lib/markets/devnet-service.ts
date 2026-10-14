@@ -638,7 +638,7 @@ export class DevnetLedger implements MarketsLedger {
         supply,
         entries: holdings.map((h) => {
           const d = this.labels.get(h.holder);
-          if (plain.has(h.holder)) return { ...h, label: d?.label ?? "Plain investor · email sign-in", custody: "smart-wallet" as const, plainInvestor: true };
+          if (plain.has(h.holder)) return { ...h, label: d?.label ?? "Retail investor · Plain app", custody: "smart-wallet" as const, plainInvestor: true };
           return { ...h, label: d?.label, custody: d?.custody ?? "self" };
         }),
       };

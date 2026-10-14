@@ -14,7 +14,8 @@
     "markets:test": "cd programs/plain-markets && cargo test",
     "markets:vectors": "tsx scripts/markets-vectors.ts",
     "markets:demo": "tsx scripts/markets-demo.ts",
-    "markets:seed": "tsx scripts/markets-seed.ts"
+    "markets:seed": "tsx scripts/markets-seed.ts",
+    "markets:investor-e2e": "tsx scripts/markets-investor-e2e.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.1",
