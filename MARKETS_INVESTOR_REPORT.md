@@ -40,7 +40,7 @@ No Crossmint code changed. The investor never signs anything. The issuer key iss
 | API | `app/api/bonds/route.ts`, `app/api/bonds/[mint]/route.ts`, `app/api/bonds/[mint]/allocate/route.ts` |
 | App UI | `app/(app)/bonds/page.tsx`, `app/(app)/bonds/[mint]/page.tsx`, `components/app/bonds/*`, `lib/useBonds.ts`; `shell.tsx` (Bonds tab, detail back button), `portfolio-screen.tsx`, `activity-screen.tsx` |
 | Console | `components/markets/primitives.tsx` (`PlainInvestorBadge`), `register-and-log.tsx`, `entitlement-table.tsx`, `lib/markets/derive.ts` |
-| Tests | `tests/markets-investor.test.ts` (18 tests); the shared mock-RPC fixture moved to `tests/helpers/markets-fixture.ts`; `navigation-restoration.test.ts` now expects 5 tabs |
+| Tests | `tests/markets-investor.test.ts` (17 tests); the shared mock-RPC fixture moved to `tests/helpers/markets-fixture.ts`; `navigation-restoration.test.ts` now expects 5 tabs |
 | Devnet driver | `scripts/markets-investor-e2e.ts` (`npm run markets:investor-e2e -- <baseUrl> [units]`) |
 
 ## Environment
