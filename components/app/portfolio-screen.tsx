@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowDownToLine, ArrowUpFromLine, Building2, Copy, ExternalLink, Settings, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { BondPortfolioSection } from "@/components/app/bonds/bond-portfolio-section";
 import { BuyAssetDrawer } from "@/components/app/buy-asset-drawer";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { ExchangeDrawer } from "@/components/app/exchange-drawer";
@@ -152,6 +153,8 @@ export function PortfolioScreen() {
           ))}
         </div>
       </section>
+
+      <BondPortfolioSection />
 
       <WalletCard portfolio={devnet.portfolio} onCopy={copyValue} />
 

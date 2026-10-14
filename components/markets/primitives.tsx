@@ -162,3 +162,15 @@ export const pillButton =
 export const primaryButton =
   "inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground shadow-sm transition-[background-color,transform,box-shadow,opacity] hover:bg-primary/85 hover:shadow-md active:translate-y-px disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none " +
   focusRing;
+
+/** Marks a register row that belongs to a Plain retail investor (email sign-in, smart wallet). */
+export function PlainInvestorBadge({ className }: { className?: string }) {
+  return (
+    <span
+      title="Retail investor who signed in to Plain with email. Units sit in their Plain smart wallet; coupons are pushed by the paying agent."
+      className={cn("inline-flex shrink-0 items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300", className)}
+    >
+      Plain investor
+    </span>
+  );
+}

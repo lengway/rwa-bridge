@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, ArrowLeft, House, Landmark, PieChart } from "lucide-react";
+import { Activity, ArrowLeft, House, Landmark, PieChart, ScrollText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBankEmbed } from "@/lib/useBankEmbed";
 import { isCrossmintConfigured } from "@/lib/config";
@@ -16,6 +16,7 @@ import { DemoBadge } from "@/components/app/demo-badge";
 const tabs = [
   { href: "/home", label: "Home", icon: House },
   { href: "/earn", label: "Earn", icon: Landmark },
+  { href: "/bonds", label: "Bonds", icon: ScrollText },
   { href: "/portfolio", label: "Portfolio", icon: PieChart },
   { href: "/activity", label: "Activity", icon: Activity },
 ];
@@ -29,6 +30,7 @@ const titles: Record<string, string> = {
   "/home": "Plain",
   "/funding": "Add funds",
   "/earn": "Earn",
+  "/bonds": "Bonds",
   "/assets": "Assets",
   "/activity": "Activity",
   "/portfolio": "Portfolio",
@@ -248,12 +250,16 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
   const { portfolioError, refreshPortfolio } = useDevnet();
   const isEarnDetail = /^\/earn\/[^/]+/.test(pathname);
   const isAssetDetail = /^\/assets\/[^/]+/.test(pathname);
-  const isDetail = isEarnDetail || isAssetDetail;
+  const isBondDetail = /^\/bonds\/[^/]+/.test(pathname);
+  const isDetail = isEarnDetail || isAssetDetail || isBondDetail;
+  const back = isEarnDetail ? { href: "/earn", label: "Back to Earn" } : isBondDetail ? { href: "/bonds", label: "Back to Bonds" } : { href: "/assets", label: "Back to Assets" };
   const title = isEarnDetail
     ? "Earn strategy"
     : isAssetDetail
       ? "Asset details"
-      : (titles[pathname] ?? "Plain");
+      : isBondDetail
+        ? "Bond details"
+        : (titles[pathname] ?? "Plain");
 
   useEffect(() => {
     if (!bankEmbed) return;
@@ -273,8 +279,8 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-5 backdrop-blur lg:h-16 lg:px-10">
             {isDetail ? (
               <Link
-                href={isEarnDetail ? "/earn" : "/assets"}
-                aria-label={isEarnDetail ? "Back to Earn" : "Back to Assets"}
+                href={back.href}
+                aria-label={back.label}
                 className="-ml-2 inline-flex size-11 items-center justify-center rounded-full hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ArrowLeft className="size-5" />
@@ -284,7 +290,7 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
           </header>
         ) : null}
         <main
-          className={`flex-1 px-4 pt-5 ${isDetail ? "pb-[calc(12rem_+_env(safe-area-inset-bottom))]" : "pb-28"} ${embedded ? "" : "lg:mx-auto lg:w-full lg:max-w-3xl lg:px-10 lg:pt-10 lg:pb-16"}`}
+          className={`flex-1 px-4 pt-5 ${isEarnDetail || isAssetDetail ? "pb-[calc(12rem_+_env(safe-area-inset-bottom))]" : "pb-28"} ${embedded ? "" : "lg:mx-auto lg:w-full lg:max-w-3xl lg:px-10 lg:pt-10 lg:pb-16"}`}
         >
           {portfolioError ? <div role="alert" className="mb-4 space-y-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">
             <p>{presentEnglishError(portfolioError, "We couldn't load your portfolio. Please try again.")}</p>
@@ -297,7 +303,7 @@ function SignedInShell({ children, embedded }: { children: React.ReactNode; embe
           aria-label="Primary navigation"
           className="fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md border-t bg-background/95 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
         >
-          <div className="grid grid-cols-4">
+          <div className="grid grid-cols-5">
             {tabs.map(({ href, label, icon: Icon }) => {
               const active = pathname === href || pathname.startsWith(`${href}/`);
               return (

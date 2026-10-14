@@ -23,11 +23,11 @@ test("Earn retains strategy selection rather than replacing it with the balances
 
 test("all original navigation destinations remain present", async () => {
   const source = await readFile("components/app/shell.tsx", "utf8");
-  for (const route of ["/home", "/earn", "/assets", "/activity", "/portfolio"]) {
+  for (const route of ["/home", "/earn", "/bonds", "/assets", "/activity", "/portfolio"]) {
     assert.ok(source.includes(`href: "${route}"`));
   }
-  assert.match(source, /grid-cols-4/);
+  assert.match(source, /grid-cols-5/);
   const primary = source.slice(source.indexOf("const tabs ="), source.indexOf("const accountLinks"));
-  assert.equal((primary.match(/href:/g) ?? []).length, 4);
+  assert.equal((primary.match(/href:/g) ?? []).length, 5);
   assert.doesNotMatch(primary, /\/assets/);
 });

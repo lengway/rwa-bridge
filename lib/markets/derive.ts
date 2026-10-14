@@ -46,6 +46,7 @@ export function buildEntitlementSheet(
       return {
         holder: h.holder,
         label: entry?.label,
+        ...(entry?.plainInvestor ? { plainInvestor: true } : {}),
         units: h.units,
         amount: e.amount,
         redeemUnits: e.redeemUnits,

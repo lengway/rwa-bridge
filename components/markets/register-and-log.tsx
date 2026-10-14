@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime, formatRelative, formatSettlement, formatShare, formatUnits } from "@/lib/markets/format";
 import type { CorporateAction, Instrument, MarketEventName } from "@/lib/markets/service";
 import { useLedgerQuery } from "./markets-provider";
-import { ChainRef, ErrorNote, Panel, PanelHeader, Skeleton, Stat, focusRing } from "./primitives";
+import { ChainRef, ErrorNote, Panel, PanelHeader, PlainInvestorBadge, Skeleton, Stat, focusRing } from "./primitives";
 
 const CUSTODY: Record<string, string> = { self: "Self-custody", "smart-wallet": "Plain smart wallet", custodian: "Custodian" };
 
@@ -57,7 +57,10 @@ export function RegisterView({ instrument, now }: { instrument: Instrument; now:
                   .map((e) => (
                     <tr key={e.holder} className="transition-colors hover:bg-muted/40">
                       <td className="max-w-[16rem] px-5 py-3 sm:px-6">
-                        <p className="truncate font-medium">{e.label ?? "Holder"}</p>
+                        <p className="flex min-w-0 items-center gap-2">
+                          <span className="truncate font-medium">{e.label ?? "Holder"}</span>
+                          {e.plainInvestor ? <PlainInvestorBadge /> : null}
+                        </p>
                         <ChainRef value={e.holder} kind="address" label="holder address" />
                       </td>
                       <td className="px-3 py-3 text-muted-foreground">{e.custody ? CUSTODY[e.custody] : "—"}</td>

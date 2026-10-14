@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDownToLine, ArrowUpFromLine, Building2, CreditCard } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Building2, CreditCard, Landmark } from "lucide-react";
+import { PaymentLinks, money, paymentLabel } from "@/components/app/bonds/bond-parts";
 import { Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,9 +9,13 @@ import { presentDevnetCopy } from "@/components/app/earn-detail-parts";
 import { formatQuantity } from "@/lib/format";
 import { useAppStore, type ActivityItem } from "@/lib/store";
 import { useNow } from "@/lib/useNow";
+import type { BondPayment } from "@/lib/markets/investor";
+import { useBondsOverview } from "@/lib/useBonds";
 
 export function ActivityScreen() {
   const { activity, hydrated } = useAppStore();
+  const bonds = useBondsOverview();
+  const bondPayments = bonds.data?.available ? bonds.data.payments : [];
   const now = useNow();
 
   if (!hydrated || now === null) {
@@ -23,15 +28,20 @@ export function ActivityScreen() {
     );
   }
 
-  const grouped = new Map<string, ActivityItem[]>();
-  for (const item of activity) {
-    const day = formatActivityDay(item.at, now);
+  // Bond payments come from the chain (receipts of the paying agent), not from the local store.
+  const rows: Row[] = [
+    ...activity.map((item) => ({ key: item.id, at: item.at, item })),
+    ...bondPayments.map((payment) => ({ key: `bond:${payment.actionId}`, at: payment.ts * 1000, payment })),
+  ].sort((a, b) => b.at - a.at);
+  const grouped = new Map<string, Row[]>();
+  for (const row of rows) {
+    const day = formatActivityDay(row.at, now);
     const group = grouped.get(day) ?? [];
-    group.push(item);
+    group.push(row);
     grouped.set(day, group);
   }
 
-  if (activity.length === 0) {
+  if (rows.length === 0) {
     return (
       <Card className="items-center gap-3 rounded-2xl p-8 text-center">
         <span className="flex size-12 items-center justify-center rounded-full bg-muted">
@@ -40,7 +50,7 @@ export function ActivityScreen() {
         <div>
           <h2 className="font-semibold">No activity yet</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Top-ups, deposits, withdrawals, and asset purchases will appear here.
+            Top-ups, deposits, withdrawals, asset purchases and bond coupons will appear here.
           </p>
         </div>
       </Card>
@@ -53,9 +63,7 @@ export function ActivityScreen() {
         <section key={day} className="space-y-2">
           <h2 className="px-1 text-sm font-semibold text-muted-foreground">{day}</h2>
           <div className="space-y-2">
-            {items.map((item) => (
-              <ActivityRow key={item.id} item={item} />
-            ))}
+            {items.map((row) => ("item" in row ? <ActivityRow key={row.key} item={row.item} /> : <BondPaymentRow key={row.key} payment={row.payment} />))}
           </div>
         </section>
       ))}
@@ -106,6 +114,27 @@ function ActivityRow({
       </div>
       <span className={`shrink-0 text-sm font-medium tabular-nums ${isInflow ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"}`}>
         {isInflow ? "+" : "−"}{formatQuantity(item.amountUsd)} {primary ? "USDC" : "test units"}
+      </span>
+    </Card>
+  );
+}
+
+type Row = { key: string; at: number } & ({ item: ActivityItem } | { payment: BondPayment });
+
+function BondPaymentRow({ payment }: { payment: BondPayment }) {
+  const time = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit" }).format(payment.ts * 1000);
+  return (
+    <Card className="flex-row items-start gap-3 rounded-2xl p-4">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
+        <Landmark className="size-4 text-amber-700 dark:text-amber-300" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{paymentLabel(payment)} · {payment.symbol}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{time} · {payment.title} · {payment.units} units · test {payment.settlementSymbol}</p>
+        <PaymentLinks payment={payment} />
+      </div>
+      <span className="shrink-0 text-sm font-medium tabular-nums text-emerald-700 dark:text-emerald-400">
+        +{money(payment.amount, payment.settlementDecimals, payment.settlementSymbol)}
       </span>
     </Card>
   );

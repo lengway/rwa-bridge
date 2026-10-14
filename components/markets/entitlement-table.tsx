@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { formatSettlement, formatShare, formatUnits } from "@/lib/markets/format";
 import type { ActionParams, EntitlementRow, EntitlementSheet, Instrument } from "@/lib/markets/service";
-import { ChainRef } from "./primitives";
+import { ChainRef, PlainInvestorBadge } from "./primitives";
 
 type Props = {
   instrument: Instrument;
@@ -42,7 +42,10 @@ export function EntitlementTable({ instrument, params, sheet, rowAction, showSta
           {sheet.rows.map((r) => (
             <tr key={r.holder} className="transition-colors hover:bg-muted/40">
               <td className={cn("px-5 py-3 sm:px-6", compact ? "max-w-[8.5rem] pr-2 sm:px-4" : "max-w-[16rem]")}>
-                <p className="truncate font-medium" title={r.label}>{r.label ?? "Holder"}</p>
+                <p className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium" title={r.label}>{r.label ?? "Holder"}</span>
+                  {r.plainInvestor ? <PlainInvestorBadge /> : null}
+                </p>
                 {compact ? <p className="truncate font-mono text-[11px] text-muted-foreground">{r.holder.slice(0, 4)}…{r.holder.slice(-4)}</p> : <ChainRef value={r.holder} kind="address" label="holder address" />}
               </td>
               <td className="px-3 py-3 text-right tabular-nums">{formatUnits(r.units)}</td>

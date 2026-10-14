@@ -226,6 +226,8 @@ export type ActionDraft = {
 export type EntitlementRow = {
   holder: Address;
   label?: string;
+  /** A Plain retail investor's smart wallet (see `RegisterEntry.plainInvestor`). */
+  plainInvestor?: boolean;
   units: bigint;
   /** Settlement owed (0 for votes). */
   amount: bigint;
