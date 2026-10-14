@@ -9,7 +9,9 @@ import { createAllocationHandler, type AllocationDeps } from "../lib/markets/all
 import { MarketsClient, bondAta, pda, type InstrumentRef } from "../lib/markets/client";
 import { DevnetLedger } from "../lib/markets/devnet-service";
 import {
+  accrualPeriod,
   accruedCoupon,
+  announcedCouponPeriods,
   addMonthsUtc,
   allocationMemo,
   allocationWindow,
@@ -19,6 +21,7 @@ import {
   currentPeriod,
   nextCouponDate,
   parseAllocationMemo,
+  periodsElapsed,
   votesFor,
   yieldToMaturity,
   type BondTerms,
@@ -375,4 +378,24 @@ test("votes: open votes reach holders even before the snapshot; read-only weight
   assert.deepEqual(votes[1].tally, ["7", "2"]);
   // Without units, an upcoming vote does not concern this wallet.
   assert.equal(votesFor(reading([vote("Announced")], { heldUnits: BigInt(0) }), ctxAt(now, wallet)).length, 0);
+});
+
+test("coupons paid ahead of the calendar: accrual and the next date follow the first unannounced period", () => {
+  const now = utc("2026-10-14T10:00:00Z");
+  const dates = couponSchedule(PDB);
+  const coupon = (period: number, status: string, paymentTs = now - 3600) => ({ params: { kind: "Coupon" as const, period, couponBps: 1200 }, status: status as CorporateAction["status"], paymentTs });
+  // The live demo bond: coupons 1–4 already announced on accelerated timing.
+  const four = [1, 2, 3, 4].map((p) => coupon(p, "Settled"));
+  assert.equal(announcedCouponPeriods(four), 4);
+  assert.deepEqual(accrualPeriod(PDB, now, 4), { index: 5, start: dates[3], end: dates[4] });
+  assert.equal(accruedCoupon(PDB, BigInt(5), now, 4), BigInt(0));
+  assert.equal(nextCouponDate(PDB, now, four), dates[4]);
+  // An announced coupon that is not paid yet comes first.
+  assert.equal(nextCouponDate(PDB, now, [...four, coupon(5, "Funded", now + 600)]), now + 600);
+  // Cancelled coupons do not count; with nothing announced, accrual follows the calendar.
+  assert.equal(announcedCouponPeriods([coupon(1, "Cancelled")]), 0);
+  assert.equal(accruedCoupon(PDB, BigInt(5), now), accruedCoupon(PDB, BigInt(5), now, periodsElapsed(PDB, now)));
+  assert.equal(accrualPeriod(PDB, now, 8), null);
+  // Accrual never exceeds one period, even long after its end.
+  assert.equal(accruedCoupon(PDB, BigInt(1), dates[2] + 10 * day, 1), BigInt(30) * USD);
 });

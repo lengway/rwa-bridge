@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/markets/format";
 import type { BondOffering, InvestorOverview } from "@/lib/markets/investor";
 import { useBondsOverview } from "@/lib/useBonds";
-import { AllocationButton, CouponCalendar, PaymentList, SectionTitle, TestFundsNote, VoteCard, YieldFigure, frequencyLabel, money } from "./bond-parts";
+import { AllocationButton, CouponCalendar, PaymentList, SectionTitle, TestFundsNote, VoteCard, YieldFigure, frequencyLabel, money, moneyCents } from "./bond-parts";
 
 type Ready = Extract<InvestorOverview, { available: true }>;
 
@@ -104,9 +104,9 @@ function PositionsSummary({ data }: { data: Ready }) {
         </div>
         {cash ? (
           <div className="text-right">
-            <p className="text-sm text-muted-foreground">Coupons received</p>
+            <p className="text-sm text-muted-foreground">Test {cash.symbol} balance</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">{money(cash.amount, cash.decimals, cash.symbol)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Test {cash.symbol} balance</p>
+            <p className="mt-1 text-xs text-muted-foreground">Coupons paid to your wallet</p>
           </div>
         ) : null}
       </div>
@@ -117,7 +117,7 @@ function PositionsSummary({ data }: { data: Ready }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{p.symbol} · {p.units} units</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Accrued {money(p.accrued, p.settlementDecimals, p.settlementSymbol)} · next coupon {p.nextCouponTs ? formatDate(p.nextCouponTs) : "—"}
+                  Accrued {moneyCents(p.accrued, p.settlementDecimals, p.settlementSymbol)} · next coupon {p.nextCouponTs ? formatDate(p.nextCouponTs) : "—"}
                 </p>
               </div>
               <ArrowRight className="size-4 shrink-0 text-muted-foreground" />

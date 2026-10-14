@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatDate } from "@/lib/markets/format";
 import { useBondsOverview } from "@/lib/useBonds";
-import { CouponCalendar, TestFundsNote, money } from "./bond-parts";
+import { CouponCalendar, TestFundsNote, money, moneyCents } from "./bond-parts";
 
 /** Portfolio: bond positions, the coupon calendar and the settlement-token balance. */
 export function BondPortfolioSection() {
@@ -52,7 +52,7 @@ export function BondPortfolioSection() {
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">
-                <span>Accrued {money(p.accrued, p.settlementDecimals, p.settlementSymbol)} (estimate)</span>
+                <span>Accrued {moneyCents(p.accrued, p.settlementDecimals, p.settlementSymbol)} (estimate)</span>
                 <span className="inline-flex items-center gap-1">Next {p.nextCouponTs ? formatDate(p.nextCouponTs) : "—"}<ArrowRight className="size-3" /></span>
               </div>
             </Card>

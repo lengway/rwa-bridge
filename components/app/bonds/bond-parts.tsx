@@ -15,6 +15,12 @@ import { cn } from "@/lib/utils";
 
 export const money = (amount: string | bigint, decimals: number, symbol: string) => formatSettlement(typeof amount === "bigint" ? amount : BigInt(amount), decimals, symbol);
 
+/** Estimates (accrued coupon) shown to the cent, rounded down. */
+export const moneyCents = (amount: string, decimals: number, symbol: string) => {
+  const unit = BigInt(10) ** BigInt(Math.max(0, decimals - 2));
+  return formatSettlement((BigInt(amount) / unit) * unit, decimals, symbol);
+};
+
 const FREQUENCY: Record<number, string> = { 1: "Annual", 2: "Semi-annual", 4: "Quarterly", 12: "Monthly" };
 export const frequencyLabel = (f: number) => FREQUENCY[f] ?? `${f}× a year`;
 
@@ -196,8 +202,8 @@ export function PositionFacts({ position }: { position: BondPosition }) {
     <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
       <Fact label="Units" value={position.units} />
       <Fact label="Face value" value={money(position.faceValue, d, s)} />
-      <Fact label="Accrued coupon" value={money(position.accrued, d, s)} sub="Estimate since the last coupon date" />
-      <Fact label="Next coupon" value={money(position.nextCouponAmount, d, s)} sub={position.nextCouponTs ? `Scheduled ${formatDate(position.nextCouponTs)}` : undefined} />
+      <Fact label="Accrued coupon" value={moneyCents(position.accrued, d, s)} sub="Estimate for the current period" />
+      <Fact label="Next coupon" value={money(position.nextCouponAmount, d, s)} sub={position.nextCouponTs ? `Expected ${formatDate(position.nextCouponTs)}` : undefined} />
     </dl>
   );
 }
