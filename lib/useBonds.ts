@@ -6,7 +6,7 @@ import type { BondDetail, InvestorOverview } from "@/lib/markets/investor";
 /**
  * Client access to the investor routes. One shared entry per URL, so the Bonds tab, Portfolio and
  * Activity read the same `/api/bonds` response; it refreshes every 30 s while something is mounted
- * and right after an allocation.
+ * and right after a purchase.
  */
 
 type Entry<T> = { data: T | null; error: string | null; loading: boolean; at: number };
@@ -88,23 +88,9 @@ export function useBondDetail(mint: string) {
   return useJson<BondDetail>(`/api/bonds/${encodeURIComponent(mint)}`);
 }
 
-/** Reload every bond view after a change (allocation). */
+/** Reload every bond view after a change (a purchase). */
 export function refreshBonds() {
   return Promise.all([...entries.keys()].filter((u) => u.startsWith(BONDS_URL)).map((u) => load(u)));
-}
-
-export type AllocationReceipt = { signature: string; slot: number; ts: number; units: string; simulatedCashLeg: true };
-
-export async function requestAllocation(mint: string, units: number, idempotencyKey: string): Promise<AllocationReceipt> {
-  const response = await fetch(`/api/bonds/${encodeURIComponent(mint)}/allocate`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
-    body: JSON.stringify({ units }),
-    credentials: "same-origin",
-  });
-  const body = (await response.json().catch(() => null)) as (AllocationReceipt & { error?: unknown }) | null;
-  if (!response.ok || !body?.signature) throw new Error(typeof body?.error === "string" ? body.error : "The allocation didn't go through. Try again.");
-  return body;
 }
 
 export const devnetTxUrl = (signature: string) => `https://explorer.solana.com/tx/${signature}?cluster=devnet`;

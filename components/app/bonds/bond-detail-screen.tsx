@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBondDetail } from "@/lib/useBonds";
 import type { BondDetail } from "@/lib/markets/investor";
-import { ActionCard, AllocationButton, CouponCalendar, PositionFacts, SectionTitle, TermsGrid, TestFundsNote, VoteCard, YieldFigure, money } from "./bond-parts";
+import { BuyButton } from "./bond-purchase";
+import { ActionCard, CouponCalendar, PositionFacts, SectionTitle, TermsGrid, TestFundsNote, VoteCard, YieldFigure, money } from "./bond-parts";
 
 export function BondDetailScreen({ mint }: { mint: string }) {
   const { data, error, refresh } = useBondDetail(mint);
@@ -44,7 +45,7 @@ function Detail({ data }: { data: BondDetail }) {
         <YieldFigure offering={offering} />
         <TermsGrid offering={offering} />
         <div className="space-y-2 border-t pt-4">
-          <AllocationButton offering={offering} heldUnits={held} className="w-full sm:w-auto" />
+          <BuyButton offering={offering} heldUnits={held} balanceAtomic={settlement?.amount ?? null} className="w-full sm:w-auto" />
           {offering.explorerUrl ? (
             <a href={offering.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-xs underline underline-offset-4">
               Bond token on Solana Explorer <ExternalLink className="size-3" />

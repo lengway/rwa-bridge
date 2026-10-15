@@ -2,8 +2,8 @@
  * Plain Markets end to end on devnet, through the running app's HTTP routes:
  *
  *   1. finish any corporate action that blocks issuance (fund → pay everyone → settle);
- *   2. a "signed-in" investor (local smoke session for an off-curve smart-wallet address) gets
- *      an allocation from /api/bonds/[mint]/allocate;
+ *   2. the issuer allocates units to a "signed-in" investor (local smoke session for an off-curve
+ *      smart-wallet address) through the console's issuerAllocate op;
  *   3. the issuer announces a coupon with live timing (record in ~1 min, payment ~2.5 min later),
  *      locks the register, posts the snapshot, funds and pushes every payment;
  *   4. /api/bonds shows the investor's position and the received coupon.
@@ -128,12 +128,11 @@ async function main() {
   // 1. Anything open blocks issuance.
   for (const a of (await fresh().listActions(mint)).filter((x) => x.status !== "Settled" && x.status !== "Cancelled").reverse()) await finish(a);
 
-  // 2. Allocation.
+  // 2. Issuer allocation (console issuer action; investors buy through /api/bonds/[mint]/purchase).
   const before = await call<InvestorOverview>("/api/bonds", { cookie });
   if (!before.available) throw new Error(before.reason);
-  console.log(`allocation window: ${before.offerings[0].allocation.open ? "open" : before.offerings[0].allocation.reason}`);
-  const alloc = await call<{ signature: string; units: string }>(`/api/bonds/${mint}/allocate`, { method: "POST", body: { units: UNITS }, cookie });
-  console.log(`allocated ${alloc.units} units to the smart wallet  ${tx(alloc.signature)}`);
+  const alloc = await call<{ signature: string; units: string }>("/api/markets/issuerAllocate", { method: "POST", body: { mint, holder: WALLET, units: UNITS } });
+  console.log(`issuer allocated ${alloc.units} units to the smart wallet  ${tx(alloc.signature)}`);
   const register = await fresh().getRegister(mint);
   console.log(`register marks it as a Plain investor: ${register.entries.find((e) => e.holder === WALLET)?.plainInvestor === true}`);
 

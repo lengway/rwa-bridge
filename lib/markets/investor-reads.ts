@@ -62,7 +62,8 @@ async function reading(reader: DevnetLedger, instrument: Instrument, ref: Awaite
       votes.set(a.id, v);
     }),
   );
-  return { instrument, issue: issueStateOf(ref.account), actions, snapshots, receipts, votes, heldUnits };
+  const offering = await reader.getOffering(instrument.mint);
+  return { instrument, issue: issueStateOf(ref.account), offering, actions, snapshots, receipts, votes, heldUnits };
 }
 
 export async function readOverview(reader: DevnetLedger, wallet: Address, limits: AllocationLimits) {

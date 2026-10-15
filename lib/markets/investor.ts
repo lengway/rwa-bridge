@@ -13,6 +13,7 @@
  *   discounts the remaining coupons and the face value back to the price.
  * - Allocation guard: the program's `issue` preconditions plus Plain's per-investor limits.
  */
+import type { OfferingState } from "./devnet-service";
 import { couponPerUnit } from "./entitlements";
 import type { Address, ClaimReceipt, CorporateAction, Instrument, PublishedSnapshot, Signature, UnixTs, VoteRecord } from "./service";
 
@@ -223,8 +224,24 @@ export type BondOffering = {
   couponPerUnit: string;
   /** Nominal annual yield to maturity at par, compounded `frequency` times a year (bps). */
   ytmBps: number | null;
-  allocation: { open: boolean; reason: string | null; capUnits: number; maxPerRequest: number };
+  /** Primary sale through Plain (delivery versus payment in USDC); null when the bond has none. */
+  purchase: BondPurchaseTerms | null;
   explorerUrl: string | null;
+};
+
+export type BondPurchaseTerms = {
+  open: boolean;
+  /** Why buying is not possible right now, in plain words. */
+  reason: string | null;
+  /** Settlement base units per bond unit. */
+  priceAtomic: string;
+  soldUnits: string;
+  capUnits: string;
+  perHolderCap: string;
+  /** Units this wallet may still buy (per-holder cap and units left). */
+  maxForWallet: string;
+  startTs: UnixTs;
+  endTs: UnixTs;
 };
 
 export type BondPosition = {
@@ -342,6 +359,8 @@ export type BondDetail = {
 export type InstrumentReading = {
   instrument: Instrument;
   issue: IssueState;
+  /** The bond's primary offering, if it has one. */
+  offering?: OfferingState | null;
   actions: CorporateAction[];
   snapshots: Map<Address, PublishedSnapshot | null>;
   receipts: Map<Address, ClaimReceipt[]>;
@@ -360,9 +379,37 @@ export type ViewContext = {
 
 const verifyUrl = (actionId: Address) => `/verify/${actionId}`;
 
-export function offeringView(r: Pick<InstrumentReading, "instrument" | "issue" | "actions">, ctx: ViewContext): BondOffering {
+/** Whether `subscribe` would accept a purchase now (the program re-checks everything). */
+export function purchaseTerms(r: Pick<InstrumentReading, "instrument" | "issue" | "offering" | "heldUnits">, now: UnixTs): BondPurchaseTerms | null {
+  const o = r.offering;
+  // Plain sells through the smart wallet only for bonds settled in Circle devnet USDC.
+  if (!o || r.instrument.settlementSymbol !== "USDC") return null;
+  const left = o.capUnits - o.soldUnits;
+  const room = o.perHolderCap - r.heldUnits;
+  const max = left < room ? left : room;
+  const window = allocationWindow(r.issue, now);
+  const reason = o.closed ? "The offering is closed."
+    : now < o.startTs ? `The offering opens on ${new Date(o.startTs * 1000).toISOString().slice(0, 10)}.`
+    : now >= o.endTs ? "The offering period has ended."
+    : !window.open ? window.reason.replace(/Allocations/g, "Purchases")
+    : left <= ZERO ? "The offering is sold out."
+    : room <= ZERO ? `You hold the maximum of ${o.perHolderCap} units for this bond.`
+    : null;
+  return {
+    open: reason == null,
+    reason,
+    priceAtomic: o.issuePrice.toString(),
+    soldUnits: o.soldUnits.toString(),
+    capUnits: o.capUnits.toString(),
+    perHolderCap: o.perHolderCap.toString(),
+    maxForWallet: (max > ZERO ? max : ZERO).toString(),
+    startTs: o.startTs,
+    endTs: o.endTs,
+  };
+}
+
+export function offeringView(r: Pick<InstrumentReading, "instrument" | "issue" | "actions"> & Partial<Pick<InstrumentReading, "offering" | "heldUnits">>, ctx: ViewContext): BondOffering {
   const i = r.instrument;
-  const window = allocationWindow(r.issue, ctx.now);
   const ytm = yieldToMaturity(i, i.faceValue, ctx.now);
   return {
     mint: i.mint,
@@ -381,7 +428,7 @@ export function offeringView(r: Pick<InstrumentReading, "instrument" | "issue" |
     nextCouponTs: nextCouponDate(i, ctx.now, r.actions),
     couponPerUnit: couponPerUnit(i.faceValue, i.couponBps, i.frequency).toString(),
     ytmBps: ytm == null ? null : Math.round(ytm * 10_000),
-    allocation: { open: window.open, reason: window.reason, capUnits: ctx.limits.capUnits, maxPerRequest: ctx.limits.maxPerRequest },
+    purchase: purchaseTerms({ ...r, offering: r.offering ?? null, heldUnits: r.heldUnits ?? ZERO }, ctx.now),
     explorerUrl: ctx.explorerAddress(i.mint),
   };
 }

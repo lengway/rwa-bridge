@@ -137,7 +137,7 @@ async function chainPurchase() {
   const trace = raw.transaction.message.compiledInstructions.flatMap((ix, index) => [
     { programId: keys[ix.programIdIndex], accounts: [...ix.accountKeyIndexes].map((i) => keys[i]), dataBase58: bs58.encode(ix.data), stackHeight: 1 },
     ...(raw.meta!.innerInstructions?.find((g) => g.index === index)?.instructions ?? []).map((c) => ({
-      programId: keys[c.programIdIndex], accounts: c.accounts.map((i) => keys[i]), dataBase58: c.data, stackHeight: c.stackHeight ?? 2,
+      programId: keys[c.programIdIndex], accounts: c.accounts.map((i) => keys[i]), dataBase58: c.data, stackHeight: (c as { stackHeight?: number | null }).stackHeight ?? 2,
     })),
   ]);
   const intent = { walletAddress: buyer.publicKey.toBase58(), units: UNITS.toString(), costAtomic: cost.toString() };

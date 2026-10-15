@@ -8,7 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/markets/format";
 import type { BondOffering, InvestorOverview } from "@/lib/markets/investor";
 import { useBondsOverview } from "@/lib/useBonds";
-import { AllocationButton, CouponCalendar, PaymentList, SectionTitle, TestFundsNote, VoteCard, YieldFigure, frequencyLabel, money, moneyCents } from "./bond-parts";
+import { BuyButton } from "./bond-purchase";
+import { CouponCalendar, PaymentList, SectionTitle, TestFundsNote, VoteCard, YieldFigure, frequencyLabel, money, moneyCents } from "./bond-parts";
 
 type Ready = Extract<InvestorOverview, { available: true }>;
 
@@ -68,7 +69,7 @@ function Overview({ data }: { data: Ready }) {
       <section className="space-y-3">
         <SectionTitle title="Offerings" aside={String(data.offerings.length)} />
         {data.offerings.length === 0 ? <p className="text-sm text-muted-foreground">No bonds are open right now.</p> : null}
-        {data.offerings.map((o) => <OfferingCard key={o.mint} offering={o} heldUnits={held.get(o.mint) ?? BigInt(0)} />)}
+        {data.offerings.map((o) => <OfferingCard key={o.mint} offering={o} heldUnits={held.get(o.mint) ?? BigInt(0)} balanceAtomic={data.settlement.find((c) => c.symbol === o.settlementSymbol)?.amount ?? null} />)}
       </section>
 
       {data.positions.length ? (
@@ -85,7 +86,7 @@ function Overview({ data }: { data: Ready }) {
         </section>
       ) : null}
 
-      <TestFundsNote>{data.note} Fiat settlement is simulated; allocations and coupons use test tokens on Solana devnet.</TestFundsNote>
+      <TestFundsNote>{data.note} Purchases and coupons settle in devnet USDC (older issues in a test USD token) on Solana devnet.</TestFundsNote>
     </div>
   );
 }
@@ -129,7 +130,7 @@ function PositionsSummary({ data }: { data: Ready }) {
   );
 }
 
-function OfferingCard({ offering, heldUnits }: { offering: BondOffering; heldUnits: bigint }) {
+function OfferingCard({ offering, heldUnits, balanceAtomic }: { offering: BondOffering; heldUnits: bigint; balanceAtomic: string | null }) {
   const d = offering.settlementDecimals;
   const s = offering.settlementSymbol;
   return (
@@ -151,7 +152,7 @@ function OfferingCard({ offering, heldUnits }: { offering: BondOffering; heldUni
       </Link>
       <div className="space-y-2 border-t pt-4">
         {heldUnits > BigInt(0) ? <p className="text-xs text-muted-foreground">You hold {heldUnits.toString()} units.</p> : null}
-        <AllocationButton offering={offering} heldUnits={heldUnits} className="w-full" />
+        <BuyButton offering={offering} heldUnits={heldUnits} balanceAtomic={balanceAtomic} className="w-full" />
       </div>
     </Card>
   );

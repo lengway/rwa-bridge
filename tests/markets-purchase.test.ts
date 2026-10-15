@@ -321,3 +321,33 @@ test("subscribe data encodes units and max payment little-endian after the discr
   assert.equal(new BN(Buffer.from(data.slice(8, 16)), "le").toString(), "5");
   assert.equal(new BN(Buffer.from(data.slice(16, 24)), "le").toString(), "5000000");
 });
+
+// ---- investor view ---------------------------------------------------------------------------------
+
+test("purchase terms mirror the program's subscribe preconditions in plain words", async () => {
+  const { purchaseTerms } = await import("../lib/markets/investor");
+  const now = 1_800_000_000;
+  const offering = {
+    address: "o", proceedsVault: "v", issuePrice: PRICE, startTs: now - 10, endTs: now + 1_000, capUnits: BigInt(100), perHolderCap: BigInt(10),
+    soldUnits: BigInt(40), proceeds: BigInt(40) * PRICE, withdrawn: BigInt(0), closed: false, purchases: [], withdrawals: [],
+  };
+  const issue = { status: "Active" as const, maturityTs: now + 10_000, lockFrom: 0, lockUntil: 0, pendingAction: false, openRedemption: false };
+  const instrument = { settlementSymbol: "USDC" } as Parameters<typeof purchaseTerms>[0]["instrument"];
+  const run = (over: Partial<typeof offering> = {}, held = BigInt(3), state = issue, inst = instrument) =>
+    purchaseTerms({ instrument: inst, issue: state, offering: { ...offering, ...over }, heldUnits: held }, now);
+  assert.deepEqual(
+    { open: run()!.open, max: run()!.maxForWallet, price: run()!.priceAtomic },
+    { open: true, max: "7", price: "1000000" },
+  );
+  assert.equal(run({ soldUnits: BigInt(98) })!.maxForWallet, "2");
+  assert.match(run({ closed: true })!.reason!, /closed/);
+  assert.match(run({ startTs: now + 5 })!.reason!, /opens on/);
+  assert.match(run({ endTs: now })!.reason!, /ended/);
+  assert.match(run({ soldUnits: BigInt(100) })!.reason!, /sold out/);
+  assert.match(run({}, BigInt(10))!.reason!, /maximum of 10/);
+  assert.match(run({}, BigInt(3), { ...issue, pendingAction: true })!.reason!, /Purchases reopen/);
+  assert.match(run({}, BigInt(3), { ...issue, lockFrom: now - 1, lockUntil: now + 1 })!.reason!, /locked/);
+  // Test-USD bonds and bonds without an offering are not sold in Plain.
+  assert.equal(run({}, BigInt(0), issue, { settlementSymbol: "USD" } as typeof instrument), null);
+  assert.equal(purchaseTerms({ instrument, issue, offering: null, heldUnits: BigInt(0) }, now), null);
+});

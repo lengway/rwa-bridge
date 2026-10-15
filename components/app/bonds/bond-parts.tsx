@@ -1,19 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { CalendarClock, Check, ExternalLink, Info, Minus, Plus, ShieldCheck, Vote } from "lucide-react";
-import { toast } from "sonner";
-import { DrawerFrame } from "@/components/app/drawer-frame";
+import { CalendarClock, Check, ExternalLink, Info, ShieldCheck, Vote } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { formatBps, formatDate, formatDateTime, formatSettlement } from "@/lib/markets/format";
 import type { BondActionView, BondOffering, BondPayment, BondPosition, BondVote, CalendarEntry } from "@/lib/markets/investor";
-import { devnetTxUrl, refreshBonds, requestAllocation } from "@/lib/useBonds";
 import { cn } from "@/lib/utils";
-
-const unitsLabel = (n: string | number) => `${n} unit${String(n) === "1" ? "" : "s"}`;
 
 export const money = (amount: string | bigint, decimals: number, symbol: string) => formatSettlement(typeof amount === "bigint" ? amount : BigInt(amount), decimals, symbol);
 
@@ -82,111 +75,7 @@ export function TermsGrid({ offering }: { offering: BondOffering }) {
   );
 }
 
-// ---- allocation -------------------------------------------------------------------------------------
-
-function newKey() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `alloc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-export function AllocationButton({ offering, heldUnits, className }: { offering: BondOffering; heldUnits: bigint; className?: string }) {
-  const [open, setOpen] = useState(false);
-  const room = Math.max(0, offering.allocation.capUnits - Number(heldUnits));
-  const max = Math.min(offering.allocation.maxPerRequest, room);
-  const disabled = !offering.allocation.open || max < 1;
-  return (
-    <>
-      <Button className={className} size="lg" disabled={disabled} onClick={() => setOpen(true)}>
-        Get allocation
-      </Button>
-      {disabled ? (
-        <p className="text-xs text-muted-foreground">{!offering.allocation.open ? offering.allocation.reason : `You hold the maximum of ${offering.allocation.capUnits} units.`}</p>
-      ) : null}
-      {open ? <AllocationDrawer offering={offering} max={max} onClose={() => setOpen(false)} /> : null}
-    </>
-  );
-}
-
-function AllocationDrawer({ offering, max, onClose }: { offering: BondOffering; max: number; onClose: () => void }) {
-  const [units, setUnits] = useState(1);
-  const [key, setKey] = useState(newKey);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ signature: string; units: string } | null>(null);
-  const d = offering.settlementDecimals;
-  const s = offering.settlementSymbol;
-  const n = BigInt(units);
-
-  const change = (next: number) => {
-    setUnits(Math.min(max, Math.max(1, next)));
-    // A different request needs a new idempotency key.
-    setKey(newKey());
-    setError(null);
-  };
-
-  const submit = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const receipt = await requestAllocation(offering.mint, units, key);
-      setDone({ signature: receipt.signature, units: receipt.units });
-      toast.success(`${unitsLabel(receipt.units)} of ${offering.symbol} in your wallet`);
-      void refreshBonds();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "The allocation didn't go through. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <DrawerFrame open onOpenChange={(o) => !o && !busy && onClose()} title={`Get ${offering.symbol}`} description={offering.name}>
-      {done ? (
-        <div className="space-y-4 py-2 text-center">
-          <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-            <Check className="size-6" />
-          </span>
-          <div>
-            <p className="text-lg font-semibold">{unitsLabel(done.units)} issued to your wallet</p>
-            <p className="mt-1 text-sm text-muted-foreground">The issuer signed the issue transaction on Solana devnet. Coupons will be paid to this wallet automatically.</p>
-          </div>
-          <a href={devnetTxUrl(done.signature)} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1.5 text-sm underline underline-offset-4">
-            View transaction <ExternalLink className="size-3.5" />
-          </a>
-          <Button className="w-full" size="lg" variant="outline" onClick={onClose}>Done</Button>
-        </div>
-      ) : (
-        <div className="space-y-5">
-          <div className="flex items-center justify-between gap-3 rounded-2xl border p-4">
-            <div>
-              <p className="text-sm font-medium">Units</p>
-              <p className="text-xs text-muted-foreground">Up to {max} now · {money(offering.faceValue, d, s)} face each</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" aria-label="Fewer units" disabled={busy || units <= 1} onClick={() => change(units - 1)}><Minus /></Button>
-              <output aria-live="polite" className="w-10 text-center text-xl font-semibold tabular-nums">{units}</output>
-              <Button variant="outline" size="icon" aria-label="More units" disabled={busy || units >= max} onClick={() => change(units + 1)}><Plus /></Button>
-            </div>
-          </div>
-          <dl className="space-y-2 text-sm">
-            <Row label="Face value" value={money(n * BigInt(offering.faceValue), d, s)} />
-            <Row label={`Coupon every ${offering.frequency === 12 ? "month" : offering.frequency === 4 ? "quarter" : offering.frequency === 2 ? "six months" : "year"}`} value={money(n * BigInt(offering.couponPerUnit), d, s)} />
-            <Row label="Yield to maturity" value={offering.ytmBps != null ? formatBps(offering.ytmBps) : "—"} />
-            <Row label="Next coupon date" value={offering.nextCouponTs ? formatDate(offering.nextCouponTs) : "—"} />
-            <Row label="You pay" value="Nothing (test allocation)" />
-          </dl>
-          <TestFundsNote>Devnet test allocation: no payment is taken. The issuer issues test bond units to your Plain wallet on Solana devnet, and coupons arrive in a test USD token.</TestFundsNote>
-          {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-          <Button className="w-full" size="lg" disabled={busy} onClick={() => void submit()}>
-            {busy ? "Issuing on Solana devnet…" : `Get ${units} unit${units === 1 ? "" : "s"}`}
-          </Button>
-        </div>
-      )}
-    </DrawerFrame>
-  );
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+export function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="text-muted-foreground">{label}</dt>

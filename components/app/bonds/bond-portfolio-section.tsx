@@ -17,7 +17,7 @@ export function BondPortfolioSection() {
   const cash = data.settlement.filter((s) => BigInt(s.amount) > BigInt(0));
 
   if (!data.positions.length && !cash.length) {
-    if (!data.offerings.some((o) => o.allocation.open)) return null;
+    if (!data.offerings.some((o) => o.purchase?.open)) return null;
     return (
       <Card className="flex-row items-center gap-3 rounded-2xl p-4">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted"><Landmark className="size-4 text-muted-foreground" /></span>
