@@ -21,7 +21,7 @@ export default async function VerifyPage({ params }: PageProps<"/verify/[actionI
     <>
       <SiteHeader />
       <main id="main" className="flex-1">
-        <ActionVerifier actionId={actionId} config={marketsPublicConfig()} />
+        <ActionVerifier actionId={actionId} config={marketsPublicConfig("issuer")} />
         <MarketsFootnote />
       </main>
       <SiteFooter />

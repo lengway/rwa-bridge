@@ -9,7 +9,7 @@ import { marketsPublicConfig } from "@/lib/markets/server";
 async function ConfiguredConsole() {
   // Read MARKETS_* at request time, not at build time.
   await connection();
-  return <IssuerConsole config={marketsPublicConfig()} />;
+  return <IssuerConsole config={marketsPublicConfig("issuer")} />;
 }
 
 export const metadata: Metadata = {

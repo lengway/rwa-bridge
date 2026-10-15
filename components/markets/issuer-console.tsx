@@ -5,7 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarClock, ChevronRight, FastForward, Loader2, Lock, Plus, RotateCcw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { formatBps, formatDate, formatDateTime, formatRelative, formatSettlement, formatUnits } from "@/lib/markets/format";
+import { formatBps, formatDate, formatDateTime, formatRelative, formatTime, formatSettlement, formatUnits } from "@/lib/markets/format";
+import { ACCELERATED_YEAR_SECONDS, couponDates, isAccelerated, tenorYears } from "@/lib/markets/calendar";
 import { KIND_LABEL, couponPeriods, progress, stageLabel, upcomingEvents } from "@/lib/markets/lifecycle";
 import type { MarketsPublicConfig } from "@/lib/markets/devnet-service";
 import type { CorporateAction, Instrument } from "@/lib/markets/service";
@@ -31,8 +32,14 @@ function Console() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  // ?mint= picks another listed instrument; the first listed one is the default.
-  const instrument = instruments.data?.find((i) => i.mint === params.get("mint")) ?? instruments.data?.[0];
+  // ?mint= picks another instrument (listed or not, e.g. a showcase bond minted after deploy); the
+  // first listed one is the default.
+  const wanted = params.get("mint");
+  const listed = instruments.data?.find((i) => i.mint === wanted);
+  const unlisted = useLedgerQuery(wanted && instruments.data && !listed ? `instrument:${wanted}` : null, (s) => s.getInstrument(wanted!));
+  const resolving = !!wanted && !!instruments.data && !listed && unlisted.data === undefined && !unlisted.error;
+  const instrument = listed ?? unlisted.data ?? (resolving ? undefined : instruments.data?.[0]);
+  const pills = instrument && instruments.data && !instruments.data.some((i) => i.mint === instrument.mint) ? [...instruments.data, instrument] : (instruments.data ?? []);
   const actions = useLedgerQuery(instrument ? `actions:${instrument.mint}` : null, (s) => s.listActions(instrument!.mint));
   const now = useLedgerNow();
   const [newOpen, setNewOpen] = useState(false);
@@ -75,9 +82,9 @@ function Console() {
       <InstrumentHeader instrument={instrument} actions={list} now={now} onNew={() => setNewOpen(true)} onSelect={select} />
       <Shell>
         <SimulationBar actions={list} now={now} />
-        {(instruments.data?.length ?? 0) > 1 ? (
+        {pills.length > 1 ? (
           <nav aria-label="Instruments" className="mb-4 flex flex-wrap gap-2">
-            {instruments.data!.map((i) => (
+            {pills.map((i) => (
               <button key={i.mint} type="button" aria-current={i.mint === instrument.mint ? "true" : undefined} onClick={() => setParams({ mint: i.mint === instruments.data![0].mint ? null : i.mint, action: null })}
                 className={cn(pillButton, i.mint === instrument.mint && "border-foreground/40 bg-muted")}>
                 {i.symbol}
@@ -171,11 +178,12 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
   const next = upcomingEvents(actions, now)[0];
   const locked = now < instrument.lockUntil;
   const periods = couponPeriods(instrument);
-  const coupons = Array.from({ length: periods }, (_, i) => {
-    const d = new Date(instrument.issueTs * 1000);
-    d.setUTCMonth(d.getUTCMonth() + (i + 1) * (12 / instrument.frequency));
+  const accelerated = isAccelerated(instrument);
+  // Accelerated calendars show times: a whole schedule fits in one day.
+  const when = accelerated ? formatDateTime : formatDate;
+  const coupons = couponDates(instrument).map((ts, i) => {
     const action = actions.find((a) => a.params.kind === "Coupon" && a.params.period === i + 1) ?? (i + 1 === periods ? actions.find((a) => a.params.kind === "FinalRedemption" && a.params.includeCoupon) : undefined);
-    return { period: i + 1, ts: Math.floor(d.getTime() / 1000), action };
+    return { period: i + 1, ts, action };
   });
   return (
     <section aria-labelledby="instrument-title" className="relative isolate overflow-hidden border-b">
@@ -191,9 +199,14 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
                 <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
                 {instrument.status}
               </span>
+              {accelerated ? (
+                <span title={`Demonstration only: one nominal year lasts ${ACCELERATED_YEAR_SECONDS / 60} minutes, so the ${tenorYears(instrument)}-year schedule runs live. Terms and payments are otherwise exactly as on a real calendar.`} className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-500/25 dark:text-amber-300">
+                  <FastForward className="size-3" aria-hidden="true" /> Accelerated calendar · 1 year = {ACCELERATED_YEAR_SECONDS / 60} min
+                </span>
+              ) : null}
               {locked ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-inset ring-violet-500/20 dark:text-violet-300">
-                  <Lock className="size-3" aria-hidden="true" /> Transfers locked until {formatDate(instrument.lockUntil)}
+                  <Lock className="size-3" aria-hidden="true" /> Transfers locked until {when(instrument.lockUntil)}
                 </span>
               ) : null}
             </div>
@@ -214,8 +227,8 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
             <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
               <Term label="Face value" value={money(instrument.faceValue)} sub="per unit" />
               <Term label="Coupon" value={formatBps(instrument.couponBps)} sub={instrument.frequency === 2 ? "Semi-annual" : `${instrument.frequency}× a year`} />
-              <Term label="Issued" value={formatDate(instrument.issueTs)} sub={`${formatUnits(instrument.issuedUnits)} units`} />
-              <Term label="Maturity" value={formatDate(instrument.maturityTs)} sub={formatRelative(instrument.maturityTs, now)} />
+              <Term label="Issued" value={when(instrument.issueTs)} sub={`${formatUnits(instrument.issuedUnits)} units`} />
+              <Term label="Maturity" value={when(instrument.maturityTs)} sub={formatRelative(instrument.maturityTs, now)} />
               <Term label="Outstanding" value={`${formatUnits(instrument.supply)} units`} sub={`${money(instrument.supply * instrument.faceValue)} face`} />
               <Term label="Settlement" value={instrument.settlementSymbol === "USDC" ? "Circle USDC" : "Test USD"} sub={`${instrument.settlementDecimals} decimals · devnet`} />
               <Term label="Transfer rules" value={instrument.allowlist ? "Allowlist" : "Open"} sub="+ ex-date lock hook" />
@@ -233,7 +246,7 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
                         <span>C{c.period}</span>
                         <span className={cn("size-1.5 rounded-full", settled ? "bg-emerald-500" : active ? "bg-amber-500" : "bg-border")} aria-hidden="true" />
                       </span>
-                      <span className="mt-1 block text-xs font-medium tabular-nums">{formatDate(c.ts).replace(/ \d{4}$/, "")}</span>
+                      <span className="mt-1 block text-xs font-medium tabular-nums">{accelerated ? formatTime(c.ts) : formatDate(c.ts).replace(/ \d{4}$/, "")}</span>
                       <span className="block text-[11px] text-muted-foreground">{settled ? "Paid" : active ? stageLabel(c.action!) : "Scheduled"}</span>
                     </>
                   );
