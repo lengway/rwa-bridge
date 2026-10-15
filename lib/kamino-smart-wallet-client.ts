@@ -1,6 +1,10 @@
 import { PublicKey } from "@solana/web3.js";
 
-export type SmartWalletActionKind = "deposit" | "withdraw" | "initialize";
+export type SmartWalletActionKind = "deposit" | "withdraw" | "markets-subscribe" | "initialize";
+/** Operations a user starts (everything except the one-time wallet setup). */
+export type SmartWalletIntentKind = Exclude<SmartWalletActionKind, "initialize">;
+/** Journals are kept per product so a Kamino screen never resumes a bond purchase and vice versa. */
+export type SmartWalletJournal = "kamino" | "markets";
 export type SmartWalletOperationStage =
   | "READY"
   | "PENDING"
@@ -13,6 +17,8 @@ export type PreparedSmartWalletOperation = {
   providerTransactionId?: string;
   action: SmartWalletActionKind;
   amountAtomic: string;
+  /** Bond mint (markets-subscribe only). */
+  mint?: string;
   network: "devnet";
   stage: "READY" | "SETUP_REQUIRED";
   feeMode: "project";
@@ -37,19 +43,22 @@ export type StoredSmartWalletOperation = {
   providerTransactionId?: string;
   action: SmartWalletActionKind;
   amountAtomic: string;
+  /** Bond mint (markets-subscribe only). */
+  mint?: string;
   walletAddress: string;
   initializationRequestId?: string;
   parentActionId?: string;
   /** Durable intent from the single review tap; never inferred during recovery. */
   userStarted?: boolean;
   approvalRequested?: boolean;
-  continuation?: { actionId: string; action: "deposit" | "withdraw"; amountAtomic: string };
+  continuation?: { actionId: string; action: SmartWalletIntentKind; amountAtomic: string; mint?: string };
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ACTIONS = new Set<SmartWalletActionKind>(["deposit", "withdraw", "initialize"]);
+const ACTIONS = new Set<SmartWalletActionKind>(["deposit", "withdraw", "markets-subscribe", "initialize"]);
 const STAGES = new Set<SmartWalletOperationStage>(["READY", "PENDING", "SETUP_REQUIRED", "FAILED", "COMPLETED"]);
 const STORAGE_PREFIX = "plain:kamino-smart-wallet-operation:v1:";
+const MARKETS_STORAGE_PREFIX = "plain:markets-purchase-operation:v1:";
 
 export class KaminoSmartWalletClientError extends Error {
   constructor(message: string) {
@@ -100,9 +109,19 @@ function network(value: unknown): "devnet" {
   return "devnet";
 }
 
+function optionalMint(value: unknown, action: SmartWalletActionKind, expected?: string): string | undefined {
+  if (action !== "markets-subscribe") {
+    if (value !== undefined) fail("The wallet service returned an unexpected bond.");
+    return undefined;
+  }
+  const mint = canonicalWallet(value);
+  if (expected !== undefined && mint !== expected) fail("The prepared operation is for a different bond.");
+  return mint;
+}
+
 export function parsePreparedSmartWalletOperation(
   value: unknown,
-  expected: { walletAddress: string; action: SmartWalletActionKind; amountAtomic: string; requestId: string },
+  expected: { walletAddress: string; action: SmartWalletActionKind; amountAtomic: string; requestId: string; mint?: string },
 ): PreparedSmartWalletOperation {
   const source = object(value);
   const action = actionKind(source.action);
@@ -140,11 +159,14 @@ export function parsePreparedSmartWalletOperation(
     fail("A separate setup operation with no token transfer was not confirmed for the wallet.");
   }
   if (stage === "SETUP_REQUIRED" && action === "initialize") fail("Wallet setup cannot require its own setup.");
+  if (action === "markets-subscribe" && expected.mint === undefined) fail("The prepared operation is for a different bond.");
+  const mint = optionalMint(source.mint, action, expected.mint);
   return {
     actionId: source.actionId,
     ...(typeof source.providerTransactionId === "string" ? { providerTransactionId: source.providerTransactionId } : {}),
     action,
     amountAtomic: amountAtomicValue,
+    ...(mint ? { mint } : {}),
     network: network(source.network),
     stage,
     feeMode: feeMode(source.feeMode),
@@ -215,12 +237,19 @@ async function postJson<T>(path: string, body: unknown, parse: (value: unknown) 
 }
 
 export function prepareSmartWalletOperation(
-  request: { action: "deposit" | "withdraw"; amountAtomic: string; requestId: string },
+  request: { action: SmartWalletIntentKind; amountAtomic: string; requestId: string; mint?: string },
   walletAddress: string,
 ) {
   if (!UUID.test(request.requestId)) fail("A valid request ID is required.");
-  return postJson("/api/kamino/smart-wallet/prepare", { ...request, walletAddress, cluster: "devnet" }, (value) =>
-    parsePreparedSmartWalletOperation(value, { ...request, walletAddress }));
+  if (request.action === "markets-subscribe") {
+    const mint = canonicalWallet(request.mint);
+    return postJson(`/api/bonds/${mint}/purchase`, { amountAtomic: request.amountAtomic, requestId: request.requestId, walletAddress, cluster: "devnet" }, (value) =>
+      parsePreparedSmartWalletOperation(value, { ...request, mint, walletAddress }));
+  }
+  const { mint: _mint, ...kamino } = request;
+  void _mint;
+  return postJson("/api/kamino/smart-wallet/prepare", { ...kamino, walletAddress, cluster: "devnet" }, (value) =>
+    parsePreparedSmartWalletOperation(value, { ...kamino, walletAddress }));
 }
 
 export function initializeSmartWallet(requestId: string, walletAddress: string, parentActionId: string) {
@@ -242,13 +271,13 @@ export function getSmartWalletOperationStatus(
     parseSmartWalletOperationStatus(value, { actionId, walletAddress, action }));
 }
 
-export function smartWalletOperationStorageKey(walletAddress: string): string {
-  return `${STORAGE_PREFIX}${canonicalWallet(walletAddress)}`;
+export function smartWalletOperationStorageKey(walletAddress: string, journal: SmartWalletJournal = "kamino"): string {
+  return `${journal === "markets" ? MARKETS_STORAGE_PREFIX : STORAGE_PREFIX}${canonicalWallet(walletAddress)}`;
 }
 
-export function readStoredSmartWalletOperation(walletAddress: string): StoredSmartWalletOperation | null {
+export function readStoredSmartWalletOperation(walletAddress: string, journal: SmartWalletJournal = "kamino"): StoredSmartWalletOperation | null {
   if (typeof window === "undefined") return null;
-  const key = smartWalletOperationStorageKey(walletAddress);
+  const key = smartWalletOperationStorageKey(walletAddress, journal);
   const raw = window.localStorage.getItem(key);
   if (!raw) return null;
   try {
@@ -258,6 +287,7 @@ export function readStoredSmartWalletOperation(walletAddress: string): StoredSma
       providerTransactionId: source.providerTransactionId,
       action: actionKind(source.action),
       amountAtomic: atomicAmount(source.amountAtomic),
+      mint: source.mint,
       walletAddress: canonicalWallet(source.walletAddress),
       initializationRequestId: source.initializationRequestId,
       parentActionId: source.parentActionId,
@@ -277,6 +307,13 @@ export function readStoredSmartWalletOperation(walletAddress: string): StoredSma
       || result.walletAddress !== canonicalWallet(walletAddress)) {
       throw new Error("Invalid saved operation.");
     }
+    // Each journal holds only its own product's operations.
+    const intentAction = result.action === "initialize" ? (source.continuation as { action?: unknown } | undefined)?.action : result.action;
+    if (intentAction !== undefined && (intentAction === "markets-subscribe") !== (journal === "markets")) throw new Error("Saved operation belongs to another journal.");
+    if (result.mint !== undefined && (typeof result.mint !== "string" || result.action !== "markets-subscribe" || canonicalWallet(result.mint) !== result.mint)) {
+      throw new Error("Invalid saved bond.");
+    }
+    if (result.action === "markets-subscribe" && result.mint === undefined) throw new Error("Invalid saved bond.");
     // New journal metadata is checked independently of the existing operation checks.
     if (result.userStarted !== undefined && typeof result.userStarted !== "boolean"
       || result.approvalRequested !== undefined && typeof result.approvalRequested !== "boolean") {
@@ -285,8 +322,10 @@ export function readStoredSmartWalletOperation(walletAddress: string): StoredSma
     if (result.continuation !== undefined) {
       const continuation = object(result.continuation);
       if (typeof continuation.actionId !== "string" || !UUID.test(continuation.actionId)
-        || (continuation.action !== "deposit" && continuation.action !== "withdraw")
-        || typeof continuation.amountAtomic !== "string" || !/^[1-9]\d*$/.test(continuation.amountAtomic)) {
+        || (continuation.action !== "deposit" && continuation.action !== "withdraw" && continuation.action !== "markets-subscribe")
+        || typeof continuation.amountAtomic !== "string" || !/^[1-9]\d*$/.test(continuation.amountAtomic)
+        || (continuation.action === "markets-subscribe") !== (typeof continuation.mint === "string")
+        || continuation.mint !== undefined && canonicalWallet(continuation.mint) !== continuation.mint) {
         throw new Error("Invalid saved continuation.");
       }
     }
@@ -297,16 +336,16 @@ export function readStoredSmartWalletOperation(walletAddress: string): StoredSma
   }
 }
 
-export function storeSmartWalletOperation(operation: StoredSmartWalletOperation): void {
+export function storeSmartWalletOperation(operation: StoredSmartWalletOperation, journal: SmartWalletJournal = "kamino"): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(smartWalletOperationStorageKey(operation.walletAddress), JSON.stringify(operation));
+  window.localStorage.setItem(smartWalletOperationStorageKey(operation.walletAddress, journal), JSON.stringify(operation));
 }
 
-export function clearStoredSmartWalletOperation(walletAddress: string, actionId?: string): void {
+export function clearStoredSmartWalletOperation(walletAddress: string, actionId?: string, journal: SmartWalletJournal = "kamino"): void {
   if (typeof window === "undefined") return;
-  const key = smartWalletOperationStorageKey(walletAddress);
+  const key = smartWalletOperationStorageKey(walletAddress, journal);
   if (actionId) {
-    const stored = readStoredSmartWalletOperation(walletAddress);
+    const stored = readStoredSmartWalletOperation(walletAddress, journal);
     if (stored && stored.actionId !== actionId) return;
   }
   window.localStorage.removeItem(key);
@@ -316,8 +355,8 @@ export type SmartWalletChainDependencies = {
   prepare: typeof prepareSmartWalletOperation;
   initialize: typeof initializeSmartWallet;
   status: typeof getSmartWalletOperationStatus;
-  store: typeof storeSmartWalletOperation;
-  clear: typeof clearStoredSmartWalletOperation;
+  store: (operation: StoredSmartWalletOperation) => void;
+  clear: (walletAddress: string, actionId?: string) => void;
   newId: () => string;
   wait: (signal: AbortSignal) => Promise<void>;
 };
@@ -325,8 +364,10 @@ export type SmartWalletChainDependencies = {
 /** One durable journal, with server status as the only authority for signing/retrying. */
 export async function continueSmartWalletChain(options: {
   operation: StoredSmartWalletOperation | null;
-  action: "deposit" | "withdraw";
+  action: SmartWalletIntentKind;
   amountAtomic: string;
+  /** Bond mint; required for markets-subscribe. */
+  mint?: string;
   walletAddress: string;
   userTap: boolean;
   signal: AbortSignal;
@@ -355,8 +396,8 @@ export async function continueSmartWalletChain(options: {
     options.onOperation(operation);
     return operation;
   };
-  const fresh = (action = options.action, amountAtomic = options.amountAtomic) => save({
-    actionId: dependencies.newId(), action, amountAtomic,
+  const fresh = (action: SmartWalletIntentKind = options.action, amountAtomic = options.amountAtomic, mint = options.mint) => save({
+    actionId: dependencies.newId(), action, amountAtomic, ...(action === "markets-subscribe" && mint ? { mint } : {}),
     walletAddress: options.walletAddress, userStarted: options.userTap,
   });
   let current = options.operation;
@@ -400,11 +441,11 @@ export async function continueSmartWalletChain(options: {
       allowFailedRetry = false;
       const saved = current.continuation ?? (current.action !== "initialize" ? current : null);
       // A legacy setup-only journal has no original action; fall back to what the user just tapped.
-      const intent: { action: "deposit" | "withdraw"; amountAtomic: string } | null = saved && saved.action !== "initialize" ? { action: saved.action, amountAtomic: saved.amountAtomic }
-        : options.userTap && /^[1-9]\d*$/.test(options.amountAtomic) ? { action: options.action, amountAtomic: options.amountAtomic } : null;
+      const intent: { action: SmartWalletIntentKind; amountAtomic: string; mint?: string } | null = saved && saved.action !== "initialize" ? { action: saved.action, amountAtomic: saved.amountAtomic, mint: saved.mint }
+        : options.userTap && /^[1-9]\d*$/.test(options.amountAtomic) ? { action: options.action, amountAtomic: options.amountAtomic, mint: options.mint } : null;
       if (!intent) throw new Error("Couldn't restore the original operation.");
       dependencies.clear(current.walletAddress, current.actionId);
-      current = fresh(intent.action, intent.amountAtomic);
+      current = fresh(intent.action, intent.amountAtomic, intent.mint);
       needsPreparation = true;
       retryApproval = false;
       continue;
@@ -421,6 +462,7 @@ export async function continueSmartWalletChain(options: {
         if (!options.userTap || !/^[1-9]\d*$/.test(options.amountAtomic)) return null;
         current = save({ ...current, continuation: {
           actionId: dependencies.newId(), action: options.action, amountAtomic: options.amountAtomic,
+          ...(options.action === "markets-subscribe" && options.mint ? { mint: options.mint } : {}),
         } });
       }
       current = save({ ...current.continuation!, walletAddress: current.walletAddress,
@@ -441,8 +483,8 @@ export async function continueSmartWalletChain(options: {
         actionId: current.initializationRequestId ?? dependencies.newId(),
         action: "initialize", amountAtomic: "0", walletAddress: current.walletAddress,
         parentActionId: current.actionId, userStarted: current.userStarted || options.userTap,
-        continuation: { actionId: dependencies.newId(), action: current.action as "deposit" | "withdraw",
-          amountAtomic: current.amountAtomic },
+        continuation: { actionId: dependencies.newId(), action: current.action as SmartWalletIntentKind,
+          amountAtomic: current.amountAtomic, ...(current.mint ? { mint: current.mint } : {}) },
       });
       needsPreparation = true;
       retryApproval = false;
@@ -454,7 +496,7 @@ export async function continueSmartWalletChain(options: {
           ? await dependencies.initialize(current.actionId, current.walletAddress, current.parentActionId)
           : null
         : await dependencies.prepare({ action: current.action, amountAtomic: current.amountAtomic,
-          requestId: current.actionId }, current.walletAddress);
+          requestId: current.actionId, ...(current.mint ? { mint: current.mint } : {}) }, current.walletAddress);
       checkActive();
       if (!prepared) throw new Error("Couldn't restore the wallet setup parameters.");
       current = save({ ...current, ...(prepared.providerTransactionId

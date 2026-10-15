@@ -98,7 +98,7 @@ function reject(message: string): never {
   throw new SmartWalletReceiptError(message);
 }
 
-function decode(dataBase58: string, label: string): Uint8Array {
+export function decode(dataBase58: string, label: string): Uint8Array {
   try {
     const data = bs58.decode(dataBase58);
     if (bs58.encode(data) !== dataBase58) reject(`${label} is not canonical base58.`);
@@ -108,7 +108,7 @@ function decode(dataBase58: string, label: string): Uint8Array {
   }
 }
 
-function readU64LE(data: Uint8Array, offset: number): bigint {
+export function readU64LE(data: Uint8Array, offset: number): bigint {
   if (offset < 0 || offset + 8 > data.length) reject("truncated SPL u64 instruction data.");
   let value = BigInt(0);
   for (let index = 0; index < 8; index += 1) {
@@ -117,22 +117,22 @@ function readU64LE(data: Uint8Array, offset: number): bigint {
   return value;
 }
 
-function readU32LE(data: Uint8Array, offset: number): number {
+export function readU32LE(data: Uint8Array, offset: number): number {
   if (offset < 0 || offset + 4 > data.length) reject("truncated System Program instruction data.");
   return new DataView(data.buffer, data.byteOffset + offset, 4).getUint32(0, true);
 }
 
-function sameStrings(left: readonly string[], right: readonly string[]) {
+export function sameStrings(left: readonly string[], right: readonly string[]) {
   return left.length === right.length && left.every((item, index) => item === right[index]);
 }
 
-function sameDecodedInstruction(actual: NormalizedTraceInstruction, expected: CanonicalInstruction) {
+export function sameDecodedInstruction(actual: NormalizedTraceInstruction, expected: CanonicalInstruction) {
   return actual.programId === expected.programId
     && actual.dataBase58 === expected.dataBase58
     && sameStrings(actual.accounts, expected.accounts.map((account) => account.address));
 }
 
-function assertValidSignature(signature: string, label: string) {
+export function assertValidSignature(signature: string, label: string) {
   if (typeof signature !== "string") reject(`${label} is missing.`);
   let bytes: Uint8Array;
   try {
@@ -143,9 +143,9 @@ function assertValidSignature(signature: string, label: string) {
   if (bytes.length !== 64 || bs58.encode(bytes) !== signature) reject(`${label} is malformed.`);
 }
 
-function validateTopLevelComputeBudget(
+export function validateTopLevelComputeBudget(
   instructions: NormalizedTraceInstruction[],
-  intent: SmartWalletReceiptIntent,
+  intent: Pick<SmartWalletReceiptIntent, "walletAddress" | "feePayerAddress" | "computeUnitLimit" | "computeUnitPriceMicroLamports">,
 ) {
   let limits = 0;
   let prices = 0;

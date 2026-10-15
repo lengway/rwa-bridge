@@ -7,7 +7,8 @@ const ACTION_ID = /^[A-Za-z0-9_-]{8,160}$/;
 const WALLET = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{64,90}$/;
 
-export type KaminoExecutionAction = "deposit" | "withdraw";
+/** One wallet lease covers every smart-wallet intent, so a Kamino action and a bond purchase never overlap. */
+export type KaminoExecutionAction = "deposit" | "withdraw" | "markets-subscribe";
 export type KaminoExecutionResolution = "verified-terminal" | "never-submitted";
 
 export type KaminoExecutionClaimInput = {
@@ -70,7 +71,7 @@ function validateInput(input: KaminoExecutionClaimInput) {
   if (!UUID.test(input.actionId)
     || !UUID.test(input.providerUUID)
     || !WALLET.test(input.walletAddress)
-    || (input.action !== "deposit" && input.action !== "withdraw")
+    || (input.action !== "deposit" && input.action !== "withdraw" && input.action !== "markets-subscribe")
     || !/^[1-9]\d*$/.test(input.amountAtomic)) {
     fail("INVALID_CLAIM", "Kamino execution claim identity is invalid.");
   }

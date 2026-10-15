@@ -8,6 +8,7 @@ import { KaminoActionStore } from "./kamino-action-store";
 import { KaminoExecutionClaimStore } from "./kamino-execution-claims";
 import { KaminoLendDevnetError, type KaminoLendAction } from "./kamino-lend-devnet-config";
 import { prepareKaminoLendDevnetAction } from "./kamino-lend-devnet";
+import { marketsPurchasesEnabled, prepareMarketsSubscribeTemplate } from "./markets/purchase-server";
 import {
   createCrossmintKaminoTransaction, getCrossmintKaminoTransaction,
   listCrossmintKaminoTransactions, verifyCrossmintKaminoWallet,
@@ -18,12 +19,16 @@ import {
   verifyKaminoSmartWalletFinalized, type SmartWalletTemplate,
 } from "./kamino-smart-wallet-envelope-policy";
 
+/** Strictly validated intent types the executor runs. Kamino and bond purchases never share validators. */
+export type SmartWalletIntentAction = KaminoLendAction | "markets-subscribe";
 export type SmartWalletStage = "CREATE_UNKNOWN" | "SETUP_REQUIRED" | "READY" | "PENDING" | "FAILED" | "COMPLETED";
 export type SmartWalletExecutionRecord = {
   id: string;
   walletAddress: string;
-  action: KaminoLendAction | "initialize";
+  action: SmartWalletIntentAction | "initialize";
   amountAtomic: string;
+  /** Bond mint of a markets-subscribe operation (part of the request identity). */
+  mint?: string | null;
   status: SmartWalletStage;
   stage: SmartWalletStage;
   providerUUID: string;
@@ -43,6 +48,7 @@ export type SmartWalletExecutionRecord = {
     actualCollateralAmountAtomic?: string;
     feeLamports?: string;
     balances?: { liquidityAmountAtomic: string; collateralAmountAtomic: string; solBalanceLamports: string };
+    purchase?: { mint: string; units: string; costAtomic: string; bondUnits?: string; usdcAtomic?: string };
   } | null;
   failure: string | null;
   createdAt: number;
@@ -56,9 +62,18 @@ function storageBase() {
 const actionStore = new KaminoActionStore<SmartWalletExecutionRecord>(storageBase());
 const claims = new KaminoExecutionClaimStore(storageBase());
 
-function requireEnabled() {
+function requireEnabled(action: SmartWalletIntentAction | "initialize" | null = null) {
+  if (action === "markets-subscribe") {
+    if (!marketsPurchasesEnabled()) throw new KaminoLendDevnetError("DEVNET_DISABLED", "Bond purchases are unavailable.");
+    return;
+  }
   if (process.env.ENABLE_KAMINO_LEND_DEVNET !== "true" || process.env.SOLANA_CLUSTER !== "devnet") {
     throw new KaminoLendDevnetError("DEVNET_DISABLED", "Kamino smart-wallet actions are unavailable.");
+  }
+}
+function anyEnabled() {
+  if (process.env.SOLANA_CLUSTER !== "devnet" || (process.env.ENABLE_KAMINO_LEND_DEVNET !== "true" && !marketsPurchasesEnabled())) {
+    throw new KaminoLendDevnetError("DEVNET_DISABLED", "Smart-wallet actions are unavailable.");
   }
 }
 function bad(message: string): never { throw new KaminoLendDevnetError("SMART_WALLET_EXECUTION_REJECTED", message); }
@@ -106,6 +121,7 @@ function output(record: SmartWalletExecutionRecord) {
   return {
     actionId: record.id, ...(record.providerTransactionId ? { providerTransactionId: record.providerTransactionId } : {}),
     action: record.action, amountAtomic: record.amountAtomic, walletAddress: record.walletAddress,
+    ...(record.mint ? { mint: record.mint } : {}),
     network: "devnet", feeMode: "project", stage: record.stage,
     simulation: { ...simulation, ...(record.initializationOnly ? { initializationOnly: true } : {}) },
     ...(record.initializationOnly ? { initializationOnly: true } : {}),
@@ -170,13 +186,15 @@ async function materialize(record: SmartWalletExecutionRecord, provider: Crossmi
   return record;
 }
 
-export async function prepareSmartWalletAction(input: { email: string; walletAddress: string; action: KaminoLendAction; amountAtomic: unknown; requestId: unknown }) {
-  requireEnabled();
+export async function prepareSmartWalletAction(input: { email: string; walletAddress: string; action: SmartWalletIntentAction; amountAtomic: unknown; requestId: unknown; mint?: unknown }) {
+  requireEnabled(input.action);
   const id = actionId(input.requestId);
   const amount = typeof input.amountAtomic === "string" ? input.amountAtomic : "";
+  const mint = input.action === "markets-subscribe" ? (typeof input.mint === "string" ? input.mint : "") : null;
+  const sameRequest = (r: SmartWalletExecutionRecord) => r.walletAddress === input.walletAddress && r.action === input.action && r.amountAtomic === amount && (r.mint ?? null) === mint;
   const existing = await actionStore.get(id);
   if (existing) {
-    if (existing.walletAddress !== input.walletAddress || existing.action !== input.action || existing.amountAtomic !== amount) bad("Request ID is already bound to a different operation.");
+    if (!sameRequest(existing)) bad("Request ID is already bound to a different operation.");
     if (existing.providerTransactionId && existing.stage !== "CREATE_UNKNOWN") return output(existing);
     if (existing.stage !== "CREATE_UNKNOWN") bad("Stored operation is incomplete and cannot be resubmitted.");
     const found = await findProvider(input.walletAddress, existing.immutableWire);
@@ -185,7 +203,7 @@ export async function prepareSmartWalletAction(input: { email: string; walletAdd
   }
   const reserved = await readProviderCreateReservation(id);
   if (reserved) {
-    if (reserved.walletAddress !== input.walletAddress || reserved.action !== input.action || reserved.amountAtomic !== amount || reserved.initializationOnly) bad("Request ID is already bound to a different operation.");
+    if (!sameRequest(reserved) || reserved.initializationOnly) bad("Request ID is already bound to a different operation.");
     await actionStore.put(reserved);
     if (reserved.providerTransactionId) return output(reserved);
     const found = await findProvider(input.walletAddress, reserved.immutableWire);
@@ -193,19 +211,15 @@ export async function prepareSmartWalletAction(input: { email: string; walletAdd
     return output(await materialize(reserved, found, input.email));
   }
   const verified = await verifyCrossmintKaminoWallet(input.walletAddress, input.email);
-  const template = await prepareKaminoLendDevnetAction({ action: input.action, walletAddress: input.walletAddress, amountAtomic: input.amountAtomic, smartWalletTemplate: true });
+  const template: SmartWalletTemplate = input.action === "markets-subscribe"
+    ? await prepareMarketsSubscribeTemplate({ walletAddress: input.walletAddress, mint, units: input.amountAtomic })
+    : await kaminoTemplate(input.action, input.walletAddress, input.amountAtomic);
   const claim = { walletAddress: input.walletAddress, actionId: id, action: input.action, amountAtomic: template.amountAtomic, providerUUID: id };
   const claimResult = await claims.claimExecution(claim);
   const record: SmartWalletExecutionRecord = {
-    id, walletAddress: input.walletAddress, action: input.action, amountAtomic: template.amountAtomic,
+    id, walletAddress: input.walletAddress, action: input.action, amountAtomic: template.amountAtomic, mint,
     status: "CREATE_UNKNOWN", stage: "CREATE_UNKNOWN", providerUUID: id, providerTransactionId: null,
-    providerStatus: null, template: {
-      serializedTransaction: template.serializedTransaction,
-      intentInstructions: "intentInstructions" in template ? template.intentInstructions : [],
-      action: input.action, walletAddress: input.walletAddress, amountAtomic: template.amountAtomic,
-      collateralAmountAtomic: template.collateralAmountAtomic ?? null,
-      blockhash: template.blockhash, lastValidBlockHeight: template.lastValidBlockHeight,
-    }, immutableWire: template.serializedTransaction, envelope: null,
+    providerStatus: null, template, immutableWire: template.serializedTransaction, envelope: null,
     authorityAddress: verified.authorityAddress, settingsAddress: null, parentActionId: null,
     initializationOnly: false, signature: null, verification: null, failure: null, createdAt: Date.now(), updatedAt: Date.now(),
   };
@@ -222,6 +236,17 @@ export async function prepareSmartWalletAction(input: { email: string; walletAdd
   }));
 }
 
+async function kaminoTemplate(action: KaminoLendAction, walletAddress: string, amountAtomic: unknown): Promise<SmartWalletTemplate> {
+  const template = await prepareKaminoLendDevnetAction({ action, walletAddress, amountAtomic, smartWalletTemplate: true });
+  return {
+    serializedTransaction: template.serializedTransaction,
+    intentInstructions: "intentInstructions" in template ? template.intentInstructions : [],
+    action, walletAddress, amountAtomic: template.amountAtomic,
+    collateralAmountAtomic: template.collateralAmountAtomic ?? null,
+    blockhash: template.blockhash, lastValidBlockHeight: template.lastValidBlockHeight,
+  };
+}
+
 function initializationWire(walletAddress: string, blockhash: string) {
   const payer = new PublicKey(walletAddress);
   // Crossmint replaces this fee-payer placeholder and adds its smart-wallet wrapper.
@@ -230,10 +255,11 @@ function initializationWire(walletAddress: string, blockhash: string) {
 }
 
 export async function initializeSmartWallet(input: { email: string; walletAddress: string; requestId: unknown; parentActionId: unknown }) {
-  requireEnabled();
+  anyEnabled();
   const id = actionId(input.requestId);
   const parentId = actionId(input.parentActionId);
   const parent = await actionStore.get(parentId);
+  if (parent && parent.action !== "initialize") requireEnabled(parent.action);
   if (!parent || parent.walletAddress !== input.walletAddress || parent.action === "initialize" || parent.stage !== "SETUP_REQUIRED" || parent.providerStatus !== "awaiting-approval" || parent.signature || !parent.envelope?.setupRequired) bad("Initialization is available only for this wallet's verified setup-required operation.");
   await reserveParentInitialization(parentId, id);
   const existing = await actionStore.get(id);
@@ -274,10 +300,12 @@ export async function initializeSmartWallet(input: { email: string; walletAddres
 }
 
 export async function getSmartWalletStatus(input: { email: string; walletAddress: string; actionId: unknown }) {
-  requireEnabled();
+  anyEnabled();
   const id = actionId(input.actionId);
   const record = await actionStore.get(id);
   if (!record || record.walletAddress !== input.walletAddress) throw new KaminoLendDevnetError("ACTION_NOT_FOUND", "Operation was not found for this wallet.");
+  const parentAction = record.initializationOnly ? (await actionStore.get(record.parentActionId!))?.action ?? null : record.action;
+  requireEnabled(parentAction === "initialize" ? null : parentAction);
   if (record.stage === "COMPLETED" || record.stage === "FAILED") return statusOutput(record);
   if (!record.providerTransactionId) {
     const provider = await findProvider(record.walletAddress, record.immutableWire);
@@ -370,19 +398,30 @@ function statusOutput(record: SmartWalletExecutionRecord) {
       actualCollateralAmountAtomic: record.verification.actualCollateralAmountAtomic,
       feeLamports: record.verification.feeLamports,
       balances: record.verification.balances,
+      ...(record.verification.purchase ? { purchase: record.verification.purchase } : {}),
     } : {}),
+    ...(record.mint ? { mint: record.mint } : {}),
     walletAddress: record.walletAddress, network: "devnet", feeMode: "project",
   };
 }
 
 export async function getConfirmedSmartWalletHistory(walletAddress: string) {
   const rows = await actionStore.list(walletAddress);
-  return rows.filter(record => record.stage === "COMPLETED" && record.verification).map(record => ({
+  // Kamino history only; bond purchases are listed by getConfirmedBondPurchases.
+  return rows.filter(record => record.stage === "COMPLETED" && record.verification && (record.action === "deposit" || record.action === "withdraw")).map(record => ({
     actionId: record.id, action: record.action, amountAtomic: record.amountAtomic,
     actualLiquidityAmountAtomic: record.verification!.actualLiquidityAmountAtomic,
     actualCollateralAmountAtomic: record.verification!.actualCollateralAmountAtomic,
     signature: record.verification!.signature, feeLamports: record.verification!.feeLamports,
     balances: record.verification!.balances, createdAt: record.createdAt,
+  }));
+}
+
+export async function getConfirmedBondPurchases(walletAddress: string) {
+  const rows = await actionStore.list(walletAddress);
+  return rows.filter(record => record.action === "markets-subscribe" && record.stage === "COMPLETED" && record.verification?.purchase).map(record => ({
+    actionId: record.id, mint: record.verification!.purchase!.mint, units: record.verification!.purchase!.units,
+    costAtomic: record.verification!.purchase!.costAtomic, signature: record.verification!.signature, createdAt: record.createdAt,
   }));
 }
 

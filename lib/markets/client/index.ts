@@ -30,6 +30,7 @@ export type CorporateActionAccount = IdlAccounts<PlainMarkets>["corporateAction"
 export type ClaimReceiptAccount = IdlAccounts<PlainMarkets>["claimReceipt"];
 export type VoteRecordAccount = IdlAccounts<PlainMarkets>["voteRecord"];
 export type AllowEntryAccount = IdlAccounts<PlainMarkets>["allowEntry"];
+export type OfferingAccount = IdlAccounts<PlainMarkets>["offering"];
 export type MarketsEvents = IdlEvents<PlainMarkets>;
 export type MarketsEventName = keyof MarketsEvents;
 export type MarketsEvent = { [K in MarketsEventName]: { name: K; data: MarketsEvents[K] } }[MarketsEventName];
@@ -83,6 +84,9 @@ export const pda = {
     find([enc("vote"), action.toBytes(), holder.toBytes()], programId),
   allow: (instrument: PublicKey, wallet: PublicKey, programId?: PublicKey) =>
     find([enc("allow"), instrument.toBytes(), wallet.toBytes()], programId),
+  offering: (instrument: PublicKey, programId?: PublicKey) => find([enc("offering"), instrument.toBytes()], programId),
+  /** Issuance proceeds vault (token account owned by the offering PDA). */
+  proceeds: (instrument: PublicKey, programId?: PublicKey) => find([enc("proceeds"), instrument.toBytes()], programId),
 };
 
 export const bondAta = (owner: PublicKey, mint: PublicKey) => getAssociatedTokenAddressSync(mint, owner, true, TOKEN_2022_PROGRAM_ID);
@@ -317,6 +321,83 @@ export class MarketsClient {
     return this.program.methods
       .setAllowlist(enabled)
       .accountsStrict({ issuer: instrument.account.issuer, instrument: instrument.address })
+      .instruction();
+  }
+
+  // ---- primary offering ------------------------------------------------------------------------------
+
+  async fetchOffering(instrument: PublicKey): Promise<{ address: PublicKey; account: OfferingAccount } | null> {
+    const address = pda.offering(instrument, this.programId);
+    const account = await this.program.account.offering.fetchNullable(address);
+    return account ? { address, account } : null;
+  }
+
+  openOffering(instrument: InstrumentRef, params: { issuePrice: bigint; startTs: bigint; endTs: bigint; capUnits: bigint; perHolderCap: bigint }) {
+    return this.program.methods
+      .openOffering({
+        issuePrice: bn(params.issuePrice),
+        startTs: bn(params.startTs),
+        endTs: bn(params.endTs),
+        capUnits: bn(params.capUnits),
+        perHolderCap: bn(params.perHolderCap),
+      })
+      .accountsStrict({
+        issuer: instrument.account.issuer,
+        instrument: instrument.address,
+        offering: pda.offering(instrument.address, this.programId),
+        proceedsVault: pda.proceeds(instrument.address, this.programId),
+        settlementMint: instrument.account.settlementMint,
+        settlementTokenProgram: instrument.account.settlementTokenProgram,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+  }
+
+  /** DvP purchase. The buyer's bond ATA must exist (create it idempotently in the same transaction). */
+  subscribe(instrument: InstrumentRef, buyer: PublicKey, units: bigint, maxPayment: bigint) {
+    const { mint, settlementMint, settlementTokenProgram } = instrument.account;
+    return this.program.methods
+      .subscribe(bn(units), bn(maxPayment))
+      .accountsStrict({
+        buyer,
+        instrument: instrument.address,
+        offering: pda.offering(instrument.address, this.programId),
+        mint,
+        buyerBond: bondAta(buyer, mint),
+        buyerSettlement: getAssociatedTokenAddressSync(settlementMint, buyer, true, settlementTokenProgram),
+        proceedsVault: pda.proceeds(instrument.address, this.programId),
+        settlementMint,
+        allowEntry: instrument.account.allowlistEnabled ? pda.allow(instrument.address, buyer, this.programId) : null,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        settlementTokenProgram,
+      })
+      .instruction();
+  }
+
+  withdrawProceeds(instrument: InstrumentRef, amount: bigint) {
+    const { issuer, settlementMint, settlementTokenProgram } = instrument.account;
+    return this.program.methods
+      .withdrawProceeds(bn(amount))
+      .accountsStrict({
+        issuer,
+        instrument: instrument.address,
+        offering: pda.offering(instrument.address, this.programId),
+        proceedsVault: pda.proceeds(instrument.address, this.programId),
+        issuerSettlement: getAssociatedTokenAddressSync(settlementMint, issuer, true, settlementTokenProgram),
+        settlementMint,
+        settlementTokenProgram,
+      })
+      .instruction();
+  }
+
+  closeOffering(instrument: InstrumentRef) {
+    return this.program.methods
+      .closeOffering()
+      .accountsStrict({
+        issuer: instrument.account.issuer,
+        instrument: instrument.address,
+        offering: pda.offering(instrument.address, this.programId),
+      })
       .instruction();
   }
 

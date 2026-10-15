@@ -7,9 +7,11 @@ import type { CrossmintKaminoTransaction } from "./crossmint-kamino-provider";
 import type { CanonicalInstruction } from "./kamino-instruction-intent";
 import { KaminoLendDevnetError } from "./kamino-lend-devnet-config";
 import { SOLANA_DEVNET_GENESIS_HASH } from "./rwa-demo";
+import type { MarketsSubscribeTemplate } from "./markets/purchase-server";
 const CB = "ComputeBudget111111111111111111111111111111";
 const SYSTEM = "11111111111111111111111111111111";
-export type SmartWalletTemplate = { serializedTransaction: string; intentInstructions: CanonicalInstruction[]; action: "deposit" | "withdraw"; walletAddress: string; amountAtomic: string; collateralAmountAtomic: string | null; blockhash: string; lastValidBlockHeight: number };
+export type SmartWalletTemplate = { serializedTransaction: string; intentInstructions: CanonicalInstruction[]; action: "deposit" | "withdraw"; walletAddress: string; amountAtomic: string; collateralAmountAtomic: string | null; blockhash: string; lastValidBlockHeight: number }
+  | MarketsSubscribeTemplate;
 function reject(message: string): never { throw new KaminoLendDevnetError("SMART_WALLET_EXECUTION_REJECTED", message); }
 function normalize(ix: TransactionInstruction): CanonicalInstruction {
   return { programId: ix.programId.toBase58(), accounts: ix.keys.map(key => ({ address: key.pubkey.toBase58(), isSigner: key.isSigner, isWritable: key.isWritable })), dataBase58: bs58.encode(ix.data) };
@@ -92,7 +94,7 @@ export async function inspectKaminoSmartWalletEnvelope(
 
 export type SmartWalletEnvelopeInspection = Awaited<ReturnType<typeof inspectKaminoSmartWalletEnvelope>>;
 export type SmartWalletFinalizationRecord = {
-  action: "deposit" | "withdraw" | "initialize";
+  action: "deposit" | "withdraw" | "initialize" | "markets-subscribe";
   walletAddress: string;
   authorityAddress: string;
   template: SmartWalletTemplate | null;
@@ -136,26 +138,44 @@ export async function verifyKaminoSmartWalletFinalized(connection: Connection, p
       programId: key(ix.programIdIndex).toBase58(), accounts: ix.accounts.map(index => key(index).toBase58()), dataBase58: ix.data, stackHeight: ix.stackHeight,
     });
     const groups = (raw.meta.innerInstructions ?? []).map(group => ({ index: group.index, instructions: group.instructions.map(ix => trace(ix)) }));
-    const balances = await readSmartWalletResultBalances(connection, record.walletAddress);
     if (record.action === "initialize") {
+      const balances = await readSmartWalletResultBalances(connection, record.walletAddress);
       if (decoded.instructions.length !== 0 || groups.some(group => group.instructions.length !== 0)
         || raw.meta.postBalances[keys.findIndex(k => k.toBase58() === record.walletAddress)] < raw.meta.preBalances[keys.findIndex(k => k.toBase58() === record.walletAddress)]) reject("Activation unexpectedly moved wallet assets.");
       return { confirmed: true as const, status: "COMPLETED" as const, signature, feeLamports: raw.meta.fee.toString(), balances };
     }
     if (!record.template) reject("Missing immutable intent.");
+    const tokenBalances = (entries: typeof raw.meta.preTokenBalances) => (entries ?? []).map(entry => ({ accountIndex: entry.accountIndex, mint: entry.mint, owner: entry.owner ?? "", amount: entry.uiTokenAmount.amount, decimals: entry.uiTokenAmount.decimals }));
+    const normalizedReceipt = { commitment: "finalized" as const, signature, accountKeys: keys.map(k => k.toBase58()), requiredSignerAddresses: signers, signatures: raw.transaction.signatures,
+      topLevelInstructions: actualTopLevel.map(ix => ({ programId: ix.programId, accounts: ix.accounts.map(a => a.address), dataBase58: ix.dataBase58 })),
+      meta: { err: raw.meta.err, fee: raw.meta.fee, preBalances: raw.meta.preBalances, postBalances: raw.meta.postBalances,
+        preTokenBalances: tokenBalances(raw.meta.preTokenBalances), postTokenBalances: tokenBalances(raw.meta.postTokenBalances), innerInstructions: groups } };
+    if (record.template.action === "markets-subscribe") {
+      // A bond purchase has its own intent and receipt rules; it never goes through the Kamino validators.
+      const { validateFinalizedSubscribeReceipt } = await import("./markets/purchase-receipt");
+      const { readPurchaseBalances } = await import("./markets/purchase-server");
+      const { markets } = record.template;
+      const receipt = validateFinalizedSubscribeReceipt({
+        intent: { walletAddress: record.walletAddress, feePayerAddress: record.envelope.feePayerAddress, units: markets.units, costAtomic: markets.costAtomic,
+          computeUnitLimit: record.envelope.computeUnitLimit, computeUnitPriceMicroLamports: record.envelope.computeUnitPriceMicroLamports },
+        terms: markets.terms,
+        expectedDecodedWrapperInstructions: withTemplateAccountFlags(record.envelope.decodedInstructions, record.template.intentInstructions),
+        receipt: normalizedReceipt,
+      });
+      const after = await readPurchaseBalances(record.walletAddress, markets.terms.mint);
+      return { confirmed: true as const, status: "COMPLETED" as const, signature, feeLamports: receipt.feeLamports,
+        purchase: { mint: receipt.mint, units: receipt.units, costAtomic: receipt.costAtomic, ...(after ?? {}) } };
+    }
     const { validateIntent } = await import("./kamino-instruction-intent");
     const { validateFinalizedSmartWalletReceipt } = await import("./kamino-smart-wallet-receipt");
     const intent = validateIntent({ action: record.template.action, walletAddress: record.walletAddress,
       amountAtomic: record.template.amountAtomic, collateralAmountAtomic: record.template.collateralAmountAtomic, instructions: record.template.intentInstructions });
-    const tokenBalances = (entries: typeof raw.meta.preTokenBalances) => (entries ?? []).map(entry => ({ accountIndex: entry.accountIndex, mint: entry.mint, owner: entry.owner ?? "", amount: entry.uiTokenAmount.amount, decimals: entry.uiTokenAmount.decimals }));
     const receipt = validateFinalizedSmartWalletReceipt({
       intent: { ...intent, feePayerAddress: record.envelope.feePayerAddress, computeUnitLimit: record.envelope.computeUnitLimit, computeUnitPriceMicroLamports: record.envelope.computeUnitPriceMicroLamports },
       expectedDecodedWrapperInstructions: withTemplateAccountFlags(record.envelope.decodedInstructions, record.template?.intentInstructions ?? []),
-      receipt: { commitment: "finalized", signature, accountKeys: keys.map(k => k.toBase58()), requiredSignerAddresses: signers, signatures: raw.transaction.signatures,
-        topLevelInstructions: actualTopLevel.map(ix => ({ programId: ix.programId, accounts: ix.accounts.map(a => a.address), dataBase58: ix.dataBase58 })),
-        meta: { err: raw.meta.err, fee: raw.meta.fee, preBalances: raw.meta.preBalances, postBalances: raw.meta.postBalances,
-          preTokenBalances: tokenBalances(raw.meta.preTokenBalances), postTokenBalances: tokenBalances(raw.meta.postTokenBalances), innerInstructions: groups } },
+      receipt: normalizedReceipt,
     });
+    const balances = await readSmartWalletResultBalances(connection, record.walletAddress);
     return { confirmed: true as const, status: "COMPLETED" as const, signature,
       actualLiquidityAmountAtomic: receipt.actualLiquidityAmountAtomic, actualCollateralAmountAtomic: receipt.actualCollateralAmountAtomic, feeLamports: receipt.feeLamports, balances };
   }

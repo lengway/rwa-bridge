@@ -19,7 +19,8 @@ export type KaminoSmartWalletApprovalProps = {
   amountAtomic: string;
   wallet: Wallet<Chain> | null;
   walletAddress: string | null;
-  onCompleted?: (status: SmartWalletOperationStatus) => void;
+  /** Kamino journal only: the status is always a Kamino action or the wallet setup. */
+  onCompleted?: (status: SmartWalletOperationStatus & { action: "deposit" | "withdraw" | "initialize" }) => void;
   onDone?: () => void;
   onActiveChange?: (active: boolean) => void;
 };
@@ -105,7 +106,7 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
       if (!signal.aborted && result) {
         setCompleted(result);
         setProgress("Done");
-        latest.current.onCompleted?.(result);
+        if (result.action !== "markets-subscribe") latest.current.onCompleted?.({ ...result, action: result.action });
       }
     } catch (cause) {
       console.error("[smart-wallet] operation failed:", cause);
