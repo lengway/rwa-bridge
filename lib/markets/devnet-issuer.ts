@@ -22,7 +22,7 @@ import bs58 from "bs58";
 import { bondAta, enumName, marketsErrorFromCode, pda, toBigInt, type ActionKind, type ActionRef, type ActionStatus, type InstrumentRef } from "./client";
 import { issueStateOf, type DevnetLedger, type MarketsExecutor } from "./devnet-service";
 import { actionTotals } from "./entitlements";
-import { allocationMemo, checkAllocation, type AllocationLimits } from "./investor";
+import { DEFAULT_ALLOCATION_LIMITS, allocationMemo, checkAllocation, type AllocationLimits } from "./investor";
 import { actionTitle } from "./lifecycle";
 import { actionTerms } from "./math";
 import { buildSnapshotTree, snapshotHash } from "./merkle";
@@ -408,6 +408,28 @@ export class DevnetIssuer implements MarketsExecutor {
     if (inst.account.allowlistEnabled && !allowInfo) ixs.push(await this.client.allowHolder(inst, wallet));
     ixs.push(await this.client.issue(inst, wallet, check.units));
     return { ...(await this.send(ixs)), units: check.units.toString() };
+  }
+
+  /** Console issuer action with the default per-investor limits (the route passes configured ones). */
+  issuerAllocate(mint: Address, holder: Address, units: number, limits: AllocationLimits = DEFAULT_ALLOCATION_LIMITS) {
+    return this.allocate(mint, holder, units, limits);
+  }
+
+  /** Withdraws the whole proceeds vault to the issuer's settlement ATA (created if missing). */
+  async withdrawProceeds(mint: Address): Promise<TxResult & { amount: string }> {
+    const inst = await this.instrumentByMint(mint);
+    const offering = await rpcRetry(() => this.client.fetchOffering(inst.address));
+    if (!offering) throw new IssuerError("This bond has no offering.", 404);
+    const vault = await rpcRetry(() => this.connection.getAccountInfo(offering.account.proceedsVault, "confirmed"));
+    const amount = vault ? unpackAccount(offering.account.proceedsVault, vault, inst.account.settlementTokenProgram).amount : BigInt(0);
+    if (amount === BigInt(0)) throw new IssuerError("There are no proceeds to withdraw.", 409);
+    const { settlementMint, settlementTokenProgram, issuer } = inst.account;
+    const ata = getAssociatedTokenAddressSync(settlementMint, issuer, true, settlementTokenProgram);
+    const result = await this.send([
+      createAssociatedTokenAccountIdempotentInstruction(this.issuer.publicKey, ata, issuer, settlementMint, settlementTokenProgram),
+      await this.client.withdrawProceeds(inst, amount),
+    ]);
+    return { ...result, amount: amount.toString() };
   }
 
   async settle(actionId: Address) {

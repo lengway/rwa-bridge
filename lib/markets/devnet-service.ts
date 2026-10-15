@@ -36,6 +36,7 @@ import { ALLOCATION_MEMO, parseAllocationMemo, type IssueState } from "./investo
 import { formatSettlement } from "./format";
 import { toHex } from "./merkle";
 import { decodeHoldings, hex32, parseSnapshotMemo, parseSnapshotPart, parseTermsMemo, snapshotFromMemo, SNAPSHOT_MEMO, TERMS_MEMO, type TermsDocument } from "./publication";
+import { CIRCLE_DEVNET_USDC_ADDRESS } from "./purchase";
 import { readRegister } from "./register";
 import type {
   ActionDraft,
@@ -79,6 +80,24 @@ export type DevnetMarketsConfig = {
   apiBase: string;
 };
 
+/** A primary offering on chain plus its purchases, decoded from `UnitsSubscribed` events. */
+export type OfferingPurchase = { signature: string; buyer: Address; units: bigint; amount: bigint; slot: number; ts: number | null };
+export type OfferingState = {
+  address: Address;
+  proceedsVault: Address;
+  issuePrice: bigint;
+  startTs: number;
+  endTs: number;
+  capUnits: bigint;
+  perHolderCap: bigint;
+  soldUnits: bigint;
+  proceeds: bigint;
+  withdrawn: bigint;
+  closed: boolean;
+  purchases: OfferingPurchase[];
+  withdrawals: { signature: string; amount: bigint; ts: number | null }[];
+};
+
 export type MockMarketsConfig = { mode: "mock" };
 export type MarketsPublicConfig = DevnetMarketsConfig | MockMarketsConfig;
 
@@ -92,10 +111,14 @@ export interface MarketsExecutor {
   claim(actionId: Address, holder: Address): Promise<TxResult>;
   vote(actionId: Address, holder: Address, choice: number): Promise<TxResult>;
   settle(actionId: Address): Promise<TxResult>;
+  /** Issuer action: issue units to a wallet with no payment (capped, labelled in the console). */
+  issuerAllocate(mint: Address, holder: Address, units: number): Promise<TxResult & { units: string }>;
+  /** Move everything in the offering's proceeds vault to the issuer's settlement account. */
+  withdrawProceeds(mint: Address): Promise<TxResult & { amount: string }>;
 }
 
 export type ExecutorOp = keyof MarketsExecutor;
-export const EXECUTOR_OPS: ExecutorOp[] = ["announce", "lockRecord", "postSnapshot", "fund", "pay", "claim", "vote", "settle"];
+export const EXECUTOR_OPS: ExecutorOp[] = ["announce", "lockRecord", "postSnapshot", "fund", "pay", "claim", "vote", "settle", "issuerAllocate", "withdrawProceeds"];
 
 const ZERO = BigInt(0);
 /** i64::MAX (a redemption lock with no end) shown as a far date. */
@@ -374,7 +397,7 @@ export class DevnetLedger implements MarketsLedger {
       issuer: a.issuer.toBase58(),
       payingAgent: a.payingAgent.toBase58(),
       settlementMint: a.settlementMint.toBase58(),
-      settlementSymbol: this.config.settlementSymbol,
+      settlementSymbol: a.settlementMint.toBase58() === CIRCLE_DEVNET_USDC_ADDRESS ? "USDC" : this.config.settlementSymbol,
       settlementDecimals: a.settlementDecimals,
       name: a.name,
       symbol: a.symbol,
@@ -658,7 +681,79 @@ export class DevnetLedger implements MarketsLedger {
       const parsed = parseAllocationMemo(s.memo);
       if (parsed) out.add(parsed.holder);
     }
+    // Buyers of the primary offering (smart wallets paying through `subscribe`).
+    for (const p of (await this.getOffering(mint))?.purchases ?? []) out.add(p.buyer);
     return out;
+  }
+
+  /**
+   * The instrument's primary offering, or null when it has none. Purchases come from the offering
+   * PDA's signature feed; each transaction is downloaded once (cached by signature, also in
+   * localStorage in the browser) and its `UnitsSubscribed` / `ProceedsWithdrawn` events decoded.
+   */
+  async getOffering(mint: Address): Promise<OfferingState | null> {
+    return this.cache.get(`offering:${mint}`, async () => {
+      const inst = await this.instrumentByMint(mint);
+      const ref = await rpcRetry(() => this.client.fetchOffering(inst.address));
+      if (!ref) return null;
+      const o = ref.account;
+      const feed = await this.feed(ref.address);
+      const purchases: OfferingPurchase[] = [];
+      const withdrawals: OfferingState["withdrawals"] = [];
+      for (const s of feed.sigs) {
+        for (const e of await this.offeringEvents(s)) {
+          if (e.name === "unitsSubscribed") purchases.push({ signature: s.signature, buyer: e.buyer, units: BigInt(e.units), amount: BigInt(e.amount), slot: s.slot, ts: s.blockTime });
+          if (e.name === "proceedsWithdrawn") withdrawals.push({ signature: s.signature, amount: BigInt(e.amount), ts: s.blockTime });
+        }
+      }
+      return {
+        address: ref.address.toBase58(),
+        proceedsVault: o.proceedsVault.toBase58(),
+        issuePrice: toBigInt(o.issuePrice),
+        startTs: num(o.startTs),
+        endTs: num(o.endTs),
+        capUnits: toBigInt(o.capUnits),
+        perHolderCap: toBigInt(o.perHolderCap),
+        soldUnits: toBigInt(o.soldUnits),
+        proceeds: toBigInt(o.proceeds),
+        withdrawn: toBigInt(o.withdrawn),
+        closed: o.closed,
+        purchases,
+        withdrawals,
+      };
+    });
+  }
+
+  private readonly offeringEventCache = new Map<string, OfferingEvent[]>();
+  private async offeringEvents(s: SignatureInfo): Promise<OfferingEvent[]> {
+    const key = `pm:offering-events:v1:${s.signature}`;
+    const hit = this.offeringEventCache.get(s.signature);
+    if (hit) return hit;
+    const storage = safeLocalStorage();
+    try {
+      const raw = storage?.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as OfferingEvent[];
+        this.offeringEventCache.set(s.signature, parsed);
+        return parsed;
+      }
+    } catch {
+      // corrupt cache entry: refetch
+    }
+    const tx = await rpcRetry(() => this.connection.getTransaction(s.signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 }), 6);
+    if (!tx?.meta) return [];
+    const events: OfferingEvent[] = [];
+    for (const e of this.client.parseEvents(tx.meta.logMessages ?? [])) {
+      if (e.name === "unitsSubscribed") events.push({ name: e.name, buyer: e.data.buyer.toBase58(), units: e.data.units.toString(), amount: e.data.amount.toString() });
+      else if (e.name === "proceedsWithdrawn") events.push({ name: e.name, amount: e.data.amount.toString() });
+    }
+    this.offeringEventCache.set(s.signature, events);
+    try {
+      storage?.setItem(key, JSON.stringify(events));
+    } catch {
+      // storage full: keep the in-memory copy
+    }
+    return events;
   }
 
   async getSnapshot(actionId: Address): Promise<PublishedSnapshot | null> {
@@ -741,7 +836,15 @@ export class DevnetLedger implements MarketsLedger {
   settle(actionId: Address) {
     return this.write((e) => e.settle(actionId));
   }
+  issuerAllocate(mint: Address, holder: Address, units: number) {
+    return this.write((e) => e.issuerAllocate(mint, holder, units));
+  }
+  withdrawProceeds(mint: Address) {
+    return this.write((e) => e.withdrawProceeds(mint));
+  }
 }
+
+type OfferingEvent = { name: "unitsSubscribed"; buyer: Address; units: string; amount: string } | { name: "proceedsWithdrawn"; amount: string };
 
 /** Event log from accounts and the signature feed (no transaction downloads). */
 export function buildEventLog(instrument: Instrument, bundles: Pick<ActionBundle, "action" | "receipts" | "votes">[], feed: Pick<SignatureFeed, "sigs">, label: (address: string) => string): MarketEvent[] {
@@ -837,6 +940,8 @@ export function httpExecutor(apiBase: string, fetchImpl: typeof fetch = (...a) =
     claim: (actionId, holder) => call("claim", { actionId, holder }),
     vote: (actionId, holder, choice) => call("vote", { actionId, holder, choice }),
     settle: (actionId) => call("settle", { actionId }),
+    issuerAllocate: (mint, holder, units) => call("issuerAllocate", { mint, holder, units }),
+    withdrawProceeds: (mint) => call("withdrawProceeds", { mint }),
   };
 }
 

@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { GuardError, createIdempotencyStore, createRateLimiter } from "@/lib/markets/api-guard";
 import { IssuerError } from "@/lib/markets/devnet-issuer";
+import { allocationLimits } from "@/lib/markets/investor-server";
 import { issuerQueue as queue } from "@/lib/markets/issuer-queue";
 import { EXECUTOR_OPS, type ExecutorOp } from "@/lib/markets/devnet-service";
 import { marketsServer } from "@/lib/markets/server";
@@ -16,7 +17,7 @@ const ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const limiter = createRateLimiter({ windowMs: 60_000, perClient: 20, global: 120 });
 const idempotent = createIdempotencyStore<TxResult>();
 
-type Body = { mint?: unknown; draft?: unknown; actionId?: unknown; holder?: unknown; choice?: unknown };
+type Body = { mint?: unknown; draft?: unknown; actionId?: unknown; holder?: unknown; choice?: unknown; units?: unknown };
 
 function fail(message: string, status: number, headers?: Record<string, string>) {
   return NextResponse.json({ error: message }, { status, headers: { "cache-control": "no-store", ...headers } });
@@ -58,6 +59,11 @@ export async function POST(request: Request, ctx: RouteContext<"/api/markets/[op
         case "vote":
           if (typeof body.choice !== "number") throw new GuardError("choice must be a number.", 400);
           return issuer.vote(address(body.actionId, "actionId"), address(body.holder, "holder"), body.choice);
+        case "issuerAllocate":
+          // Issuer action from the console: units with no payment, under the per-investor caps.
+          return issuer.allocate(address(body.mint, "mint"), address(body.holder, "holder"), body.units, allocationLimits());
+        case "withdrawProceeds":
+          return issuer.withdrawProceeds(address(body.mint, "mint"));
         case "pay":
         case "claim":
           return issuer[op as "pay" | "claim"](address(body.actionId, "actionId"), address(body.holder, "holder"));

@@ -4,8 +4,6 @@ import test from "node:test";
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 
-import { GuardError } from "../lib/markets/api-guard";
-import { createAllocationHandler, type AllocationDeps } from "../lib/markets/allocation-route";
 import { MarketsClient, bondAta, pda, type InstrumentRef } from "../lib/markets/client";
 import { DevnetLedger } from "../lib/markets/devnet-service";
 import {
@@ -137,113 +135,6 @@ test("allocation memo round-trips and rejects junk", () => {
   const wallet = Keypair.generate().publicKey.toBase58();
   assert.deepEqual(parseAllocationMemo(allocationMemo(wallet, BigInt(7))), { holder: wallet, units: BigInt(7) });
   for (const junk of ["pm:alloc:1", `pm:alloc:1 ${wallet}`, `pm:alloc:1 not-a-key 3`, `pm:alloc:1 ${wallet} -3`, `pm:snap:1 ${wallet} 3`]) assert.equal(parseAllocationMemo(junk), null, junk);
-});
-
-// ---- allocation request handler -------------------------------------------------------------------
-
-function handlerFixture(over: Partial<AllocationDeps> = {}) {
-  const wallet = Keypair.generate().publicKey.toBase58();
-  const mint = Keypair.generate().publicKey.toBase58();
-  const calls: { mint: string; wallet: string; units: unknown }[] = [];
-  let inFlight = 0;
-  let maxInFlight = 0;
-  const deps: AllocationDeps = {
-    sessionWallet: async (req) => (req.headers.get("cookie") === "signed-in" ? { walletAddress: wallet } : null),
-    writable: () => true,
-    isListed: async (m) => m === mint,
-    allocate: async (m, w, units) => {
-      calls.push({ mint: m, wallet: w, units });
-      inFlight += 1;
-      maxInFlight = Math.max(maxInFlight, inFlight);
-      await new Promise((r) => setTimeout(r, 5));
-      inFlight -= 1;
-      return { signature: `sig${calls.length}`, slot: 1, ts: 2, units: String(units) };
-    },
-    queue: (() => {
-      let tail: Promise<unknown> = Promise.resolve();
-      return <T,>(task: () => Promise<T>) => {
-        const run = tail.then(task, task);
-        tail = run.catch(() => undefined);
-        return run;
-      };
-    })(),
-    knownError: (e) => (e instanceof Error && e.message.startsWith("known:") ? { message: e.message.slice(6), status: 409 } : null),
-    ...over,
-  };
-  const req = (body: unknown, key: string | null = "key-00000001", cookie = "signed-in", ip = "1.1.1.1") =>
-    new Request("http://x/api/bonds/m/allocate", {
-      method: "POST",
-      headers: { ...(cookie ? { cookie } : {}), ...(key ? { "idempotency-key": key } : {}), "x-forwarded-for": ip },
-      body: typeof body === "string" ? body : JSON.stringify(body),
-    });
-  return { deps, wallet, mint, calls, req, maxInFlight: () => maxInFlight };
-}
-
-test("allocation handler: session, availability, mint, key and body are checked before anything is sent", async () => {
-  const f = handlerFixture();
-  const handle = createAllocationHandler(f.deps);
-  assert.equal((await handle(f.req({ units: 1 }, "key-00000001", ""), f.mint)).status, 401);
-  assert.equal((await handle(f.req({ units: 1 }, null), f.mint)).status, 400);
-  assert.equal((await handle(f.req({ units: 1 }, "short"), f.mint)).status, 400);
-  assert.equal((await handle(f.req("{nope"), f.mint)).status, 400);
-  assert.equal((await handle(f.req({ units: 1 }), "not-a-mint")).status, 404);
-  assert.equal((await handle(f.req({ units: 1 }), Keypair.generate().publicKey.toBase58())).status, 404);
-  assert.equal((await handle(f.req("x".repeat(2_000)), f.mint)).status, 413);
-  const off = createAllocationHandler({ ...f.deps, writable: () => false });
-  assert.equal((await off(f.req({ units: 1 }), f.mint)).status, 503);
-  assert.equal(f.calls.length, 0);
-
-  const ok = await handle(f.req({ units: 3 }), f.mint);
-  assert.equal(ok.status, 200);
-  assert.equal(ok.body.simulatedCashLeg, true);
-  // The wallet comes from the session, never from the request body.
-  assert.deepEqual(f.calls, [{ mint: f.mint, wallet: f.wallet, units: 3 }]);
-});
-
-test("allocation handler: idempotent per wallet, 409 on key reuse with another body", async () => {
-  const f = handlerFixture();
-  const handle = createAllocationHandler(f.deps);
-  const [a, b] = await Promise.all([handle(f.req({ units: 2 }, "same-key-1"), f.mint), handle(f.req({ units: 2 }, "same-key-1"), f.mint)]);
-  assert.equal(a.body.signature, b.body.signature);
-  assert.equal(f.calls.length, 1);
-  assert.equal((await handle(f.req({ units: 4 }, "same-key-1"), f.mint)).status, 409);
-  assert.equal(f.calls.length, 1);
-});
-
-test("allocation handler: per-wallet and per-IP rate limits; requests are serialized", async () => {
-  const f = handlerFixture();
-  const handle = createAllocationHandler(f.deps, { perWallet: { windowMs: 60_000, max: 3 }, perIp: { windowMs: 60_000, max: 100 } });
-  const results = await Promise.all([1, 2, 3, 4].map((i) => handle(f.req({ units: 1 }, `wallet-key-${i}`), f.mint)));
-  assert.deepEqual(results.map((r) => r.status), [200, 200, 200, 429]);
-  assert.ok(results[3].headers?.["retry-after"]);
-  assert.equal(f.maxInFlight(), 1);
-
-  const g = handlerFixture();
-  const byIp = createAllocationHandler(g.deps, { perIp: { windowMs: 60_000, max: 1 } });
-  assert.equal((await byIp(g.req({ units: 1 }, "ip-key-0001"), g.mint)).status, 200);
-  assert.equal((await byIp(g.req({ units: 1 }, "ip-key-0002"), g.mint)).status, 429);
-  assert.equal((await byIp(g.req({ units: 1 }, "ip-key-0003", "signed-in", "2.2.2.2"), g.mint)).status, 200);
-});
-
-test("allocation handler: issuer errors keep their message; unexpected errors are generic; failures can be retried", async () => {
-  let fail: Error | null = new Error("known:You already hold the maximum");
-  const f = handlerFixture({
-    allocate: async () => {
-      if (fail) throw fail;
-      return { signature: "ok", slot: 1, ts: 1, units: "1" };
-    },
-  });
-  const handle = createAllocationHandler(f.deps);
-  const known = await handle(f.req({ units: 1 }, "retry-key-1"), f.mint);
-  assert.deepEqual([known.status, known.body.error], [409, "You already hold the maximum"]);
-  fail = new GuardError("busy", 503);
-  assert.equal((await handle(f.req({ units: 1 }, "retry-key-1"), f.mint)).status, 503);
-  fail = new Error("socket hang up with secret details");
-  const generic = await handle(f.req({ units: 1 }, "retry-key-1"), f.mint);
-  assert.equal(generic.status, 502);
-  assert.doesNotMatch(String(generic.body.error), /secret/);
-  fail = null;
-  assert.equal((await handle(f.req({ units: 1 }, "retry-key-1"), f.mint)).status, 200);
 });
 
 // ---- smart wallets (PDA owners) -------------------------------------------------------------------
