@@ -1,5 +1,7 @@
 # Plain Markets: the investor side
 
+> **Superseded in part (15 Oct 2026):** the free "Get allocation" flow and `POST /api/bonds/[mint]/allocate` were replaced by a real delivery-versus-payment purchase (Bonds → Buy). Issuer allocation remains only as a labelled issuer action in the console. See [MARKETS_DVP_REPORT.md](MARKETS_DVP_REPORT.md).
+
 This branch builds on `claude/markets-wire-1ddeac`. It adds the retail half of the story inside the signed-in Plain app: an issuer issues a bond, the register records it, and a retail investor who signed in with email holds it in a Crossmint smart wallet and is paid its coupons. The whole path runs on the real `plain_markets` program on devnet.
 
 No Crossmint code changed. The investor never signs anything. The issuer key issues the units, and the paying agent pushes each coupon to the wallet.
