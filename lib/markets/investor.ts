@@ -14,35 +14,21 @@
  * - Allocation guard: the program's `issue` preconditions plus Plain's per-investor limits.
  */
 import type { OfferingState } from "./devnet-service";
+import { couponDates, yearSeconds } from "./calendar";
 import { couponPerUnit } from "./entitlements";
 import type { Address, ClaimReceipt, CorporateAction, Instrument, PublishedSnapshot, Signature, UnixTs, VoteRecord } from "./service";
 
 const ZERO = BigInt(0);
-const YEAR = 365.25 * 86_400;
 
 export type BondTerms = Pick<Instrument, "faceValue" | "couponBps" | "frequency" | "issueTs" | "maturityTs">;
 
 // ---- schedule -------------------------------------------------------------------------------------
 
-/** `ts` plus whole calendar months in UTC; the day clamps to the end of shorter months. */
-export function addMonthsUtc(ts: UnixTs, months: number): UnixTs {
-  const d = new Date(ts * 1000);
-  const day = d.getUTCDate();
-  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()));
-  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(day, lastDay));
-  return Math.floor(target.getTime() / 1000);
-}
+export { addMonthsUtc } from "./calendar";
 
-/** Scheduled coupon dates, issue excluded, maturity included. */
+/** Scheduled coupon dates, issue excluded, maturity included (civil or accelerated calendar). */
 export function couponSchedule(t: Pick<BondTerms, "issueTs" | "maturityTs" | "frequency">): UnixTs[] {
-  if (!(t.frequency > 0) || t.maturityTs <= t.issueTs) return [];
-  const count = Math.max(1, Math.round(((t.maturityTs - t.issueTs) / YEAR) * t.frequency));
-  const months = 12 / t.frequency;
-  const dates: UnixTs[] = [];
-  for (let k = 1; k < count; k++) dates.push(Math.min(addMonthsUtc(t.issueTs, Math.round(k * months)), t.maturityTs));
-  dates.push(t.maturityTs);
-  return dates;
+  return couponDates(t);
 }
 
 /** The coupon period containing `now`: [start, end). Null before issue or from maturity on. */
@@ -139,7 +125,7 @@ export function yieldToMaturity(t: BondTerms, price: bigint, now: UnixTs): numbe
   const pv = (y: number) =>
     remaining.reduce((sum, d, i) => {
       const flow = coupon + (i === remaining.length - 1 ? face : 0);
-      return sum + flow / Math.pow(1 + y / f, (f * (d - now)) / YEAR);
+      return sum + flow / Math.pow(1 + y / f, (f * (d - now)) / yearSeconds(t));
     }, 0);
   // pv is decreasing in y; bracket and bisect.
   let lo = -0.99 * f;

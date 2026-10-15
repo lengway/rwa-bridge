@@ -1,3 +1,4 @@
+import { couponCount } from "./calendar";
 import { stageIndex } from "./derive";
 import { formatDateTime, formatSettlement } from "./format";
 import { isPaymentAction } from "./math";
@@ -180,7 +181,7 @@ export function upcomingEvents(actions: CorporateAction[], now: UnixTs) {
 }
 
 export function couponPeriods(i: Pick<Instrument, "issueTs" | "maturityTs" | "frequency">) {
-  return Math.round(((i.maturityTs - i.issueTs) / (365.25 * 86_400)) * i.frequency);
+  return couponCount(i);
 }
 
 export function actionTitle(i: Pick<Instrument, "issueTs" | "maturityTs" | "frequency">, d: Pick<ActionDraft, "params">) {

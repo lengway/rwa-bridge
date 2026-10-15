@@ -56,6 +56,11 @@ export function formatDateTime(ts: number) {
   return `${dateTimeFmt.format(new Date(ts * 1000))} UTC`;
 }
 
+/** "14:05 UTC" (accelerated demo calendars, where a whole schedule fits in a day). */
+export function formatTime(ts: number) {
+  return `${new Date(ts * 1000).toISOString().slice(11, 16)} UTC`;
+}
+
 export function isoDate(ts: number) {
   return new Date(ts * 1000).toISOString().slice(0, 10);
 }

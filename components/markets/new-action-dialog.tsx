@@ -4,7 +4,8 @@ import { useId, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Loader2, Minus, Plus, Signature } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { formatDate, formatSettlement, formatUnits, isoDate } from "@/lib/markets/format";
+import { couponDates, isAccelerated } from "@/lib/markets/calendar";
+import { formatDate, formatDateTime, formatSettlement, formatUnits, isoDate } from "@/lib/markets/format";
 import { KIND_LABEL, actionTitle } from "@/lib/markets/lifecycle";
 import { perUnitAmount, programTotal } from "@/lib/markets/math";
 import type { ActionDraft, ActionKind, ActionParams, CorporateAction, EntitlementSheet, Instrument } from "@/lib/markets/service";
@@ -15,10 +16,10 @@ import { ErrorNote, KindIcon, Skeleton, focusRing, pillButton, primaryButton } f
 const DAY = 86_400;
 const toTs = (d: string) => Math.floor(Date.parse(`${d}T12:00:00Z`) / 1000);
 
-function addMonths(t: number, months: number) {
-  const d = new Date(t * 1000);
-  d.setUTCMonth(d.getUTCMonth() + months);
-  return Math.floor(d.getTime() / 1000);
+/** Scheduled date of coupon `period` (1-based), on the instrument's civil or accelerated calendar. */
+function scheduledCoupon(instrument: Instrument, period: number) {
+  const dates = couponDates(instrument);
+  return dates[Math.min(period, dates.length) - 1] ?? instrument.maturityTs;
 }
 
 type Form = {
@@ -48,9 +49,8 @@ const KINDS: { kind: ActionKind; blurb: string }[] = [
 
 function defaults(kind: ActionKind, instrument: Instrument, actions: CorporateAction[], now: number, fast = false): Form {
   const nextPeriod = actions.filter((a) => a.kind === "Coupon").length + 1;
-  const periodMonths = 12 / instrument.frequency;
   let payment: number;
-  if (kind === "Coupon") payment = addMonths(instrument.issueTs, nextPeriod * periodMonths);
+  if (kind === "Coupon") payment = scheduledCoupon(instrument, nextPeriod);
   else if (kind === "FinalRedemption") payment = instrument.maturityTs;
   else if (kind === "Vote") payment = now + 21 * DAY;
   else payment = now + 30 * DAY;
@@ -364,7 +364,7 @@ function TermsFields({
     <div className="space-y-5" onBlur={onBlur}>
       {form.kind === "Coupon" ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          <ReadOnly label="Coupon period" value={`${period} (scheduled ${formatDate(addMonths(instrument.issueTs, period * (12 / instrument.frequency)))})`} />
+          <ReadOnly label="Coupon period" value={`${period} (scheduled ${(isAccelerated(instrument) ? formatDateTime : formatDate)(scheduledCoupon(instrument, period))})`} />
           <Field label="Annual coupon rate" suffix="%" value={form.couponPct} onChange={(v) => set("couponPct", v)} error={errors.couponPct} hint={`Terms: ${instrument.couponBps / 100}%, paid ${instrument.frequency}× a year`} inputMode="decimal" />
         </div>
       ) : null}
