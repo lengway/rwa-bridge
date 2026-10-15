@@ -12,6 +12,7 @@ import type { CorporateAction, Instrument } from "@/lib/markets/service";
 import { ActionDetail } from "./action-detail";
 import { MarketsProvider, useLedgerNow, useLedgerQuery, useMarkets } from "./markets-provider";
 import { NewActionDialog } from "./new-action-dialog";
+import { OfferingPanel } from "./offering-panel";
 import { ChainRef, ErrorNote, Eyebrow, KindIcon, Panel, Skeleton, StatusPill, focusRing, pillButton, primaryButton } from "./primitives";
 import { AuditLog, RegisterView } from "./register-and-log";
 
@@ -23,24 +24,26 @@ export function IssuerConsole({ config }: { config?: MarketsPublicConfig }) {
   );
 }
 
-type Tab = "actions" | "register" | "log";
+type Tab = "actions" | "register" | "log" | "offering";
 
 function Console() {
   const instruments = useLedgerQuery("instruments", (s) => s.listInstruments());
-  const instrument = instruments.data?.[0];
-  const actions = useLedgerQuery(instrument ? `actions:${instrument.mint}` : null, (s) => s.listActions(instrument!.mint));
-  const now = useLedgerNow();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  // ?mint= picks another listed instrument; the first listed one is the default.
+  const instrument = instruments.data?.find((i) => i.mint === params.get("mint")) ?? instruments.data?.[0];
+  const actions = useLedgerQuery(instrument ? `actions:${instrument.mint}` : null, (s) => s.listActions(instrument!.mint));
+  const now = useLedgerNow();
   const [newOpen, setNewOpen] = useState(false);
   const detailRef = useRef<HTMLDivElement>(null);
 
-  const tab = (["actions", "register", "log"].includes(params.get("tab") ?? "") ? params.get("tab") : "actions") as Tab;
+  const tab = (["actions", "register", "log", "offering"].includes(params.get("tab") ?? "") ? params.get("tab") : "actions") as Tab;
   const list = actions.data ?? [];
   // Pin the default once, so the view does not jump to another action when this one settles.
-  const [pinned, setPinned] = useState<string | null>(null);
-  if (pinned == null && list.length > 0) setPinned(defaultSelection(list, now)?.id ?? null);
+  const [pinnedFor, setPinned] = useState<{ mint: string; id: string | null } | null>(null);
+  const pinned = pinnedFor && pinnedFor.mint === instrument?.mint ? pinnedFor.id : null;
+  if (instrument && pinnedFor?.mint !== instrument.mint && list.length > 0 && actions.data) setPinned({ mint: instrument.mint, id: defaultSelection(list, now)?.id ?? null });
   const selectedId = params.get("action") ?? pinned;
   const selected = list.find((a) => a.id === selectedId) ?? null;
 
@@ -72,11 +75,22 @@ function Console() {
       <InstrumentHeader instrument={instrument} actions={list} now={now} onNew={() => setNewOpen(true)} onSelect={select} />
       <Shell>
         <SimulationBar actions={list} now={now} />
+        {(instruments.data?.length ?? 0) > 1 ? (
+          <nav aria-label="Instruments" className="mb-4 flex flex-wrap gap-2">
+            {instruments.data!.map((i) => (
+              <button key={i.mint} type="button" aria-current={i.mint === instrument.mint ? "true" : undefined} onClick={() => setParams({ mint: i.mint === instruments.data![0].mint ? null : i.mint, action: null })}
+                className={cn(pillButton, i.mint === instrument.mint && "border-foreground/40 bg-muted")}>
+                {i.symbol}
+              </button>
+            ))}
+          </nav>
+        ) : null}
         <Tabs value={tab} onValueChange={(v) => setParams({ tab: v === "actions" ? null : String(v) })} className="gap-5">
           <TabsList variant="line" className="h-10 w-full justify-start gap-4 overflow-x-auto rounded-none border-b px-0 [scrollbar-width:none]" aria-label="Console sections">
             <TabsTrigger value="actions" className="flex-none px-1">Corporate actions <Count n={list.length} /></TabsTrigger>
             <TabsTrigger value="register" className="flex-none px-1">Register</TabsTrigger>
             <TabsTrigger value="log" className="flex-none px-1">Event log</TabsTrigger>
+            <TabsTrigger value="offering" className="flex-none px-1">Offering</TabsTrigger>
           </TabsList>
 
           <TabsContent value="actions" className="min-w-0">
@@ -118,6 +132,9 @@ function Console() {
           </TabsContent>
           <TabsContent value="log" className="min-w-0">
             <AuditLog instrument={instrument} actions={list} now={now} />
+          </TabsContent>
+          <TabsContent value="offering" className="min-w-0">
+            <OfferingPanel instrument={instrument} />
           </TabsContent>
         </Tabs>
       </Shell>
@@ -200,7 +217,7 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
               <Term label="Issued" value={formatDate(instrument.issueTs)} sub={`${formatUnits(instrument.issuedUnits)} units`} />
               <Term label="Maturity" value={formatDate(instrument.maturityTs)} sub={formatRelative(instrument.maturityTs, now)} />
               <Term label="Outstanding" value={`${formatUnits(instrument.supply)} units`} sub={`${money(instrument.supply * instrument.faceValue)} face`} />
-              <Term label="Settlement" value="Test USD" sub={`${instrument.settlementDecimals} decimals · devnet`} />
+              <Term label="Settlement" value={instrument.settlementSymbol === "USDC" ? "Circle USDC" : "Test USD"} sub={`${instrument.settlementDecimals} decimals · devnet`} />
               <Term label="Transfer rules" value={instrument.allowlist ? "Allowlist" : "Open"} sub="+ ex-date lock hook" />
               <Term label="Actions" value={String(instrument.actionCount)} sub={`${actions.filter((a) => a.status !== "Settled" && a.status !== "Cancelled").length} open`} />
             </dl>
