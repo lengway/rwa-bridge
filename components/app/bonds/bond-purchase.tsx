@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ExternalLink, LoaderCircle, Minus, Plus } from "lucide-react";
+import { Check, ExternalLink, LoaderCircle, Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   type StoredSmartWalletOperation,
 } from "@/lib/kamino-smart-wallet-client";
 import { useAuth } from "@/lib/useAuth";
+import { cn } from "@/lib/utils";
 import { devnetTxUrl, refreshBonds } from "@/lib/useBonds";
 import { Row, TestFundsNote, money } from "./bond-parts";
 
@@ -37,30 +38,37 @@ function savedPurchase(walletAddress: string | null, mint: string) {
   }
 }
 
+/** Why "Buy" is unavailable for this wallet, or null when it is available. Rendered by the caller. */
+export function purchaseBlock(offering: BondOffering, heldUnits: bigint): string | null {
+  const purchase = offering.purchase;
+  if (!purchase) return `Not offered in Plain. ${heldUnits > BigInt(0) ? "Coupons on your units are still paid to your wallet." : "Earlier issue, shown for its payment record."}`;
+  if (!purchase.open) return purchase.reason ?? "The offering is closed.";
+  if (BigInt(purchase.maxForWallet) < BigInt(1)) return "You can't buy more of this bond.";
+  return null;
+}
+
 /**
- * "Buy" for a bond with a USDC offering. Opens the purchase drawer; resumes a purchase that is still
- * being confirmed after a reload.
+ * "Buy" for a bond with a USDC offering (hidden when the bond has none). Opens the purchase drawer;
+ * resumes a purchase that is still being confirmed after a reload.
  */
-export function BuyButton({ offering, heldUnits, balanceAtomic, className }: { offering: BondOffering; heldUnits: bigint; balanceAtomic: string | null; className?: string }) {
+export function BuyButton({ offering, heldUnits, balanceAtomic, className, label }: { offering: BondOffering; heldUnits: bigint; balanceAtomic: string | null; className?: string; label?: string }) {
   const { walletAddress } = useAuth();
   const [open, setOpen] = useState(false);
-  const purchase = offering.purchase;
   useEffect(() => {
     // After hydration: localStorage is browser-only.
     const timer = window.setTimeout(() => { if (savedPurchase(walletAddress, offering.mint)) setOpen(true); }, 0);
     return () => window.clearTimeout(timer);
   }, [walletAddress, offering.mint]);
 
-  if (!purchase) {
-    return <p className="text-xs text-muted-foreground">Not offered in Plain. {heldUnits > BigInt(0) ? "Coupons on your units are still paid to your wallet." : "Earlier issue, shown for its payment record."}</p>;
-  }
-  const disabled = !purchase.open || BigInt(purchase.maxForWallet) < BigInt(1);
+  const purchase = offering.purchase;
+  if (!purchase) return null;
+  const price = money(purchase.priceAtomic, offering.settlementDecimals, offering.settlementSymbol);
   return (
     <>
-      <Button className={className} size="lg" disabled={disabled} onClick={() => setOpen(true)}>
-        Buy · {money(purchase.priceAtomic, offering.settlementDecimals, offering.settlementSymbol)} per unit
+      <Button className={cn("h-11 px-5", className)} disabled={purchaseBlock(offering, heldUnits) != null} onClick={() => setOpen(true)}>
+        <ShoppingBag />
+        {label ?? `${heldUnits > BigInt(0) ? "Buy more" : "Buy"} · ${price} per unit`}
       </Button>
-      {disabled ? <p className="text-xs text-muted-foreground">{purchase.reason ?? "You can't buy more of this bond."}</p> : null}
       {open ? <PurchaseDrawer offering={offering} balanceAtomic={balanceAtomic} onClose={() => setOpen(false)} /> : null}
     </>
   );

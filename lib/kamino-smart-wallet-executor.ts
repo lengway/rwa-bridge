@@ -408,7 +408,7 @@ function statusOutput(record: SmartWalletExecutionRecord) {
 export async function getConfirmedSmartWalletHistory(walletAddress: string) {
   const rows = await actionStore.list(walletAddress);
   // Kamino history only; bond purchases are listed by getConfirmedBondPurchases.
-  return rows.filter(record => record.stage === "COMPLETED" && record.verification && (record.action === "deposit" || record.action === "withdraw")).map(record => ({
+  return rows.filter((record): record is SmartWalletExecutionRecord & { action: KaminoLendAction | "initialize" } => record.stage === "COMPLETED" && Boolean(record.verification) && record.action !== "markets-subscribe").map(record => ({
     actionId: record.id, action: record.action, amountAtomic: record.amountAtomic,
     actualLiquidityAmountAtomic: record.verification!.actualLiquidityAmountAtomic,
     actualCollateralAmountAtomic: record.verification!.actualCollateralAmountAtomic,

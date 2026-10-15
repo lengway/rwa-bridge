@@ -11,7 +11,7 @@ import {
   performanceFeeBps,
   quotePerformanceFee,
 } from "../lib/earn-economics";
-import { trackedProtocolGain } from "../lib/earn-performance";
+import { displayEarnedAtomic, trackedPosition, trackedProtocolGain } from "../lib/earn-performance";
 
 test("sandbox gates reject Mainnet, production MoonPay keys and legacy blanket flags", () => {
   const environment = {
@@ -144,6 +144,31 @@ test("protocol gain reconciles withdrawals, deduplicates signatures and rejects 
   );
   assert.equal(trackedProtocolGain("0", "0", []), "0");
   assert.equal(trackedProtocolGain("1000000", "900000", [deposit]), "-100000");
+});
+
+test("tracked position reports net principal and display hides rounding-only losses", () => {
+  const deposit = (signature: string, liquidity: string, collateral: string) => ({
+    signature, action: "deposit" as const,
+    actualLiquidityAmountAtomic: liquidity, actualCollateralAmountAtomic: collateral,
+  });
+  const withdraw = {
+    signature: "withdraw-1", action: "withdraw" as const,
+    actualLiquidityAmountAtomic: "300000", actualCollateralAmountAtomic: "290000",
+  };
+  // Two deposits (smart-wallet and direct receipts mixed) minus one withdrawal.
+  assert.deepEqual(
+    trackedPosition("1710000", "1712345", [deposit("a", "1000000", "1000000"), deposit("b", "1000000", "1000000"), withdraw]),
+    { principalAtomic: "1700000", gainAtomic: "12345" },
+  );
+  assert.equal(trackedPosition("1", "1", [deposit("a", "", "1")]), null);
+  assert.equal(trackedPosition("5", "5", []), null);
+
+  assert.equal(displayEarnedAtomic("12345"), "12345");
+  assert.equal(displayEarnedAtomic("-1"), "0");
+  assert.equal(displayEarnedAtomic("-10000"), "0");
+  assert.equal(displayEarnedAtomic("-10001"), "-10001");
+  assert.equal(displayEarnedAtomic(null), null);
+  assert.equal(displayEarnedAtomic("abc"), null);
 });
 
 test("upcoming strategies cannot authorize unimplemented deposits", async () => {

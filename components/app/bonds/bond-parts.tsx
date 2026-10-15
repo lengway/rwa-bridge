@@ -5,8 +5,10 @@ import { CalendarClock, Check, ExternalLink, Info, ShieldCheck, Vote } from "luc
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { formatBps, formatDate, formatDateTime, formatSettlement } from "@/lib/markets/format";
-import type { BondActionView, BondOffering, BondPayment, BondPosition, BondVote, CalendarEntry } from "@/lib/markets/investor";
+import type { BondActionView, BondOffering, BondPayment, BondPosition, BondVote, CalendarEntry, NextCoupon, SettlementBalance } from "@/lib/markets/investor";
 import { cn } from "@/lib/utils";
+
+const unitsLabel = (n: string | number) => `${n} unit${String(n) === "1" ? "" : "s"}`;
 
 export const money = (amount: string | bigint, decimals: number, symbol: string) => formatSettlement(typeof amount === "bigint" ? amount : BigInt(amount), decimals, symbol);
 
@@ -47,28 +49,41 @@ export function Fact({ label, value, sub }: { label: string; value: React.ReactN
   );
 }
 
-export function YieldFigure({ offering, size = "lg" }: { offering: BondOffering; size?: "lg" | "sm" }) {
+export function YieldFigure({ offering, size = "lg" }: { offering: BondOffering; size?: "lg" | "md" }) {
   return (
     <div>
-      <p className={cn("font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400", size === "lg" ? "text-3xl" : "text-xl")}>
-        {formatBps(offering.couponBps)}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Coupon · {offering.ytmBps != null ? `${formatBps(offering.ytmBps)} yield to maturity at par` : "yield unavailable"}
+      <div className="flex items-baseline gap-2">
+        <p className={cn("font-semibold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400", size === "lg" ? "text-5xl" : "text-3xl")}>
+          {formatBps(offering.couponBps)}
+        </p>
+        <p className="text-sm text-muted-foreground">coupon</p>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {offering.ytmBps != null ? `${formatBps(offering.ytmBps)} yield to maturity at par` : "Yield unavailable"} · {frequencyLabel(offering.frequency).toLowerCase()} payments
       </p>
     </div>
   );
 }
 
+/** "14 Oct 2026" plus whether the issuer has announced it or it only follows the terms' calendar. */
+export function nextCouponHint(next: NextCoupon | null, total?: number) {
+  if (!next) return { date: "—", hint: "No coupons left" };
+  const of = total ? ` of ${total}` : "";
+  return next.source === "announced"
+    ? { date: formatDate(next.ts), hint: `Coupon ${next.period}${of} · announced` }
+    : { date: formatDate(next.ts), hint: `Coupon ${next.period}${of} · scheduled` };
+}
+
 export function TermsGrid({ offering }: { offering: BondOffering }) {
   const d = offering.settlementDecimals;
   const s = offering.settlementSymbol;
+  const next = nextCouponHint(offering.nextCoupon, offering.couponCount);
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3">
-      <Fact label="Face value" value={money(offering.faceValue, d, s)} sub="per unit" />
-      <Fact label="Coupon" value={formatBps(offering.couponBps)} sub={`${frequencyLabel(offering.frequency)} · ${money(offering.couponPerUnit, d, s)} per unit`} />
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3">
+      <Fact label="Face value" value={money(offering.faceValue, d, s)} sub="Per unit" />
+      <Fact label="Coupon" value={`${money(offering.couponPerUnit, d, s)}`} sub={`Per unit, ${frequencyLabel(offering.frequency).toLowerCase()}`} />
       <Fact label="Yield to maturity" value={offering.ytmBps != null ? formatBps(offering.ytmBps) : "—"} sub={`At par, compounded ${offering.frequency}× a year`} />
-      <Fact label="Next coupon" value={offering.nextCouponTs ? formatDate(offering.nextCouponTs) : "—"} sub={`${offering.couponCount} coupons in total`} />
+      <Fact label="Next coupon" value={next.date} sub={next.hint} />
       <Fact label="Maturity" value={formatDate(offering.maturityTs)} sub={`Issued ${formatDate(offering.issueTs)}`} />
       <Fact label="Settlement" value={`Test ${s}`} sub="Solana devnet token" />
     </dl>
@@ -86,16 +101,28 @@ export function Row({ label, value }: { label: string; value: React.ReactNode })
 
 // ---- positions, calendar, payments --------------------------------------------------------------------
 
-export function PositionFacts({ position }: { position: BondPosition }) {
+export function PositionCard({ position, received, cash }: { position: BondPosition; received: bigint; cash: SettlementBalance | null }) {
   const d = position.settlementDecimals;
   const s = position.settlementSymbol;
+  const next = nextCouponHint(position.nextCoupon);
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
-      <Fact label="Units" value={position.units} />
-      <Fact label="Face value" value={money(position.faceValue, d, s)} />
-      <Fact label="Accrued coupon" value={moneyCents(position.accrued, d, s)} sub="Estimate for the current period" />
-      <Fact label="Next coupon" value={money(position.nextCouponAmount, d, s)} sub={position.nextCouponTs ? `Expected ${formatDate(position.nextCouponTs)}` : undefined} />
-    </dl>
+    <Card className="gap-5 rounded-2xl p-5">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-muted-foreground">You hold</p>
+          <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">{unitsLabel(position.units)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm text-muted-foreground">Face value</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{money(position.faceValue, d, s)}</p>
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-5 border-t pt-4 sm:grid-cols-3">
+        <Fact label="Next coupon" value={position.nextCoupon ? money(position.nextCouponAmount, d, s) : "—"} sub={position.nextCoupon ? `${next.date} · ${position.nextCoupon.source === "announced" ? "announced" : "scheduled"}` : next.hint} />
+        <Fact label="Accrued coupon" value={moneyCents(position.accrued, d, s)} sub="Estimate, current period" />
+        <Fact label="Coupons received" value={money(received, d, s)} sub={cash ? `Test ${cash.symbol} in wallet: ${money(cash.amount, cash.decimals, cash.symbol)}` : undefined} />
+      </dl>
+    </Card>
   );
 }
 
@@ -127,14 +154,14 @@ export function CouponCalendar({ entries, limit, showSymbol }: { entries: Calend
 
 export function PaymentLinks({ payment }: { payment: Pick<BondPayment, "explorerUrl" | "verifyUrl"> }) {
   return (
-    <span className="mt-1 flex flex-wrap gap-x-1">
+    <span className="-ml-2.5 mt-1 flex flex-wrap">
       {payment.explorerUrl ? (
-        <a href={payment.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 rounded px-2 text-xs underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          Transaction <ExternalLink className="size-3" />
+        <a href={payment.explorerUrl} target="_blank" rel="noopener noreferrer" className={ghostLink}>
+          <ExternalLink className="size-3.5" /> Transaction
         </a>
       ) : null}
-      <Link href={payment.verifyUrl} className="inline-flex min-h-11 items-center gap-1 rounded px-2 text-xs underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <ShieldCheck className="size-3" /> Verify
+      <Link href={payment.verifyUrl} className={ghostLink}>
+        <ShieldCheck className="size-3.5" /> Verify
       </Link>
     </span>
   );
@@ -205,8 +232,8 @@ export function VoteCard({ vote }: { vote: BondVote }) {
         {vote.weight ? `Your voting weight: ${vote.weight} units from the record-date snapshot.` : "Your weight is fixed by your units at the record date."}{" "}
         Voting from Plain needs a wallet signature, which is coming next. For now you can follow the tally here.
       </p>
-      <Link href={vote.verifyUrl} className="inline-flex min-h-11 items-center gap-1 self-start rounded text-xs underline underline-offset-4">
-        <ShieldCheck className="size-3" /> Verify the tally
+      <Link href={vote.verifyUrl} className={cn(ghostLink, "-ml-2.5 self-start")}>
+        <ShieldCheck className="size-3.5" /> Verify the tally
       </Link>
     </Card>
   );
@@ -215,86 +242,147 @@ export function VoteCard({ vote }: { vote: BondVote }) {
 // ---- corporate actions ------------------------------------------------------------------------------
 
 const STAGES = ["Announced", "RecordLocked", "SnapshotPosted", "Funded", "Settling", "Settled"] as const;
+type Stage = (typeof STAGES)[number];
 
-function stageName(kind: BondActionView["kind"], s: (typeof STAGES)[number] | "Cancelled") {
+function stageName(kind: BondActionView["kind"], s: Stage | "Cancelled") {
   if (kind === "Vote") return ({ Announced: "Announced", RecordLocked: "Register locked", SnapshotPosted: "Voting open", Funded: "Funded", Settling: "Votes cast", Settled: "Closed", Cancelled: "Cancelled" } as const)[s];
   return ({ Announced: "Announced", RecordLocked: "Register locked", SnapshotPosted: "Snapshot posted", Funded: "Funded", Settling: "Paying", Settled: "Settled", Cancelled: "Cancelled" } as const)[s];
 }
 
 export function ActionStatusBadge({ action }: { action: Pick<BondActionView, "kind" | "status"> }) {
   const done = action.status === "Settled";
-  return <Badge variant={done ? "outline" : "secondary"}>{stageName(action.kind, action.status)}</Badge>;
+  return <Badge variant={done ? "outline" : "secondary"} className="shrink-0">{stageName(action.kind, action.status)}</Badge>;
 }
 
-export function ActionCard({ action, offering }: { action: BondActionView; offering: BondOffering }) {
+const shortDateTime = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "UTC" });
+
+/**
+ * Six-step status stepper: vertical on phones, horizontal from the desktop breakpoint. Each step is
+ * an icon, a label and a muted UTC date; the transaction opens from a small icon next to the date.
+ */
+export function ActionStepper({ action }: { action: BondActionView }) {
   const stages = STAGES.filter((s) => !(action.kind === "Vote" && s === "Funded"));
   const reached = new Map(action.transitions.map((t) => [t.status, t]));
-  const current = stages.indexOf(action.status as (typeof STAGES)[number]);
+  const settled = action.status === "Settled";
+  const current = settled ? stages.length : stages.indexOf(action.status as Stage);
+  return (
+    <ol aria-label="Status" className={cn("flex flex-col lg:grid", stages.length === 6 ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
+      {stages.map((stage, i) => {
+        const t = reached.get(stage);
+        const done = i <= current;
+        const isCurrent = i === current && !settled;
+        const last = i === stages.length - 1;
+        return (
+          <li key={stage} className="relative flex items-center gap-3 pb-3 last:pb-0 lg:flex-col lg:items-start lg:gap-2 lg:pb-0 lg:pr-2">
+            {!last ? (
+              <span aria-hidden="true" className={cn("absolute left-[9px] top-[22px] bottom-[1px] w-px lg:left-7 lg:right-1 lg:top-[9px] lg:bottom-auto lg:h-px lg:w-auto", i < current ? "bg-emerald-600/60 dark:bg-emerald-500/60" : "bg-border")} />
+            ) : null}
+            <span
+              className={cn(
+                "relative z-10 flex size-[19px] shrink-0 items-center justify-center rounded-full",
+                done && !isCurrent ? "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950" : isCurrent ? "bg-background ring-2 ring-emerald-600 dark:ring-emerald-500" : "bg-background ring-1 ring-border",
+              )}
+            >
+              {done && !isCurrent ? <Check className="size-3" strokeWidth={3} /> : isCurrent ? <span className="size-1.5 rounded-full bg-emerald-600 dark:bg-emerald-500" /> : null}
+            </span>
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-2 leading-tight lg:block">
+              <p className={cn("text-xs", done ? "font-medium text-foreground" : "text-muted-foreground")}>{stageName(action.kind, stage)}</p>
+              {t?.ts ? (
+                <p className="flex h-5 items-center gap-1 text-[11px] tabular-nums text-muted-foreground lg:mt-0.5">
+                  <span>{shortDateTime.format(t.ts * 1000)}</span>
+                  {t.explorerUrl ? (
+                    <a
+                      href={t.explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${stageName(action.kind, stage)} transaction on Solana Explorer`}
+                      title="View transaction"
+                      className="inline-flex size-5 items-center justify-center rounded text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <ExternalLink className="size-3" />
+                    </a>
+                  ) : (
+                    <span aria-hidden="true" className="size-5 lg:hidden" />
+                  )}
+                </p>
+              ) : (
+                <p className="flex h-5 items-center text-[11px] text-muted-foreground/70 lg:mt-0.5">{isCurrent ? "In progress" : "Pending"}</p>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export function InlineNote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+      <Info className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+function ActionOutcome({ action, offering }: { action: BondActionView; offering: BondOffering }) {
   const d = offering.settlementDecimals;
   const s = offering.settlementSymbol;
+  const mine = action.mine;
+  if (!mine) {
+    return (
+      <InlineNote>
+        {action.status === "Announced" || action.status === "RecordLocked" ? "Units you hold at the record date are included." : "Your wallet was not in this record-date snapshot."}
+      </InlineNote>
+    );
+  }
+  if (action.kind === "Vote") return <p className="text-sm">Your voting weight <span className="font-medium tabular-nums">{unitsLabel(mine.units)}</span></p>;
+  if (mine.payment) {
+    return (
+      <p className="text-sm">
+        <span className="text-muted-foreground">You received </span>
+        <span className="font-medium tabular-nums text-emerald-700 dark:text-emerald-400">{money(mine.payment.amount, d, s)}</span>
+        <span className="text-muted-foreground"> for {unitsLabel(mine.units)}</span>
+      </p>
+    );
+  }
   return (
-    <Card className="gap-4 rounded-2xl p-5">
+    <p className="text-sm">
+      <span className="text-muted-foreground">Your entitlement </span>
+      <span className="font-medium tabular-nums">{money(mine.amount, d, s)}</span>
+      <span className="text-muted-foreground"> for {unitsLabel(mine.units)}{action.status === "Funded" || action.status === "Settling" ? " · paying now" : ""}</span>
+    </p>
+  );
+}
+
+const ghostLink = "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+export function ActionCard({ action, offering }: { action: BondActionView; offering: BondOffering }) {
+  return (
+    <Card className="gap-5 rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold">{action.title}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Record {formatDateTime(action.recordTs)} · {action.kind === "Vote" ? "closes" : "pays"} {formatDateTime(action.paymentTs)}
+          <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+            <span className="whitespace-nowrap">Record {shortDateTime.format(action.recordTs * 1000)}</span> ·{" "}
+            <span className="whitespace-nowrap">{action.kind === "Vote" ? "closes" : "pays"} {shortDateTime.format(action.paymentTs * 1000)} UTC</span>
           </p>
         </div>
         <ActionStatusBadge action={action} />
       </div>
-      <ol className="grid gap-2 sm:grid-cols-3" aria-label="Status timeline">
-        {stages.map((stage, i) => {
-          const t = reached.get(stage);
-          const done = current >= i || action.status === "Settled";
-          return (
-            <li key={stage} className="flex items-start gap-2 text-xs">
-              <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", done ? "border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-500" : "border-muted-foreground/40")}>
-                {done ? <Check className="size-3" /> : null}
-              </span>
-              <span className="min-w-0">
-                <span className={cn("block", done ? "font-medium" : "text-muted-foreground")}>{stageName(action.kind, stage)}</span>
-                {t?.ts ? (
-                  t.explorerUrl ? (
-                    <a href={t.explorerUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground underline underline-offset-2">{formatDateTime(t.ts)}</a>
-                  ) : (
-                    <span className="text-muted-foreground">{formatDateTime(t.ts)}</span>
-                  )
-                ) : null}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="space-y-1 border-t pt-3 text-sm">
-        {action.mine ? (
-          action.kind === "Vote" ? (
-            <p>Your voting weight: <span className="font-medium tabular-nums">{action.mine.units} units</span></p>
-          ) : action.mine.payment ? (
-            <p className="text-emerald-700 dark:text-emerald-400">
-              You received <span className="font-medium tabular-nums">{money(action.mine.payment.amount, d, s)}</span> for {action.mine.units} units.
-            </p>
-          ) : (
-            <p>
-              Your entitlement: <span className="font-medium tabular-nums">{money(action.mine.amount, d, s)}</span> for {action.mine.units} units
-              {action.status === "Funded" || action.status === "Settling" ? ", paying now." : ", paid on the payment date."}
-            </p>
-          )
-        ) : (
-          <p className="text-muted-foreground">
-            {action.status === "Announced" || action.status === "RecordLocked"
-              ? "Units you hold at the record date are included."
-              : "Your wallet was not in this record-date snapshot."}
-          </p>
-        )}
-        <div className="flex flex-wrap gap-x-1">
+      <ActionStepper action={action} />
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t pt-4">
+        <div className="min-w-0 flex-1">
+          <ActionOutcome action={action} offering={offering} />
+        </div>
+        <div className="-mr-2.5 flex items-center">
           {action.mine?.payment?.explorerUrl ? (
-            <a href={action.mine.payment.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 rounded text-xs underline underline-offset-4">
-              Payment transaction <ExternalLink className="size-3" />
+            <a href={action.mine.payment.explorerUrl} target="_blank" rel="noopener noreferrer" className={ghostLink}>
+              <ExternalLink className="size-3.5" /> Payment
             </a>
           ) : null}
-          <Link href={action.verifyUrl} className="ml-auto inline-flex min-h-11 items-center gap-1 rounded text-xs underline underline-offset-4">
-            <ShieldCheck className="size-3" /> Verify on-chain
+          <Link href={action.verifyUrl} className={ghostLink}>
+            <ShieldCheck className="size-3.5" /> Verify
           </Link>
         </div>
       </div>

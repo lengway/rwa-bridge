@@ -9,6 +9,7 @@ import { BuyAssetDrawer } from "@/components/app/buy-asset-drawer";
 import { DrawerFrame } from "@/components/app/drawer-frame";
 import { ExchangeDrawer } from "@/components/app/exchange-drawer";
 import { KaminoLendDrawer } from "@/components/app/kamino-lend-drawer";
+import { formatUsdcAtomic, hasKaminoPosition, kaminoPositionFigures } from "@/components/app/kamino-position-card";
 import { presentDevnetCopy } from "@/components/app/earn-detail-parts";
 import { PortfolioSettings } from "@/components/app/profile-screen";
 import { WithdrawDrawer } from "@/components/app/withdraw-drawer";
@@ -18,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { OFFICE_ASSET } from "@/lib/assets";
 import { formatQuantity } from "@/lib/format";
 import { KAMINO_LEND_DEVNET } from "@/lib/kamino-lend-devnet-config";
+import { useEarnOverview } from "@/lib/useEarnOverview";
 import { useAppStore } from "@/lib/store";
 import { useDevnet, type DevnetPortfolio } from "@/lib/useDevnet";
 
@@ -48,6 +50,8 @@ export function PortfolioScreen() {
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [exchangeDirection, setExchangeDirection] = useState<"kzte-to-usd" | "usd-to-kzte">("kzte-to-usd");
 
+  const { overview } = useEarnOverview();
+  const kaminoFigures = hasKaminoPosition(overview) && overview ? kaminoPositionFigures(overview) : null;
   const displayHoldings = devnet.portfolio?.holdings ?? [];
   const totalValue = devnet.portfolio?.totalValueUsd ?? 0;
   const isReady = hydrated && devnet.portfolio !== null;
@@ -141,7 +145,7 @@ export function PortfolioScreen() {
           {displayHoldings.map((holding) => (
             <div key={holding.mint} className="space-y-2">
               <button type="button" className="block w-full text-left" onClick={() => setSelected(holding)}>
-                <HoldingRow holding={holding} />
+                <HoldingRow holding={holding} kaminoFigures={holding.productId === "kamino-lend" ? kaminoFigures : null} />
               </button>
               {legacyFiatAdaptersEnabled && holding.kind === "cash" ? (
                 <Button variant="outline" size="sm" className="ml-4" onClick={() => {
@@ -203,7 +207,7 @@ export function PortfolioScreen() {
   );
 }
 
-function HoldingRow({ holding }: { holding: DisplayHolding }) {
+function HoldingRow({ holding, kaminoFigures }: { holding: DisplayHolding; kaminoFigures: ReturnType<typeof kaminoPositionFigures> | null }) {
   const primary = holding.productId === "kamino-lend" || holding.mint === KAMINO_LEND_DEVNET.liquidityMint;
   const name = holding.kind === "asset" ? "OFFICE · test asset" : presentPortfolioCopy(holding.name);
   return (
@@ -220,12 +224,16 @@ function HoldingRow({ holding }: { holding: DisplayHolding }) {
         </span>
         <span className="text-right">
           <span className="block font-semibold tabular-nums">{primary ? `${formatQuantity(holding.valueUsd)} USDC` : `${formatQuantity(holding.valueUsd)} test units`}</span>
-          {holding.kind === "vault" ? (
+          {kaminoFigures ? (
+            <span className={`mt-1 block text-xs tabular-nums ${kaminoFigures.earnedPositive ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>
+              Earned {formatUsdcAtomic(kaminoFigures.earned, { signed: true })}
+            </span>
+          ) : holding.kind === "vault" ? (
             <span className="mt-1 block text-xs text-muted-foreground">Check the position’s exit terms</span>
           ) : <span className="mt-1 block text-xs text-muted-foreground">{primary ? "Available" : "Test asset"}</span>}
         </span>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground"><span>{holding.kind === "vault" ? "Estimated position value · withdrawals depend on liquidity" : primary ? "USDC wallet balance" : "Token balance"}</span></div>
+      <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">{kaminoFigures ? <><span>Invested {formatUsdcAtomic(kaminoFigures.invested)}</span><span className="text-right">Estimated value · variable rate</span></> : <span>{holding.kind === "vault" ? "Estimated position value · withdrawals depend on liquidity" : primary ? "USDC wallet balance" : "Token balance"}</span>}</div>
     </Card>
   );
 }

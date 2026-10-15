@@ -11,6 +11,19 @@ export function trackedProtocolGain(
   underlyingAtomic: string,
   receipts: readonly Receipt[],
 ) {
+  return trackedPosition(collateralAtomic, underlyingAtomic, receipts)?.gainAtomic ?? null;
+}
+
+/**
+ * Net principal (deposits − withdrawals) and gain over it, from finalized
+ * receipts only. Null when receipts do not account for the whole cToken
+ * balance, because any number shown then would be a guess.
+ */
+export function trackedPosition(
+  collateralAtomic: string,
+  underlyingAtomic: string,
+  receipts: readonly Receipt[],
+) {
   let collateral = BigInt(0);
   let principal = BigInt(0);
   const seen = new Set<string>();
@@ -32,5 +45,18 @@ export function trackedProtocolGain(
     collateral !== BigInt(collateralAtomic)
   )
     return null;
-  return (BigInt(underlyingAtomic) - principal).toString();
+  return {
+    principalAtomic: principal.toString(),
+    gainAtomic: (BigInt(underlyingAtomic) - principal).toString(),
+  };
+}
+
+/** Exchange-rate flooring can leave a value a few atoms under principal. */
+export const EARNED_ROUNDING_TOLERANCE_ATOMIC = BigInt(10_000);
+
+/** Display-only: a tiny negative gain is rounding, not a loss. */
+export function displayEarnedAtomic(gainAtomic: string | null | undefined) {
+  if (gainAtomic == null || !/^-?\d+$/.test(gainAtomic)) return null;
+  const gain = BigInt(gainAtomic);
+  return gain < BigInt(0) && -gain <= EARNED_ROUNDING_TOLERANCE_ATOMIC ? "0" : gain.toString();
 }

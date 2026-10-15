@@ -81,23 +81,25 @@ export function RiskBadge({ strategy }: { strategy: YieldStrategy }) {
   return <Badge variant="secondary">{strategy.id === "kamino-lend" ? "Protocol risk" : strategy.id === "kz-bond-demo" ? "Higher risk" : "Medium risk"}</Badge>;
 }
 
-export function ProductSummary({ strategy }: { strategy: YieldStrategy }) {
+/** `liveApy` is the reserve's current supply APY for variable-rate strategies. */
+export function ProductSummary({ strategy, liveApy = null }: { strategy: YieldStrategy; liveApy?: number | null }) {
   const gateway = getGatewayInfo(strategy);
   const apyBps = gateway.yield.apyBps;
   const hasIllustrativeApy = gateway.yieldKind === "ILLUSTRATIVE"
     && typeof apyBps === "number"
     && Number.isFinite(apyBps);
   const hasVariableProtocolRate = gateway.yieldKind === "PROTOCOL_VARIABLE";
+  const hasLiveApy = hasVariableProtocolRate && liveApy !== null && Number.isFinite(liveApy);
   const apy = hasIllustrativeApy ? apyBps / 10_000 : Number.NaN;
   return (
     <section className="space-y-4 pt-1">
       <div>
         <p className="text-sm text-muted-foreground">{displayStrategyName(strategy)} · {displayStrategyTicker(strategy)}</p>
         <div className="mt-1 flex items-baseline gap-2">
-          <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy ? "text-5xl text-emerald-700 dark:text-emerald-400" : hasVariableProtocolRate ? "text-xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
-            {hasIllustrativeApy ? formatApy(apy) : hasVariableProtocolRate ? "Variable" : "Unavailable"}
+          <p className={`font-semibold tracking-tight tabular-nums ${hasIllustrativeApy || hasLiveApy ? "text-5xl text-emerald-700 dark:text-emerald-400" : hasVariableProtocolRate ? "text-xl text-emerald-700 dark:text-emerald-400" : "text-lg text-muted-foreground"}`}>
+            {hasIllustrativeApy ? formatApy(apy) : hasLiveApy ? formatApy(liveApy) : hasVariableProtocolRate ? "Variable" : "Unavailable"}
           </p>
-          <p className="text-sm text-muted-foreground">{hasIllustrativeApy ? "Estimated APY" : "APY"}</p>
+          <p className="text-sm text-muted-foreground">{hasIllustrativeApy ? "Estimated APY" : hasLiveApy ? "Supply APY · current, variable" : "APY"}</p>
         </div>
       </div>
       <div className="space-y-2 text-sm leading-6">

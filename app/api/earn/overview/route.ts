@@ -3,12 +3,10 @@ import {
   requireKaminoLendSession,
   kaminoLendErrorResponse,
 } from "@/lib/kamino-lend-api";
-import {
-  getKaminoLendDevnetPosition,
-  getKaminoLendDevnetHistory,
-} from "@/lib/kamino-lend-devnet";
+import { getKaminoLendDevnetPosition } from "@/lib/kamino-lend-devnet";
+import { getKaminoReceipts } from "@/lib/kamino-receipts";
 import { performanceFeeBps, dailyYieldEstimate } from "@/lib/earn-economics";
-import { trackedProtocolGain } from "@/lib/earn-performance";
+import { trackedPosition } from "@/lib/earn-performance";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
@@ -16,8 +14,13 @@ export async function GET(request: Request) {
     const session = await requireKaminoLendSession(request);
     const [position, receipts] = await Promise.all([
       getKaminoLendDevnetPosition(session.walletAddress),
-      getKaminoLendDevnetHistory(session.walletAddress),
+      getKaminoReceipts(session.walletAddress),
     ]);
+    const tracked = trackedPosition(
+      position.collateralAmountAtomic,
+      position.estimatedUnderlyingAmountAtomic,
+      receipts,
+    );
     const feeBps = performanceFeeBps(process.env.PLAIN_PERFORMANCE_FEE_BPS);
     return NextResponse.json(
       {
@@ -25,11 +28,9 @@ export async function GET(request: Request) {
         network: "devnet",
         asOf: Date.now(),
         positionAtomic: position.estimatedUnderlyingAmountAtomic,
-        protocolGainAtomic: trackedProtocolGain(
-          position.collateralAmountAtomic,
-          position.estimatedUnderlyingAmountAtomic,
-          receipts,
-        ),
+        collateralAtomic: position.collateralAmountAtomic,
+        principalAtomic: tracked?.principalAtomic ?? null,
+        protocolGainAtomic: tracked?.gainAtomic ?? null,
         supplyApy: position.supplyApy,
         dailyEstimate: dailyYieldEstimate(
           Number(position.estimatedUnderlyingAmountAtomic) / 1e6,
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
         ),
         performanceFeeBps: feeBps,
         feeCollectionEnabled: false,
-        source: "Kamino reserve state and finalized Plain receipts",
+        source: "Kamino reserve state and finalized Plain receipts (direct and smart-wallet)",
       },
       { headers: { "Cache-Control": "no-store" } },
     );

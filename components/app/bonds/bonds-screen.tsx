@@ -8,8 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/markets/format";
 import type { BondOffering, InvestorOverview } from "@/lib/markets/investor";
 import { useBondsOverview } from "@/lib/useBonds";
-import { BuyButton } from "./bond-purchase";
-import { CouponCalendar, PaymentList, SectionTitle, TestFundsNote, VoteCard, YieldFigure, frequencyLabel, money, moneyCents } from "./bond-parts";
+import { BuyButton, purchaseBlock } from "./bond-purchase";
+import { CouponCalendar, InlineNote, PaymentList, SectionTitle, TestFundsNote, VoteCard, YieldFigure, money, moneyCents, nextCouponHint } from "./bond-parts";
 
 type Ready = Extract<InvestorOverview, { available: true }>;
 
@@ -52,7 +52,7 @@ function Overview({ data }: { data: Ready }) {
   const held = new Map(data.positions.map((p) => [p.mint, BigInt(p.units)]));
   const openVotes = data.votes.filter((v) => v.open);
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="space-y-1">
         <p className="text-sm text-muted-foreground">Bonds that pay a fixed coupon to your Plain wallet. Every payment is recorded on Solana and can be verified.</p>
       </div>
@@ -107,7 +107,7 @@ function PositionsSummary({ data }: { data: Ready }) {
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Test {cash.symbol} balance</p>
             <p className="mt-1 text-lg font-semibold tabular-nums">{money(cash.amount, cash.decimals, cash.symbol)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Coupons paid to your wallet</p>
+            <p className="mt-1 text-xs text-muted-foreground">From coupons</p>
           </div>
         ) : null}
       </div>
@@ -118,7 +118,7 @@ function PositionsSummary({ data }: { data: Ready }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{p.symbol} · {p.units} units</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Accrued {moneyCents(p.accrued, p.settlementDecimals, p.settlementSymbol)} · next coupon {p.nextCouponTs ? formatDate(p.nextCouponTs) : "—"}
+                  Next coupon {p.nextCoupon ? `${formatDate(p.nextCoupon.ts)} · ${p.nextCoupon.source}` : "—"} · accrued {moneyCents(p.accrued, p.settlementDecimals, p.settlementSymbol)}
                 </p>
               </div>
               <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
@@ -133,26 +133,33 @@ function PositionsSummary({ data }: { data: Ready }) {
 function OfferingCard({ offering, heldUnits, balanceAtomic }: { offering: BondOffering; heldUnits: bigint; balanceAtomic: string | null }) {
   const d = offering.settlementDecimals;
   const s = offering.settlementSymbol;
+  const next = nextCouponHint(offering.nextCoupon);
+  const blocked = purchaseBlock(offering, heldUnits);
   return (
-    <Card className="gap-4 rounded-2xl p-5">
-      <Link href={`/bonds/${offering.mint}`} className="block space-y-4 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`View ${offering.name}`}>
+    <Card className="gap-5 rounded-2xl p-5">
+      <Link href={`/bonds/${offering.mint}`} className="-m-1 block space-y-5 rounded-xl p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`View ${offering.name}`}>
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0">
             <h3 className="font-semibold">{offering.name}</h3>
-            <p className="text-sm text-muted-foreground">{offering.symbol} · matures {formatDate(offering.maturityTs)}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{offering.symbol} · matures {formatDate(offering.maturityTs)}</p>
           </div>
           <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" />
         </div>
-        <YieldFigure offering={offering} />
-        <dl className="grid grid-cols-3 gap-3 text-sm">
-          <div><dt className="text-xs text-muted-foreground">Face value</dt><dd className="mt-0.5 font-medium tabular-nums">{money(offering.faceValue, d, s)}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Pays</dt><dd className="mt-0.5 font-medium">{frequencyLabel(offering.frequency)}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Next coupon</dt><dd className="mt-0.5 font-medium tabular-nums">{offering.nextCouponTs ? formatDate(offering.nextCouponTs) : "—"}</dd></div>
+        <YieldFigure offering={offering} size="md" />
+        <dl className="grid grid-cols-3 gap-3 border-t pt-4">
+          <div className="min-w-0"><dt className="text-xs text-muted-foreground">Face value</dt><dd className="mt-1 text-sm font-semibold tabular-nums">{money(offering.faceValue, d, s)}</dd></div>
+          <div className="min-w-0"><dt className="text-xs text-muted-foreground">Coupon per unit</dt><dd className="mt-1 text-sm font-semibold tabular-nums">{money(offering.couponPerUnit, d, s)}</dd></div>
+          <div className="min-w-0">
+            <dt className="text-xs text-muted-foreground">Next coupon</dt>
+            <dd className="mt-1 text-sm font-semibold tabular-nums">{next.date}</dd>
+            {offering.nextCoupon ? <dd className="text-[11px] text-muted-foreground">{offering.nextCoupon.source === "announced" ? "Announced" : "Scheduled"}</dd> : null}
+          </div>
         </dl>
       </Link>
-      <div className="space-y-2 border-t pt-4">
-        {heldUnits > BigInt(0) ? <p className="text-xs text-muted-foreground">You hold {heldUnits.toString()} units.</p> : null}
+      <div className="space-y-2">
+        {heldUnits > BigInt(0) ? <p className="text-xs text-muted-foreground">You hold {heldUnits.toString()} unit{heldUnits === BigInt(1) ? "" : "s"}.</p> : null}
         <BuyButton offering={offering} heldUnits={heldUnits} balanceAtomic={balanceAtomic} className="w-full" />
+        {blocked ? <InlineNote>{blocked}</InlineNote> : null}
       </div>
     </Card>
   );

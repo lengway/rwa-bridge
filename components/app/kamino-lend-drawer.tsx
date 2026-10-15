@@ -872,14 +872,14 @@ function ActionTab({
 
 function UnavailableRoute({ error, onRetry }: { error: string | null; onRetry: () => void }) {
   return (
-    <Card className="items-center gap-3 rounded-2xl p-5 text-center">
+    <div className="flex flex-col items-center gap-3 py-6 text-center">
       <ShieldCheck className="size-5 text-muted-foreground" />
       <div>
         <p className="font-medium">Kamino Lend is temporarily unavailable</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{error ?? "Temporarily unavailable."}</p>
       </div>
       <Button variant="outline" onClick={onRetry}><RefreshCw />Refresh</Button>
-    </Card>
+    </div>
   );
 }
 

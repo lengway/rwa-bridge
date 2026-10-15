@@ -53,7 +53,7 @@ export function BondPortfolioSection() {
               </div>
               <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs text-muted-foreground">
                 <span>Accrued {moneyCents(p.accrued, p.settlementDecimals, p.settlementSymbol)} (estimate)</span>
-                <span className="inline-flex items-center gap-1">Next {p.nextCouponTs ? formatDate(p.nextCouponTs) : "—"}<ArrowRight className="size-3" /></span>
+                <span className="inline-flex items-center gap-1 tabular-nums">Next {p.nextCoupon ? `${formatDate(p.nextCoupon.ts)}${p.nextCoupon.source === "scheduled" ? " · scheduled" : ""}` : "—"}<ArrowRight className="size-3" /></span>
               </div>
             </Card>
           </Link>
