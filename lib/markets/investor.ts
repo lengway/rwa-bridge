@@ -78,17 +78,38 @@ export function accrualPeriod(t: Pick<BondTerms, "issueTs" | "maturityTs" | "fre
   return { index: period, start: period === 1 ? t.issueTs : dates[period - 2], end: dates[period - 1] };
 }
 
+export type NextCoupon = {
+  ts: UnixTs;
+  /** "announced": a coupon action exists and is not paid yet; "scheduled": the terms' calendar, not announced. */
+  source: "announced" | "scheduled";
+  /** 1-based coupon period. */
+  period: number;
+  actionId: Address | null;
+};
+
 /** Next coupon payment: an announced coupon not yet paid, else the next unannounced scheduled date. */
+export function nextCoupon(
+  t: Pick<BondTerms, "issueTs" | "maturityTs" | "frequency">,
+  now: UnixTs,
+  actions: Pick<CorporateAction, "params" | "status" | "paymentTs" | "id">[] = [],
+): NextCoupon | null {
+  const pending = actions
+    .filter((a) => a.params.kind === "Coupon" && a.status !== "Settled" && a.status !== "Cancelled" && a.paymentTs > now)
+    .sort((a, b) => a.paymentTs - b.paymentTs)[0];
+  const announced = actions.length ? announcedCouponPeriods(actions) : periodsElapsed(t, now);
+  const scheduled = accrualPeriod(t, now, announced);
+  if (pending && pending.params.kind === "Coupon" && (!scheduled || pending.paymentTs <= scheduled.end)) {
+    return { ts: pending.paymentTs, source: "announced", period: pending.params.period, actionId: pending.id ?? null };
+  }
+  return scheduled && scheduled.end > now ? { ts: scheduled.end, source: "scheduled", period: scheduled.index, actionId: null } : null;
+}
+
 export function nextCouponDate(
   t: Pick<BondTerms, "issueTs" | "maturityTs" | "frequency">,
   now: UnixTs,
   actions: Pick<CorporateAction, "params" | "status" | "paymentTs">[] = [],
 ): UnixTs | null {
-  const pending = actions.filter((a) => a.params.kind === "Coupon" && a.status !== "Settled" && a.status !== "Cancelled" && a.paymentTs > now).map((a) => a.paymentTs);
-  const announced = actions.length ? announcedCouponPeriods(actions) : periodsElapsed(t, now);
-  const scheduled = accrualPeriod(t, now, announced)?.end ?? null;
-  const all = [...pending, ...(scheduled != null && scheduled > now ? [scheduled] : [])];
-  return all.length ? Math.min(...all) : null;
+  return nextCoupon(t, now, actions.map((a) => ({ ...a, id: "" })))?.ts ?? null;
 }
 
 /** Coupon accrued on `units` in the accrual period, rounded down (estimate; nothing accrues on-chain). */
@@ -220,6 +241,7 @@ export type BondOffering = {
   maturityTs: UnixTs;
   couponCount: number;
   nextCouponTs: UnixTs | null;
+  nextCoupon: NextCoupon | null;
   couponPerUnit: string;
   /** Nominal annual yield to maturity at par, compounded `frequency` times a year (bps). */
   ytmBps: number | null;
@@ -237,6 +259,7 @@ export type BondPosition = {
   accrued: string;
   periodStart: UnixTs | null;
   nextCouponTs: UnixTs | null;
+  nextCoupon: NextCoupon | null;
   /** Coupon per period for this position. */
   nextCouponAmount: string;
   settlementSymbol: string;
@@ -379,6 +402,7 @@ export function offeringView(r: Pick<InstrumentReading, "instrument" | "issue" |
     maturityTs: i.maturityTs,
     couponCount: couponSchedule(i).length,
     nextCouponTs: nextCouponDate(i, ctx.now, r.actions),
+    nextCoupon: nextCoupon(i, ctx.now, r.actions),
     couponPerUnit: couponPerUnit(i.faceValue, i.couponBps, i.frequency).toString(),
     ytmBps: ytm == null ? null : Math.round(ytm * 10_000),
     allocation: { open: window.open, reason: window.reason, capUnits: ctx.limits.capUnits, maxPerRequest: ctx.limits.maxPerRequest },
@@ -400,6 +424,7 @@ export function positionView(r: Pick<InstrumentReading, "instrument" | "heldUnit
     accrued: accruedCoupon(i, r.heldUnits, now, announced).toString(),
     periodStart: period?.start ?? null,
     nextCouponTs: nextCouponDate(i, now, r.actions),
+    nextCoupon: nextCoupon(i, now, r.actions),
     nextCouponAmount: (couponPerUnit(i.faceValue, i.couponBps, i.frequency) * r.heldUnits).toString(),
     settlementSymbol: i.settlementSymbol,
     settlementDecimals: i.settlementDecimals,

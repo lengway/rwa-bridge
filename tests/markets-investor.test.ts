@@ -19,6 +19,7 @@ import {
   checkAllocation,
   couponSchedule,
   currentPeriod,
+  nextCoupon,
   nextCouponDate,
   parseAllocationMemo,
   periodsElapsed,
@@ -398,4 +399,14 @@ test("coupons paid ahead of the calendar: accrual and the next date follow the f
   assert.equal(accrualPeriod(PDB, now, 8), null);
   // Accrual never exceeds one period, even long after its end.
   assert.equal(accruedCoupon(PDB, BigInt(1), dates[2] + 10 * day, 1), BigInt(30) * USD);
+});
+
+test("next coupon says whether it is announced or only scheduled", () => {
+  const now = utc("2026-10-15T10:00:00Z");
+  const dates = couponSchedule(PDB);
+  const settled = [1, 2, 3, 4].map((p) => ({ id: `A${p}`, params: { kind: "Coupon" as const, period: p, couponBps: 1200 }, status: "Settled" as CorporateAction["status"], paymentTs: now - day }));
+  assert.deepEqual(nextCoupon(PDB, now, settled), { ts: dates[4], source: "scheduled", period: 5, actionId: null });
+  const announced = { id: "A5", params: { kind: "Coupon" as const, period: 5, couponBps: 1200 }, status: "Funded" as CorporateAction["status"], paymentTs: now + 300 };
+  assert.deepEqual(nextCoupon(PDB, now, [...settled, announced]), { ts: now + 300, source: "announced", period: 5, actionId: "A5" });
+  assert.equal(nextCoupon(PDB, PDB.maturityTs + 1), null);
 });

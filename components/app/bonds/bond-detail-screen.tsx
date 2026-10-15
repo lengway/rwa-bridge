@@ -1,12 +1,13 @@
 "use client";
 
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Landmark } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBondDetail } from "@/lib/useBonds";
 import type { BondDetail } from "@/lib/markets/investor";
-import { ActionCard, AllocationButton, CouponCalendar, PositionFacts, SectionTitle, TermsGrid, TestFundsNote, VoteCard, YieldFigure, money } from "./bond-parts";
+import { ActionCard, AllocationButton, CouponCalendar, InlineNote, PositionCard, SectionTitle, TermsGrid, TestFundsNote, VoteCard, YieldFigure, allocationBlock } from "./bond-parts";
 
 export function BondDetailScreen({ mint }: { mint: string }) {
   const { data, error, refresh } = useBondDetail(mint);
@@ -20,10 +21,10 @@ export function BondDetailScreen({ mint }: { mint: string }) {
       );
     }
     return (
-      <div className="space-y-3" aria-label="Loading bond">
+      <div className="space-y-6" aria-label="Loading bond">
+        <Skeleton className="h-28 w-full rounded-2xl" />
         <Skeleton className="h-40 w-full rounded-2xl" />
-        <Skeleton className="h-32 w-full rounded-2xl" />
-        <Skeleton className="h-48 w-full rounded-2xl" />
+        <Skeleton className="h-56 w-full rounded-2xl" />
       </div>
     );
   }
@@ -33,62 +34,80 @@ export function BondDetailScreen({ mint }: { mint: string }) {
 function Detail({ data }: { data: BondDetail }) {
   const { offering, position, settlement } = data;
   const held = position ? BigInt(position.units) : BigInt(0);
+  const blocked = allocationBlock(offering, held).reason;
   const openVotes = data.votes.filter((v) => v.open);
+  const received = data.actions.reduce((sum, a) => sum + (a.mine?.payment ? BigInt(a.mine.payment.amount) : BigInt(0)), BigInt(0));
+
   return (
-    <div className="space-y-8">
-      <Card className="gap-5 rounded-2xl p-5">
+    <div className="space-y-6">
+      <section className="space-y-5">
         <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">{offering.symbol}{offering.status !== "Active" ? ` · ${offering.status}` : ""}</p>
-          <h2 className="text-xl font-semibold tracking-tight">{offering.name}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">{offering.symbol} · Bond</p>
+            {offering.status !== "Active" ? <Badge variant="outline">{offering.status}</Badge> : null}
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight">{offering.name}</h2>
         </div>
         <YieldFigure offering={offering} />
-        <TermsGrid offering={offering} />
-        <div className="space-y-2 border-t pt-4">
-          <AllocationButton offering={offering} heldUnits={held} className="w-full sm:w-auto" />
-          {offering.explorerUrl ? (
-            <a href={offering.explorerUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-xs underline underline-offset-4">
-              Bond token on Solana Explorer <ExternalLink className="size-3" />
-            </a>
-          ) : null}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <AllocationButton offering={offering} heldUnits={held} label={position ? "Add units" : "Get allocation"} />
+            {offering.explorerUrl ? (
+              <Button variant="ghost" className="h-11 px-3 text-muted-foreground" nativeButton={false} render={<a href={offering.explorerUrl} target="_blank" rel="noopener noreferrer" />}>
+                <ExternalLink />
+                View on Explorer
+              </Button>
+            ) : null}
+          </div>
+          {blocked ? <InlineNote>{blocked}</InlineNote> : null}
         </div>
-      </Card>
+      </section>
+
+      <section className="space-y-3">
+        <SectionTitle title="Terms" />
+        <Card className="rounded-2xl p-5">
+          <TermsGrid offering={offering} />
+        </Card>
+      </section>
 
       <section className="space-y-3">
         <SectionTitle title="Your position" />
-        <Card className="gap-4 rounded-2xl p-5">
-          {position ? (
-            <>
-              <PositionFacts position={position} />
-              {settlement ? (
-                <p className="border-t pt-3 text-sm">
-                  Test {settlement.symbol} in your wallet: <span className="font-medium tabular-nums">{money(settlement.amount, settlement.decimals, settlement.symbol)}</span>
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">You don&apos;t hold this bond yet. Units you hold at a record date receive that coupon automatically.</p>
-          )}
-        </Card>
+        {position ? (
+          <PositionCard position={position} received={received} cash={settlement} />
+        ) : (
+          <Card className="flex-row items-center gap-3 rounded-2xl p-4">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">
+              <Landmark className="size-4 text-muted-foreground" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">No units yet</p>
+              <p className="text-xs text-muted-foreground">Coupons go to units held at the record date.</p>
+            </div>
+            <AllocationButton offering={offering} heldUnits={held} size="sm" />
+          </Card>
+        )}
       </section>
 
       {openVotes.length ? (
         <section className="space-y-3">
-          <SectionTitle title="Votes" />
+          <SectionTitle title="Votes" aside={`${openVotes.length} open`} />
           {openVotes.map((v) => <VoteCard key={v.actionId} vote={v} />)}
         </section>
       ) : null}
 
-      {position ? (
+      {position && data.calendar.length ? (
         <section className="space-y-3">
           <SectionTitle title="Upcoming dates" />
-          <Card className="rounded-2xl p-5"><CouponCalendar entries={data.calendar} limit={8} /></Card>
+          <Card className="rounded-2xl p-5"><CouponCalendar entries={data.calendar} limit={6} /></Card>
         </section>
       ) : null}
 
       <section className="space-y-3">
-        <SectionTitle title="Corporate actions" aside={String(data.actions.length)} />
+        <SectionTitle title="Corporate actions" aside={data.actions.length ? String(data.actions.length) : undefined} />
         {data.actions.length === 0 ? <p className="text-sm text-muted-foreground">The issuer has not announced any action yet.</p> : null}
-        {data.actions.map((a) => <ActionCard key={a.id} action={a} offering={offering} />)}
+        <div className="space-y-3">
+          {data.actions.map((a) => <ActionCard key={a.id} action={a} offering={offering} />)}
+        </div>
       </section>
 
       <TestFundsNote>{data.note} Coupons are paid by the issuer&apos;s paying agent straight to your wallet; you don&apos;t need to sign anything.</TestFundsNote>
