@@ -15,9 +15,15 @@ import {
   canInvestInStrategy,
   canRedeemStrategy,
 } from "@/components/app/earn-detail-parts";
+import {
+  KaminoPositionCard,
+  KaminoPositionEmpty,
+  hasKaminoPosition,
+} from "@/components/app/kamino-position-card";
 import { Button } from "@/components/ui/button";
 import { formatQuantity } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
+import { useEarnOverview } from "@/lib/useEarnOverview";
 import type { YieldStrategy } from "@/lib/yields";
 import type { KaminoLendConfirmation } from "@/components/app/kamino-lend-contract";
 
@@ -36,10 +42,15 @@ export function EarnDetail({ strategy, initialAction, onConfirmed }: { strategy:
   const canInvest = canInvestInStrategy(strategy);
   const canRedeem = canRedeemStrategy(strategy);
   const isKaminoLend = strategy.gateway.provider === "KAMINO";
+  const { overview, loading: overviewLoading } = useEarnOverview();
+  const kaminoOverview = isKaminoLend ? overview : null;
+  const showKaminoPosition = hasKaminoPosition(kaminoOverview);
 
   return (
     <div className="space-y-6">
-      <ProductSummary strategy={strategy} />
+      {showKaminoPosition && kaminoOverview ? <KaminoPositionCard overview={kaminoOverview} /> : null}
+      <ProductSummary strategy={strategy} liveApy={kaminoOverview?.supplyApy ?? null} />
+      {isKaminoLend && kaminoOverview && !showKaminoPosition && !overviewLoading ? <KaminoPositionEmpty /> : null}
       <ProjectionCalculator
         strategy={strategy}
         amount={amount}

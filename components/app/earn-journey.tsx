@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -10,18 +9,12 @@ import {
   Wallet,
 } from "lucide-react";
 import { useDevnet } from "@/lib/useDevnet";
+import { useEarnOverview } from "@/lib/useEarnOverview";
+import { formatUsdcAtomic } from "@/components/app/kamino-position-card";
+import { displayEarnedAtomic } from "@/lib/earn-performance";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-type Overview = {
-  walletAddress: string;
-  network: string;
-  protocolGainAtomic: string | null;
-  supplyApy: number | null;
-  dailyEstimate: { gross: number; fee: number; net: number } | null;
-  performanceFeeBps: number;
-  feeCollectionEnabled: boolean;
-};
 const money = (amount: number) =>
   amount.toLocaleString("en-US", {
     minimumFractionDigits: 2,
@@ -36,41 +29,7 @@ export function EarnJourney({ showNextStep = true }: { showNextStep?: boolean })
     devnet.portfolio?.positions.some(
       (position) => position.productId === "kamino-lend" && position.shares > 0,
     ) ?? false;
-  const [loaded, setLoaded] = useState<Overview | null>(null);
-  const overview = loaded?.walletAddress === walletAddress ? loaded : null;
-  useEffect(() => {
-    if (!walletAddress) return;
-    const controller = new AbortController();
-    async function refresh() {
-      try {
-        const response = await fetch("/api/earn/overview", {
-          cache: "no-store",
-          signal: AbortSignal.any([
-            controller.signal,
-            AbortSignal.timeout(20000),
-          ]),
-        });
-        const value = await response.json();
-        if (!controller.signal.aborted)
-          setLoaded(
-            response.ok &&
-              value.walletAddress === walletAddress &&
-              value.network === "devnet" &&
-              value.feeCollectionEnabled === false
-              ? value
-              : null,
-          );
-      } catch {
-        if (!controller.signal.aborted) setLoaded(null);
-      }
-    }
-    void refresh();
-    const interval = window.setInterval(() => void refresh(), 60000);
-    return () => {
-      controller.abort();
-      window.clearInterval(interval);
-    };
-  }, [walletAddress, devnet.portfolio]);
+  const { overview } = useEarnOverview();
 
   return (
     <section aria-label="Your Earn journey" className="space-y-3">
@@ -153,9 +112,7 @@ export function EarnJourney({ showNextStep = true }: { showNextStep?: boolean })
             <div>
               <p className="text-xs text-muted-foreground">Position gain</p>
               <p className="mt-2 text-xl font-semibold tabular-nums">
-                {overview?.protocolGainAtomic != null
-                  ? `${money(Number(overview.protocolGainAtomic) / 1e6)} USDC`
-                  : "—"}
+                {formatUsdcAtomic(displayEarnedAtomic(overview?.protocolGainAtomic), { signed: true })}
               </p>
             </div>
             <div>
