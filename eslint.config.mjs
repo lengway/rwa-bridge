@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Anchor workspace (Rust + generated artifacts) is built separately.
     "programs/**",
+    // Local agent worktrees and data are not part of the app.
+    ".claude/**",
+    ".data/**",
   ]),
 ]);
 
