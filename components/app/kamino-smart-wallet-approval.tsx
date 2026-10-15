@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Chain, Wallet } from "@crossmint/wallets-sdk";
-import { Check, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { DrawerSuccess } from "@/components/app/drawer-success";
 import { formatAtomicToDecimal } from "@/lib/earn-gateway";
 import { useAuth } from "@/lib/useAuth";
 import {
@@ -153,17 +153,18 @@ export function KaminoSmartWalletApproval(props: KaminoSmartWalletApprovalProps)
     void run(true, controller.current.signal);
   };
 
-  if (!matches) return <Card className="rounded-2xl p-4">Connect this account&apos;s wallet</Card>;
+  if (!matches) return <p className="py-6 text-center text-sm text-muted-foreground">Connect this account&apos;s wallet</p>;
 
   if (completed) return (
-    <Card className="gap-3 rounded-2xl p-4">
-      <p className="flex items-center gap-2 font-medium"><Check className="size-4" />
-        Done — {amountLabel(completedAmount)} {completed.action === "deposit" ? "deposited into Kamino" : "withdrawn from Kamino"}
-      </p>
-      <a className="text-sm underline" href={`https://explorer.solana.com/tx/${completed.signature}?cluster=devnet`}
-        target="_blank" rel="noopener noreferrer">View transaction</a>
-      <Button className="w-full" onClick={onDone}>Done</Button>
-    </Card>
+    <DrawerSuccess
+      amount={0}
+      amountLabel={amountLabel(completedAmount)}
+      sentence={completed.action === "deposit" ? "Deposited into Kamino. It now earns the current supply rate." : "Withdrawn from Kamino to your USDC balance."}
+      explorerUrl={completed.signature ? `https://explorer.solana.com/tx/${completed.signature}?cluster=devnet` : undefined}
+      onDone={() => onDone?.()}
+      secondaryHref="/home"
+      secondaryLabel="Back to balances"
+    />
   );
 
   if (running || recovering) return (
