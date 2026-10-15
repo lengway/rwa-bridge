@@ -130,4 +130,22 @@ pub enum MarketsError {
 
     #[msg("Arithmetic overflow")]
     MathOverflow,
+
+    // --- primary offering (appended: earlier codes stay stable) ---
+    #[msg("Offering parameters are invalid")]
+    InvalidOfferingParams,
+    #[msg("Offering is not open at this time")]
+    OfferingNotOpen,
+    #[msg("Offering is closed")]
+    OfferingClosed,
+    #[msg("Purchase exceeds the units left in the offering")]
+    OfferingSoldOut,
+    #[msg("Purchase would exceed the per-holder cap")]
+    HolderCapExceeded,
+    #[msg("Price exceeds the buyer's maximum payment")]
+    PaymentExceedsMax,
+    #[msg("Proceeds vault does not hold enough funds")]
+    InsufficientProceeds,
+    #[msg("Instrument has reached maturity")]
+    InstrumentMatured,
 }

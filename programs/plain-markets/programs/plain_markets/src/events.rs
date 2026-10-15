@@ -147,3 +147,45 @@ pub struct InstrumentRedeemed {
     pub instrument: Pubkey,
     pub action: Pubkey,
 }
+
+#[event]
+pub struct OfferingOpened {
+    pub instrument: Pubkey,
+    pub offering: Pubkey,
+    pub proceeds_vault: Pubkey,
+    pub issue_price: u64,
+    pub start_ts: i64,
+    pub end_ts: i64,
+    pub cap_units: u64,
+    pub per_holder_cap: u64,
+}
+
+/// Delivery-versus-payment primary purchase: `amount` moved buyer -> proceeds vault and `units`
+/// were minted to the buyer in the same instruction.
+#[event]
+pub struct UnitsSubscribed {
+    pub instrument: Pubkey,
+    pub offering: Pubkey,
+    pub buyer: Pubkey,
+    pub units: u64,
+    pub issue_price: u64,
+    pub amount: u64,
+    pub sold_units: u64,
+    pub supply: u64,
+}
+
+#[event]
+pub struct ProceedsWithdrawn {
+    pub instrument: Pubkey,
+    pub offering: Pubkey,
+    pub amount: u64,
+    pub withdrawn_total: u64,
+}
+
+#[event]
+pub struct OfferingClosed {
+    pub instrument: Pubkey,
+    pub offering: Pubkey,
+    pub sold_units: u64,
+    pub proceeds: u64,
+}

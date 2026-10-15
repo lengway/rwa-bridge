@@ -12,6 +12,11 @@ pub const CLAIM_SEED: &[u8] = b"claim";
 pub const VOTE_SEED: &[u8] = b"vote";
 #[constant]
 pub const ALLOW_SEED: &[u8] = b"allow";
+#[constant]
+pub const OFFERING_SEED: &[u8] = b"offering";
+/// Issuance proceeds vault: token account [b"proceeds", instrument], authority = offering PDA.
+#[constant]
+pub const PROCEEDS_SEED: &[u8] = b"proceeds";
 /// Seed fixed by the SPL transfer-hook interface for the validation account.
 #[constant]
 pub const EXTRA_ACCOUNT_METAS_SEED: &[u8] = b"extra-account-metas";

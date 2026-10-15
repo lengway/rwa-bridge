@@ -214,3 +214,36 @@ pub struct AllowEntry {
     pub added_ts: i64,
     pub bump: u8,
 }
+
+/// Primary offering of an instrument: fixed price, sale window and caps. PDA [b"offering", instrument].
+/// It owns the proceeds vault [b"proceeds", instrument] in the settlement mint.
+#[account]
+#[derive(InitSpace)]
+pub struct Offering {
+    pub instrument: Pubkey,
+    pub proceeds_vault: Pubkey,
+    /// Settlement base units per bond unit. Fixed for the life of the offering.
+    pub issue_price: u64,
+    /// Sale window: start_ts <= now < end_ts.
+    pub start_ts: i64,
+    pub end_ts: i64,
+    /// Units available for sale in total.
+    pub cap_units: u64,
+    /// Max units a wallet's bond account may hold after a purchase.
+    pub per_holder_cap: u64,
+    pub sold_units: u64,
+    /// Settlement received from buyers (lifetime).
+    pub proceeds: u64,
+    pub withdrawn: u64,
+    pub purchases: u32,
+    pub closed: bool,
+    pub created_ts: i64,
+    pub bump: u8,
+    pub vault_bump: u8,
+}
+
+impl Offering {
+    pub fn is_open(&self, now: i64) -> bool {
+        !self.closed && self.start_ts <= now && now < self.end_ts
+    }
+}

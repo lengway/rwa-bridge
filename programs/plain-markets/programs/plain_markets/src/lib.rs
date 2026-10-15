@@ -3,7 +3,8 @@
 //! The program owns the corporate-action lifecycle of a Token-2022 bond:
 //! announce → record (ex-date lock via transfer hook) → snapshot (Merkle root reconciled with
 //! supply) → fund (exact entitlement into a per-action paying vault) → claim / pay with a Merkle
-//! proof (DvP burn for redemptions) → settle. Votes reuse the snapshot for weights.
+//! proof (DvP burn for redemptions) → settle. Primary sales run through a fixed-price offering whose
+//! `subscribe` is delivery versus payment. Votes reuse the snapshot for weights.
 
 pub mod constants;
 pub mod error;
@@ -48,6 +49,25 @@ pub mod plain_markets {
     /// Mint bond units to a holder (primary placement).
     pub fn issue(ctx: Context<Issue>, units: u64) -> Result<()> {
         instructions::issue::handle_issue(ctx, units)
+    }
+
+    /// Open the primary offering: fixed price, sale window, caps, proceeds vault.
+    pub fn open_offering(ctx: Context<OpenOffering>, params: OfferingParams) -> Result<()> {
+        instructions::offering::handle_open_offering(ctx, params)
+    }
+
+    /// Delivery versus payment: buyer pays units × issue_price into the proceeds vault and
+    /// receives the units in the same instruction.
+    pub fn subscribe(ctx: Context<Subscribe>, units: u64, max_payment: u64) -> Result<()> {
+        instructions::offering::handle_subscribe(ctx, units, max_payment)
+    }
+
+    pub fn withdraw_proceeds(ctx: Context<WithdrawProceeds>, amount: u64) -> Result<()> {
+        instructions::offering::handle_withdraw_proceeds(ctx, amount)
+    }
+
+    pub fn close_offering(ctx: Context<CloseOffering>) -> Result<()> {
+        instructions::offering::handle_close_offering(ctx)
     }
 
     pub fn announce(ctx: Context<Announce>, params: AnnounceParams) -> Result<()> {

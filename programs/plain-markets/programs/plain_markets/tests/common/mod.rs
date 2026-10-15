@@ -15,7 +15,7 @@ use anchor_spl::{
 use litesvm::{types::TransactionResult, LiteSVM};
 use plain_markets::{
     accounts as acc, constants::*, error::MarketsError, instruction as ix, math, ActionKind, AnnounceParams,
-    ClaimReceipt, CorporateAction, Instrument, InstrumentParams, SnapshotParams,
+    ClaimReceipt, CorporateAction, Instrument, InstrumentParams, Offering, OfferingParams, SnapshotParams,
 };
 use solana_keypair::Keypair;
 use solana_message::{Message, VersionedMessage};
@@ -56,6 +56,12 @@ pub fn vote_pda(action: &Pubkey, holder: &Pubkey) -> Pubkey {
 }
 pub fn allow_pda(instrument: &Pubkey, wallet: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[ALLOW_SEED, instrument.as_ref(), wallet.as_ref()], &plain_markets::ID).0
+}
+pub fn offering_pda(instrument: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[OFFERING_SEED, instrument.as_ref()], &plain_markets::ID).0
+}
+pub fn proceeds_pda(instrument: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[PROCEEDS_SEED, instrument.as_ref()], &plain_markets::ID).0
 }
 pub fn bond_ata(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
     get_associated_token_address_with_program_id(owner, mint, &token_2022_id())
@@ -204,6 +210,9 @@ impl Env {
         self.read(key)
     }
     pub fn receipt(&self, key: &Pubkey) -> ClaimReceipt {
+        self.read(key)
+    }
+    pub fn offering(&self, key: &Pubkey) -> Offering {
         self.read(key)
     }
     pub fn exists(&self, key: &Pubkey) -> bool {
@@ -568,6 +577,82 @@ impl Env {
         t.accounts.push(anchor_lang::solana_program::instruction::AccountMeta::new_readonly(plain_markets::ID, false));
         t.accounts.push(anchor_lang::solana_program::instruction::AccountMeta::new_readonly(metas_pda(mint), false));
         vec![create, t]
+    }
+
+    pub fn open_offering_ix(&self, signer: &Pubkey, instrument: &Pubkey, params: OfferingParams) -> Instruction {
+        Instruction::new_with_bytes(
+            plain_markets::ID,
+            &ix::OpenOffering { params }.data(),
+            acc::OpenOffering {
+                issuer: *signer,
+                instrument: *instrument,
+                offering: offering_pda(instrument),
+                proceeds_vault: proceeds_pda(instrument),
+                settlement_mint: self.usd_mint,
+                settlement_token_program: token_id(),
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        )
+    }
+
+    /// Accounts for `subscribe` with the canonical choices; tests mutate fields for attacks.
+    pub fn subscribe_accounts(&self, buyer: &Pubkey, mint: &Pubkey, allow: bool) -> acc::Subscribe {
+        let instrument = instrument_pda(mint);
+        acc::Subscribe {
+            buyer: *buyer,
+            instrument,
+            offering: offering_pda(&instrument),
+            mint: *mint,
+            buyer_bond: bond_ata(buyer, mint),
+            buyer_settlement: usd_ata(buyer, &self.usd_mint),
+            proceeds_vault: proceeds_pda(&instrument),
+            settlement_mint: self.usd_mint,
+            allow_entry: allow.then(|| allow_pda(&instrument, buyer)),
+            token_program: token_2022_id(),
+            settlement_token_program: token_id(),
+        }
+    }
+
+    pub fn subscribe_with(&self, accounts: acc::Subscribe, units: u64, max_payment: u64) -> Instruction {
+        Instruction::new_with_bytes(
+            plain_markets::ID,
+            &ix::Subscribe { units, max_payment }.data(),
+            accounts.to_account_metas(None),
+        )
+    }
+
+    /// Idempotent bond ATA creation (paid by the buyer) followed by `subscribe`.
+    pub fn subscribe_ixs(&self, buyer: &Pubkey, mint: &Pubkey, units: u64, max_payment: u64, allow: bool) -> Vec<Instruction> {
+        let create =
+            spl_associated_token_account::instruction::create_associated_token_account_idempotent(buyer, buyer, mint, &token_2022_id());
+        vec![create, self.subscribe_with(self.subscribe_accounts(buyer, mint, allow), units, max_payment)]
+    }
+
+    pub fn withdraw_proceeds_ix(&self, signer: &Pubkey, instrument: &Pubkey, to: &Pubkey, amount: u64) -> Instruction {
+        Instruction::new_with_bytes(
+            plain_markets::ID,
+            &ix::WithdrawProceeds { amount }.data(),
+            acc::WithdrawProceeds {
+                issuer: *signer,
+                instrument: *instrument,
+                offering: offering_pda(instrument),
+                proceeds_vault: proceeds_pda(instrument),
+                issuer_settlement: *to,
+                settlement_mint: self.usd_mint,
+                settlement_token_program: token_id(),
+            }
+            .to_account_metas(None),
+        )
+    }
+
+    pub fn close_offering_ix(&self, signer: &Pubkey, instrument: &Pubkey) -> Instruction {
+        Instruction::new_with_bytes(
+            plain_markets::ID,
+            &ix::CloseOffering {}.data(),
+            acc::CloseOffering { issuer: *signer, instrument: *instrument, offering: offering_pda(instrument) }
+                .to_account_metas(None),
+        )
     }
 
     pub fn announce_params(&self, kind: ActionKind, record_in: i64, pay_in: i64, deadline_in: i64) -> AnnounceParams {

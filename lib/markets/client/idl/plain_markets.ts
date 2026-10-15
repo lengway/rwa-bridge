@@ -595,6 +595,60 @@ export type PlainMarkets = {
       ]
     },
     {
+      "name": "closeOffering",
+      "discriminator": [
+        31,
+        189,
+        68,
+        162,
+        227,
+        165,
+        54,
+        124
+      ],
+      "accounts": [
+        {
+          "name": "issuer",
+          "signer": true,
+          "relations": [
+            "instrument"
+          ]
+        },
+        {
+          "name": "instrument",
+          "relations": [
+            "offering"
+          ]
+        },
+        {
+          "name": "offering",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  102,
+                  102,
+                  101,
+                  114,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "instrument"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "disallowHolder",
       "discriminator": [
         76,
@@ -1076,6 +1130,108 @@ export type PlainMarkets = {
       "args": []
     },
     {
+      "name": "openOffering",
+      "docs": [
+        "Open the primary offering: fixed price, sale window, caps, proceeds vault."
+      ],
+      "discriminator": [
+        76,
+        220,
+        62,
+        135,
+        123,
+        15,
+        68,
+        22
+      ],
+      "accounts": [
+        {
+          "name": "issuer",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "instrument"
+          ]
+        },
+        {
+          "name": "instrument"
+        },
+        {
+          "name": "offering",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  102,
+                  102,
+                  101,
+                  114,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "instrument"
+              }
+            ]
+          }
+        },
+        {
+          "name": "proceedsVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  99,
+                  101,
+                  101,
+                  100,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "instrument"
+              }
+            ]
+          }
+        },
+        {
+          "name": "settlementMint",
+          "relations": [
+            "instrument"
+          ]
+        },
+        {
+          "name": "settlementTokenProgram"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "offeringParams"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "pay",
       "discriminator": [
         119,
@@ -1522,6 +1678,212 @@ export type PlainMarkets = {
       "args": []
     },
     {
+      "name": "subscribe",
+      "docs": [
+        "Delivery versus payment: buyer pays units × issue_price into the proceeds vault and",
+        "receives the units in the same instruction."
+      ],
+      "discriminator": [
+        254,
+        28,
+        191,
+        138,
+        156,
+        179,
+        183,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "signer": true
+        },
+        {
+          "name": "instrument",
+          "writable": true,
+          "relations": [
+            "offering"
+          ]
+        },
+        {
+          "name": "offering",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  102,
+                  102,
+                  101,
+                  114,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "instrument"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "writable": true,
+          "relations": [
+            "instrument"
+          ]
+        },
+        {
+          "name": "buyerBond",
+          "docs": [
+            "The buyer's canonical bond account (Token-2022 ATA)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "buyer"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "buyerSettlement",
+          "writable": true
+        },
+        {
+          "name": "proceedsVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  99,
+                  101,
+                  101,
+                  100,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "instrument"
+              }
+            ]
+          },
+          "relations": [
+            "offering"
+          ]
+        },
+        {
+          "name": "settlementMint",
+          "relations": [
+            "instrument"
+          ]
+        },
+        {
+          "name": "allowEntry",
+          "docs": [
+            "Required when the allowlist is on (same rule as `issue`: no auto-allow)."
+          ],
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  108,
+                  108,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "instrument"
+              },
+              {
+                "kind": "account",
+                "path": "buyer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
+          "name": "settlementTokenProgram"
+        }
+      ],
+      "args": [
+        {
+          "name": "units",
+          "type": "u64"
+        },
+        {
+          "name": "maxPayment",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "transferHook",
       "docs": [
         "SPL transfer-hook `Execute`, invoked by Token-2022 on every bond transfer."
@@ -1645,6 +2007,85 @@ export type PlainMarkets = {
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "withdrawProceeds",
+      "discriminator": [
+        124,
+        68,
+        215,
+        12,
+        201,
+        136,
+        54,
+        72
+      ],
+      "accounts": [
+        {
+          "name": "issuer",
+          "signer": true,
+          "relations": [
+            "instrument"
+          ]
+        },
+        {
+          "name": "instrument",
+          "relations": [
+            "offering"
+          ]
+        },
+        {
+          "name": "offering",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  102,
+                  102,
+                  101,
+                  114,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "instrument"
+              }
+            ]
+          }
+        },
+        {
+          "name": "proceedsVault",
+          "writable": true,
+          "relations": [
+            "offering"
+          ]
+        },
+        {
+          "name": "issuerSettlement",
+          "writable": true
+        },
+        {
+          "name": "settlementMint",
+          "relations": [
+            "instrument"
+          ]
+        },
+        {
+          "name": "settlementTokenProgram"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1698,6 +2139,19 @@ export type PlainMarkets = {
         34,
         155,
         145
+      ]
+    },
+    {
+      "name": "offering",
+      "discriminator": [
+        128,
+        234,
+        9,
+        226,
+        125,
+        227,
+        146,
+        39
       ]
     },
     {
@@ -1846,6 +2300,32 @@ export type PlainMarkets = {
       ]
     },
     {
+      "name": "offeringClosed",
+      "discriminator": [
+        61,
+        195,
+        114,
+        79,
+        182,
+        50,
+        185,
+        183
+      ]
+    },
+    {
+      "name": "offeringOpened",
+      "discriminator": [
+        222,
+        216,
+        13,
+        22,
+        140,
+        43,
+        9,
+        226
+      ]
+    },
+    {
       "name": "payingAgentUpdated",
       "discriminator": [
         141,
@@ -1856,6 +2336,19 @@ export type PlainMarkets = {
         249,
         95,
         117
+      ]
+    },
+    {
+      "name": "proceedsWithdrawn",
+      "discriminator": [
+        39,
+        167,
+        165,
+        1,
+        8,
+        206,
+        214,
+        13
       ]
     },
     {
@@ -1908,6 +2401,19 @@ export type PlainMarkets = {
         92,
         93,
         78
+      ]
+    },
+    {
+      "name": "unitsSubscribed",
+      "discriminator": [
+        14,
+        146,
+        37,
+        253,
+        68,
+        133,
+        78,
+        247
       ]
     },
     {
@@ -2199,6 +2705,46 @@ export type PlainMarkets = {
       "code": 6054,
       "name": "mathOverflow",
       "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6055,
+      "name": "invalidOfferingParams",
+      "msg": "Offering parameters are invalid"
+    },
+    {
+      "code": 6056,
+      "name": "offeringNotOpen",
+      "msg": "Offering is not open at this time"
+    },
+    {
+      "code": 6057,
+      "name": "offeringClosed",
+      "msg": "Offering is closed"
+    },
+    {
+      "code": 6058,
+      "name": "offeringSoldOut",
+      "msg": "Purchase exceeds the units left in the offering"
+    },
+    {
+      "code": 6059,
+      "name": "holderCapExceeded",
+      "msg": "Purchase would exceed the per-holder cap"
+    },
+    {
+      "code": 6060,
+      "name": "paymentExceedsMax",
+      "msg": "Price exceeds the buyer's maximum payment"
+    },
+    {
+      "code": 6061,
+      "name": "insufficientProceeds",
+      "msg": "Proceeds vault does not hold enough funds"
+    },
+    {
+      "code": 6062,
+      "name": "instrumentMatured",
+      "msg": "Instrument has reached maturity"
     }
   ],
   "types": [
@@ -3212,6 +3758,188 @@ export type PlainMarkets = {
       }
     },
     {
+      "name": "offering",
+      "docs": [
+        "Primary offering of an instrument: fixed price, sale window and caps. PDA [b\"offering\", instrument].",
+        "It owns the proceeds vault [b\"proceeds\", instrument] in the settlement mint."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "instrument",
+            "type": "pubkey"
+          },
+          {
+            "name": "proceedsVault",
+            "type": "pubkey"
+          },
+          {
+            "name": "issuePrice",
+            "docs": [
+              "Settlement base units per bond unit. Fixed for the life of the offering."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "startTs",
+            "docs": [
+              "Sale window: start_ts <= now < end_ts."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "endTs",
+            "type": "i64"
+          },
+          {
+            "name": "capUnits",
+            "docs": [
+              "Units available for sale in total."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "perHolderCap",
+            "docs": [
+              "Max units a wallet's bond account may hold after a purchase."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "soldUnits",
+            "type": "u64"
+          },
+          {
+            "name": "proceeds",
+            "docs": [
+              "Settlement received from buyers (lifetime)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "withdrawn",
+            "type": "u64"
+          },
+          {
+            "name": "purchases",
+            "type": "u32"
+          },
+          {
+            "name": "closed",
+            "type": "bool"
+          },
+          {
+            "name": "createdTs",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vaultBump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "offeringClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "instrument",
+            "type": "pubkey"
+          },
+          {
+            "name": "offering",
+            "type": "pubkey"
+          },
+          {
+            "name": "soldUnits",
+            "type": "u64"
+          },
+          {
+            "name": "proceeds",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "offeringOpened",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "instrument",
+            "type": "pubkey"
+          },
+          {
+            "name": "offering",
+            "type": "pubkey"
+          },
+          {
+            "name": "proceedsVault",
+            "type": "pubkey"
+          },
+          {
+            "name": "issuePrice",
+            "type": "u64"
+          },
+          {
+            "name": "startTs",
+            "type": "i64"
+          },
+          {
+            "name": "endTs",
+            "type": "i64"
+          },
+          {
+            "name": "capUnits",
+            "type": "u64"
+          },
+          {
+            "name": "perHolderCap",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "offeringParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "issuePrice",
+            "docs": [
+              "Settlement base units per bond unit."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "startTs",
+            "type": "i64"
+          },
+          {
+            "name": "endTs",
+            "type": "i64"
+          },
+          {
+            "name": "capUnits",
+            "type": "u64"
+          },
+          {
+            "name": "perHolderCap",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "payingAgentUpdated",
       "type": {
         "kind": "struct",
@@ -3237,6 +3965,30 @@ export type PlainMarkets = {
           },
           {
             "name": "push"
+          }
+        ]
+      }
+    },
+    {
+      "name": "proceedsWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "instrument",
+            "type": "pubkey"
+          },
+          {
+            "name": "offering",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "withdrawnTotal",
+            "type": "u64"
           }
         ]
       }
@@ -3412,6 +4164,50 @@ export type PlainMarkets = {
       }
     },
     {
+      "name": "unitsSubscribed",
+      "docs": [
+        "Delivery-versus-payment primary purchase: `amount` moved buyer -> proceeds vault and `units`",
+        "were minted to the buyer in the same instruction."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "instrument",
+            "type": "pubkey"
+          },
+          {
+            "name": "offering",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "units",
+            "type": "u64"
+          },
+          {
+            "name": "issuePrice",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "soldUnits",
+            "type": "u64"
+          },
+          {
+            "name": "supply",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "voteCast",
       "type": {
         "kind": "struct",
@@ -3515,6 +4311,19 @@ export type PlainMarkets = {
       ],
       "type": "u32",
       "value": "24"
+    },
+    {
+      "name": "offeringSeed",
+      "type": "bytes",
+      "value": "[111, 102, 102, 101, 114, 105, 110, 103]"
+    },
+    {
+      "name": "proceedsSeed",
+      "docs": [
+        "Issuance proceeds vault: token account [b\"proceeds\", instrument], authority = offering PDA."
+      ],
+      "type": "bytes",
+      "value": "[112, 114, 111, 99, 101, 101, 100, 115]"
     },
     {
       "name": "vaultSeed",
