@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { shortAddress } from "@/lib/markets/format";
 import type { ActionKind, ActionStatus, CheckStatus } from "@/lib/markets/service";
 import { useMarkets } from "./markets-provider";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const focusRing = "focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
@@ -109,10 +110,17 @@ export function ChainRef({ value, kind, label, size = 4, className }: { value: s
       <span className="truncate font-mono text-xs text-muted-foreground" title={value}>{shortAddress(value, size)}</span>
       <CopyButton value={value} label={label} />
       {url ? (
-        <a href={url} target="_blank" rel="noopener noreferrer" className={cn("inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground", focusRing)}>
-          <ArrowUpRight className="size-3.5" aria-hidden="true" />
-          <span className="sr-only">Open {label} in Solana Explorer (new tab)</span>
-        </a>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <a href={url} target="_blank" rel="noopener noreferrer" className={cn("inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground", focusRing)}>
+                <ArrowUpRight className="size-3.5" aria-hidden="true" />
+                <span className="sr-only">Open {label} in Solana Explorer (new tab)</span>
+              </a>
+            }
+          />
+          <TooltipContent>View in Solana Explorer</TooltipContent>
+        </Tooltip>
       ) : null}
     </span>
   );

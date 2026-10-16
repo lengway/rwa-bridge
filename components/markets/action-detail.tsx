@@ -14,6 +14,7 @@ import { useLedgerQuery, useMarkets } from "./markets-provider";
 import { ActionTimeline, DateRail } from "./action-timeline";
 import { EntitlementTable } from "./entitlement-table";
 import { Iso20022Export } from "./iso20022-export";
+import { Disclosure, InfoTip } from "./disclosure";
 import { ChainRef, ErrorNote, KindIcon, Panel, Skeleton, Stat, StatusPill, pillButton, primaryButton } from "./primitives";
 
 export function ActionDetail({ action, instrument, now }: { action: CorporateAction; instrument: Instrument; now: number }) {
@@ -49,8 +50,10 @@ export function ActionDetail({ action, instrument, now }: { action: CorporateAct
           <DateRail action={action} now={now} />
         </div>
 
-        <div className="mt-6 border-t px-5 py-5 sm:px-6">
-          <ActionTimeline action={action} now={now} />
+        <div className="mt-5 border-t px-5 py-3 sm:px-6">
+          <Disclosure title="Lifecycle timeline" contentClassName="pt-3 pb-2">
+            <ActionTimeline action={action} now={now} />
+          </Disclosure>
         </div>
 
         <NextStepBar action={action} instrument={instrument} sheet={sheet} step={step} now={now} />
@@ -61,12 +64,19 @@ export function ActionDetail({ action, instrument, now }: { action: CorporateAct
       <Panel aria-labelledby={`ent-${action.seq}`}>
         <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
-            <h3 id={`ent-${action.seq}`} className="font-semibold tracking-tight">{action.kind === "Vote" ? "Voting register" : "Entitlements"}</h3>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {sheet?.source === "snapshot"
-                ? `From the record-date snapshot (slot ${action.snapshotSlot?.toLocaleString("en-US")}). Amounts recomputed from the terms.`
-                : "Preview from the live register. Final figures are fixed when the snapshot is posted at the record date."}
-            </p>
+            <h3 id={`ent-${action.seq}`} className="flex items-center gap-1 font-semibold tracking-tight">
+              {action.kind === "Vote" ? "Voting register" : "Entitlements"}
+              <InfoTip label="About these figures">
+                {sheet?.source === "snapshot"
+                  ? `From the record-date snapshot (slot ${action.snapshotSlot?.toLocaleString("en-US")}). Amounts recomputed from the terms.`
+                  : "Preview from the live register. Final figures are fixed when the snapshot is posted at the record date."}
+              </InfoTip>
+            </h3>
+            {sheet ? (
+              <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">
+                {sheet.rows.length} holders · {formatUnits(sheet.totalUnits)} units{action.kind === "Vote" ? "" : ` · ${money(sheet.totalAmount)}`}
+              </p>
+            ) : null}
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             {sheet ? (
@@ -188,16 +198,13 @@ function NextStepBar({ action, instrument, sheet, step, now }: { action: Corpora
   return (
     <div className="flex flex-col gap-3 rounded-b-3xl border-t bg-muted/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div className="min-w-0 text-sm">
-        <p className="font-medium">Next: {step.label}</p>
-        <p className="mt-0.5 text-muted-foreground">
-          {waiting ? (
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="size-3.5 shrink-0" aria-hidden="true" /> The program accepts this from {formatDateTime(step.opensAt!)} ({formatRelative(step.opensAt!, now)}).
-            </span>
-          ) : (
-            <>Signed by the {step.signer.toLowerCase()}.</>
-          )}
-        </p>
+        <p className="flex items-center gap-1 font-medium">Next: {step.label} <InfoTip label="Who signs this step">Signed by the {step.signer.toLowerCase()}.</InfoTip></p>
+        {waiting ? (
+          <p className="mt-0.5 inline-flex items-center gap-1.5 text-muted-foreground">
+            <Clock className="size-3.5 shrink-0" aria-hidden="true" /> Opens {formatRelative(step.opensAt!, now)}
+            <InfoTip label="When this opens">The program accepts this from {formatDateTime(step.opensAt!)}.</InfoTip>
+          </p>
+        ) : null}
       </div>
       <button type="button" className={cn(primaryButton, "whitespace-nowrap")} disabled={waiting || !!step.blocked} onClick={() => setOpened(step)}>
         {step.label.split(" · ")[0]} <ArrowRight className="size-4" aria-hidden="true" />

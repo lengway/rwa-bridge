@@ -4,6 +4,7 @@ import { ExternalLink, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { WithTip } from "@/components/markets/disclosure";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBondDetail } from "@/lib/useBonds";
 import type { BondDetail } from "@/lib/markets/investor";
@@ -54,10 +55,11 @@ function Detail({ data }: { data: BondDetail }) {
           <div className="flex flex-wrap items-center gap-2">
             <BuyButton offering={offering} heldUnits={held} balanceAtomic={settlement?.amount ?? null} />
             {offering.explorerUrl ? (
-              <Button variant="ghost" className="h-11 px-3 text-muted-foreground" nativeButton={false} render={<a href={offering.explorerUrl} target="_blank" rel="noopener noreferrer" />}>
-                <ExternalLink />
-                View on Explorer
-              </Button>
+              <WithTip tip="View on Solana Explorer">
+                <Button variant="ghost" size="icon" className="size-11 text-muted-foreground" aria-label="View on Solana Explorer" nativeButton={false} render={<a href={offering.explorerUrl} target="_blank" rel="noopener noreferrer" />}>
+                  <ExternalLink />
+                </Button>
+              </WithTip>
             ) : null}
           </div>
           {blocked ? <InlineNote>{blocked}</InlineNote> : null}

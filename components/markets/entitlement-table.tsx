@@ -1,10 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { formatSettlement, formatShare, formatUnits } from "@/lib/markets/format";
 import type { ActionParams, EntitlementRow, EntitlementSheet, Instrument } from "@/lib/markets/service";
-import { ChainRef, PlainInvestorBadge } from "./primitives";
+import { ChainRef, PlainInvestorBadge, focusRing } from "./primitives";
+
+const PREVIEW_ROWS = 5;
 
 type Props = {
   instrument: Instrument;
@@ -23,6 +25,9 @@ export function EntitlementTable({ instrument, params, sheet, rowAction, showSta
   const vote = params.kind === "Vote";
   const redemption = params.kind === "PartialRedemption" || params.kind === "FinalRedemption";
   const options = params.kind === "Vote" ? params.options : [];
+  const [showAll, setShowAll] = useState(false);
+  const rows = showAll ? sheet.rows : sheet.rows.slice(0, PREVIEW_ROWS);
+  const hidden = sheet.rows.length - PREVIEW_ROWS;
   return (
     <div className="relative -mx-px overflow-x-auto">
       <table className={cn("w-full text-sm", compact ? "min-w-[340px]" : "min-w-[640px]")}>
@@ -39,7 +44,7 @@ export function EntitlementTable({ instrument, params, sheet, rowAction, showSta
           </tr>
         </thead>
         <tbody className="divide-y">
-          {sheet.rows.map((r) => (
+          {rows.map((r) => (
             <tr key={r.holder} className="transition-colors hover:bg-muted/40">
               <td className={cn("px-5 py-3 sm:px-6", compact ? "max-w-[8.5rem] pr-2 sm:px-4" : "max-w-[16rem]")}>
                 <p className="flex min-w-0 items-center gap-2">
@@ -73,6 +78,13 @@ export function EntitlementTable({ instrument, params, sheet, rowAction, showSta
           </tr>
         </tfoot>
       </table>
+      {hidden > 0 ? (
+        <div className="border-t px-5 py-2 sm:px-6">
+          <button type="button" aria-expanded={showAll} onClick={() => setShowAll((v) => !v)} className={cn("rounded-full py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground", focusRing)}>
+            {showAll ? "Show first " + PREVIEW_ROWS : `Show all (${sheet.rows.length})`}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime, formatRelative, formatSettlement, formatShare, formatUnits } from "@/lib/markets/format";
 import type { CorporateAction, Instrument, MarketEventName } from "@/lib/markets/service";
 import { useLedgerQuery } from "./markets-provider";
+import { InfoTip } from "./disclosure";
 import { ChainRef, ErrorNote, Panel, PanelHeader, PlainInvestorBadge, Skeleton, Stat, focusRing } from "./primitives";
 
 const CUSTODY: Record<string, string> = { self: "Self-custody", "smart-wallet": "Plain smart wallet", custodian: "Custodian" };
@@ -113,8 +114,7 @@ export function AuditLog({ instrument, actions, now }: { instrument: Instrument;
     <Panel aria-labelledby="log-title">
       <PanelHeader
         id="log-title"
-        title="Event log"
-        description="Every state change emits a program event. Newest first."
+        title={<span className="inline-flex items-center gap-1">Event log <InfoTip label="About the event log">Every state change emits a program event. Newest first.</InfoTip></span>}
         actions={
           <div role="group" aria-label="Filter by action" className="flex flex-wrap gap-1.5">
             {[null, ...actions.map((a) => a.seq).sort((a, b) => a - b)].map((seq) => (

@@ -15,6 +15,7 @@ import type { Evidence, MarketsService, PublishedSnapshot, VerificationCheck, Ve
 import { canonicalHoldings, canonicalSnapshotJson } from "@/lib/markets/snapshot";
 import { MarketsProvider, useLedgerVersion, useMarkets } from "./markets-provider";
 import { ChainRef, CheckIcon, Eyebrow, Panel, PanelHeader, Skeleton, StatusPill, focusRing, pillButton } from "./primitives";
+import { Disclosure, InfoTip, WithTip, iconButton } from "./disclosure";
 
 export function ActionVerifier({ actionId, config }: { actionId: string; config?: MarketsPublicConfig }) {
   return (
@@ -187,19 +188,23 @@ function Verifier({ actionId }: { actionId: string }) {
                   <span>{report.instrument.name} · action #{report.action.seq} · {KIND_LABEL[report.action.kind]}</span>
                   <StatusPill status={report.action.status} label={stageLabel(report.action)} />
                 </p>
-                <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">Account <ChainRef value={report.action.id} kind="address" label="action account" size={6} /></p>
+                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">Account <ChainRef value={report.action.id} kind="address" label="action account" size={6} /></p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <ShareButton />
                 {done?.original ? (
-                  <button type="button" className={pillButton} onClick={() => downloadText(`snapshot-${report.instrument.symbol}-${report.action.seq}.json`, canonicalSnapshotJson(done.original!), "application/json")}>
-                    <Download className="size-4" aria-hidden="true" /> Snapshot JSON
-                  </button>
+                  <WithTip tip="Download snapshot JSON">
+                    <button type="button" className={iconButton} aria-label="Download snapshot JSON" onClick={() => downloadText(`snapshot-${report.instrument.symbol}-${report.action.seq}.json`, canonicalSnapshotJson(done.original!), "application/json")}>
+                      <Download className="size-4" aria-hidden="true" />
+                    </button>
+                  </WithTip>
                 ) : null}
-                <Iso20022Export action={report.action} instrument={report.instrument} sheet={report.entitlements} source={svc.source} />
-                <button type="button" className={pillButton} onClick={() => setNonce((n) => n + 1)}>
-                  <RefreshCw className="size-4" aria-hidden="true" /> Run again
-                </button>
+                <Iso20022Export compact action={report.action} instrument={report.instrument} sheet={report.entitlements} source={svc.source} />
+                <WithTip tip="Run verification again">
+                  <button type="button" className={iconButton} aria-label="Run verification again" onClick={() => setNonce((n) => n + 1)}>
+                    <RefreshCw className="size-4" aria-hidden="true" />
+                  </button>
+                </WithTip>
               </div>
             </div>
           ) : (
@@ -216,23 +221,33 @@ function Verifier({ actionId }: { actionId: string }) {
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-5">
             <Verdict report={allRevealed ? report : undefined} tampered={tampered} />
+            {report ? <KeyFacts report={report} /> : null}
             <Panel aria-labelledby="checks-title">
-              <PanelHeader id="checks-title" title="Checks" description="Each check compares a value recomputed in this browser with what the program stored." />
+              <PanelHeader id="checks-title" title={<span className="inline-flex items-center gap-1">Checks <InfoTip label="About the checks">Each check compares a value recomputed in this browser with what the program stored.</InfoTip></span>} />
               <ul className="divide-y" aria-live="polite">
                 {allRevealed && report
                   ? report.checks.map((c, i) => (
-                      <li key={c.id} className="flex gap-3 px-5 py-4 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-1 sm:px-6" style={{ animationDelay: `${i * 50}ms`, animationFillMode: "both" }}>
-                        <CheckIcon status={c.status} className="mt-0.5" />
+                      <li key={c.id} className="flex gap-3 px-5 py-3 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-1 sm:px-6" style={{ animationDelay: `${i * 50}ms`, animationFillMode: "both" }}>
+                        <CheckIcon status={c.status} />
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium">{c.title}</p>
-                          <p className="mt-1 text-sm leading-6 text-muted-foreground">{c.explanation}</p>
-                          {c.expected && c.actual && c.expected.length > 20 ? (
-                            <dl className="mt-2 grid gap-1 rounded-xl bg-muted/50 p-2.5 font-mono text-[11px] leading-5">
-                              <div className="flex gap-2"><dt className="w-20 shrink-0 font-sans text-muted-foreground">On-chain</dt><dd className="break-all">{c.expected}</dd></div>
-                              <div className="flex gap-2"><dt className="w-20 shrink-0 font-sans text-muted-foreground">Recomputed</dt><dd className={cn("break-all", c.status === "fail" && "text-red-600 dark:text-red-400")}>{c.actual}</dd></div>
-                            </dl>
+                          <div className="flex min-h-6 flex-wrap items-center gap-x-1.5">
+                            <p className="font-medium">{c.title}</p>
+                            <InfoTip label={`About: ${c.title}`}>{c.explanation}</InfoTip>
+                          </div>
+                          {(c.expected && c.actual && c.expected.length > 20) || c.evidence?.length ? (
+                            <Disclosure key={`${c.id}:${c.status}`} title="Details" defaultOpen={c.status === "fail"} className="mt-0.5">
+                              {c.status === "fail" ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{c.explanation}</p> : null}
+                              {c.expected && c.actual && c.expected.length > 20 ? (
+                                <dl className="mt-1 grid gap-1 rounded-xl bg-muted/50 p-2.5 font-mono text-[11px] leading-5">
+                                  <div className="flex gap-2"><dt className="w-20 shrink-0 font-sans text-muted-foreground">On-chain</dt><dd className="break-all">{c.expected}</dd></div>
+                                  <div className="flex gap-2"><dt className="w-20 shrink-0 font-sans text-muted-foreground">Recomputed</dt><dd className={cn("break-all", c.status === "fail" && "text-red-600 dark:text-red-400")}>{c.actual}</dd></div>
+                                </dl>
+                              ) : null}
+                              {c.evidence?.length ? <EvidenceList items={c.evidence} /> : null}
+                            </Disclosure>
+                          ) : c.status === "fail" ? (
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">{c.explanation}</p>
                           ) : null}
-                          {c.evidence?.length ? <EvidenceList items={c.evidence} /> : null}
                         </div>
                       </li>
                     ))
@@ -266,15 +281,15 @@ function Verifier({ actionId }: { actionId: string }) {
                   );
                 })}
               </ol>
-              <p className="mt-4 border-t pt-3 text-xs leading-5 text-muted-foreground">Hashing uses the Web Crypto API. No server computes the verdict.</p>
+              <p className="mt-4 flex items-center gap-1 border-t pt-3 text-xs leading-5 text-muted-foreground">No server computes the verdict <InfoTip label="About hashing">Hashing uses the Web Crypto API. No server computes the verdict.</InfoTip></p>
             </Panel>
 
             <Panel className="px-5 py-5">
               <div className="flex items-start gap-3">
                 <FlaskConical className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-1">
                   <h2 className="font-semibold tracking-tight">Tamper test</h2>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">Add one unit to the largest holder in your local copy of the snapshot and re-run. Nothing on the ledger changes.</p>
+                  <InfoTip label="About the tamper test">Add one unit to the largest holder in your local copy of the snapshot and re-run. Nothing on the ledger changes.</InfoTip>
                 </div>
               </div>
               <label className="mt-4 flex cursor-pointer items-center justify-between gap-3 rounded-2xl border px-3.5 py-3 text-sm has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50">
@@ -287,9 +302,15 @@ function Verifier({ actionId }: { actionId: string }) {
           </div>
         </div>
 
-        {report && allRevealed ? <Reconciliation report={report} /> : null}
-        {report && allRevealed && report.leaves ? <Leaves report={report} /> : null}
-        <HowItWorks />
+        {report && allRevealed ? (
+          <Disclosure title="On-chain vs recomputed · snapshot leaves" triggerClassName="text-sm" contentClassName="mt-3 space-y-5">
+            <Reconciliation report={report} />
+            {report.leaves ? <Leaves report={report} /> : null}
+          </Disclosure>
+        ) : null}
+        <Disclosure title="How verification works" triggerClassName="text-sm" className="block">
+          <HowItWorks />
+        </Disclosure>
       </Wrap>
     </>
   );
@@ -316,19 +337,49 @@ function Verdict({ report, tampered }: { report?: VerificationReport; tampered: 
   const failed = report.checks.filter((c) => c.status === "fail").length;
   const tone =
     report.verdict === "verified"
-      ? { box: "border-emerald-500/30 bg-emerald-500/[0.07]", icon: <ShieldCheck className="size-9 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />, title: "Verified", text: `All ${passed} checks pass. Everything the program stored for this action follows from public data.` }
+      ? { box: "border-emerald-500/30 bg-emerald-500/[0.07]", icon: <ShieldCheck className="size-9 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />, title: `Verified · ${passed}/${report.checks.length} checks`, text: `All ${passed} checks pass. Everything the program stored for this action follows from public data.` }
       : report.verdict === "mismatch"
-        ? { box: "border-red-500/30 bg-red-500/[0.07]", icon: <ShieldAlert className="size-9 text-red-600 dark:text-red-400" aria-hidden="true" />, title: tampered ? "Mismatch caught" : "Mismatch", text: tampered ? `${failed} checks fail on the altered snapshot, exactly as they should. Turn the tamper test off to see the real data verify.` : `${failed} of ${report.checks.length} checks fail. Do not rely on this action's figures until the discrepancy is explained.` }
-        : { box: "border-amber-500/30 bg-amber-500/[0.07]", icon: <ShieldCheck className="size-9 text-amber-600 dark:text-amber-400" aria-hidden="true" />, title: "Consistent so far", text: `${passed} checks pass; ${pending} become checkable at later stages of the lifecycle.` };
+        ? { box: "border-red-500/30 bg-red-500/[0.07]", icon: <ShieldAlert className="size-9 text-red-600 dark:text-red-400" aria-hidden="true" />, title: `${tampered ? "Mismatch caught" : "Mismatch"} · ${failed}/${report.checks.length} checks fail`, text: tampered ? `${failed} checks fail on the altered snapshot, exactly as they should. Turn the tamper test off to see the real data verify.` : `${failed} of ${report.checks.length} checks fail. Do not rely on this action's figures until the discrepancy is explained.` }
+        : { box: "border-amber-500/30 bg-amber-500/[0.07]", icon: <ShieldCheck className="size-9 text-amber-600 dark:text-amber-400" aria-hidden="true" />, title: `Consistent so far · ${passed}/${report.checks.length} checks`, text: `${passed} checks pass; ${pending} become checkable at later stages of the lifecycle.` };
   return (
     <div role="status" className={cn("flex items-start gap-4 rounded-3xl border px-5 py-5 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-[0.98] sm:px-6", tone.box)}>
       {tone.icon}
-      <div>
-        <p className="text-lg font-semibold tracking-tight">{tone.title}</p>
-        <p className="mt-0.5 text-sm leading-6 text-foreground/80">{tone.text}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Computed at ledger time {formatDateTime(report.computedAt)}</p>
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-1.5 text-lg font-semibold tracking-tight">
+          {tone.title}
+          <InfoTip label="About this verdict">{tone.text}</InfoTip>
+        </p>
+        {report.verdict === "mismatch" ? <p className="mt-0.5 text-sm leading-6 text-foreground/80">{tone.text}</p> : null}
+        <p className="mt-0.5 text-xs text-muted-foreground">Computed at ledger time {formatDateTime(report.computedAt)}</p>
       </div>
     </div>
+  );
+}
+
+function KeyFacts({ report }: { report: VerificationReport }) {
+  const { action, instrument, entitlements } = report;
+  const money = (v: bigint) => formatSettlement(v, instrument.settlementDecimals, instrument.settlementSymbol);
+  const pays = isPaymentAction(action.params);
+  const total = action.totalEntitlement ?? entitlements?.totalAmount ?? null;
+  const facts: { label: string; value: string }[] = [
+    { label: "Record date", value: formatDate(action.recordTs) },
+    { label: action.kind === "Vote" ? "Vote closes" : "Payment date", value: formatDate(action.paymentTs) },
+    { label: "Holders", value: action.holderCount != null ? String(action.holderCount) : entitlements ? String(entitlements.rows.length) : "—" },
+  ];
+  if (pays) {
+    facts.push({ label: "Per unit", value: money(action.amountPerUnit) }, { label: "Total", value: total != null ? money(total) : "—" });
+  } else if (action.totalUnits != null) {
+    facts.push({ label: "Voting units", value: formatUnits(action.totalUnits) });
+  }
+  return (
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-3xl border bg-card px-5 py-4 sm:grid-cols-5 sm:px-6">
+      {facts.map((f) => (
+        <div key={f.label} className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{f.label}</dt>
+          <dd className="mt-0.5 truncate text-sm font-semibold tabular-nums">{f.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -506,9 +557,11 @@ function HowItWorks() {
 function ShareButton() {
   const [copied, setCopied] = useState(false);
   return (
+    <WithTip tip={copied ? "Link copied" : "Copy share link"}>
     <button
       type="button"
-      className={pillButton}
+      className={iconButton}
+      aria-label={copied ? "Link copied" : "Copy share link"}
       onClick={async () => {
         const url = window.location.href;
         try {
@@ -524,7 +577,8 @@ function ShareButton() {
       }}
     >
       {copied ? <Check className="size-4 text-emerald-600" aria-hidden="true" /> : <Link2 className="size-4" aria-hidden="true" />}
-      <span aria-live="polite">{copied ? "Link copied" : "Share link"}</span>
+      <span aria-live="polite" className="sr-only">{copied ? "Link copied" : ""}</span>
     </button>
+    </WithTip>
   );
 }

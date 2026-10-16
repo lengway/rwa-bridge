@@ -17,6 +17,7 @@ import { NewActionDialog } from "./new-action-dialog";
 import { OfferingPanel } from "./offering-panel";
 import { ChainRef, ErrorNote, Eyebrow, KindIcon, Panel, Skeleton, StatusPill, focusRing, pillButton, primaryButton } from "./primitives";
 import { AuditLog, RegisterView } from "./register-and-log";
+import { Disclosure, InfoTip } from "./disclosure";
 
 export function IssuerConsole({ config }: { config?: MarketsPublicConfig }) {
   return (
@@ -202,8 +203,9 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
                 {instrument.status}
               </span>
               {accelerated ? (
-                <span title={`Demonstration only: one nominal year lasts ${ACCELERATED_YEAR_SECONDS / 60} minutes, so the ${tenorYears(instrument)}-year schedule runs live. Terms and payments are otherwise exactly as on a real calendar.`} className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-500/25 dark:text-amber-300">
-                  <FastForward className="size-3" aria-hidden="true" /> Accelerated calendar · 1 year = {ACCELERATED_YEAR_SECONDS / 60} min
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 py-0.5 pl-2.5 pr-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-500/25 dark:text-amber-300">
+                  <FastForward className="size-3" aria-hidden="true" /> Accelerated
+                  <InfoTip label="About the accelerated calendar" className="text-current">{`Demonstration only: one nominal year lasts ${ACCELERATED_YEAR_SECONDS / 60} minutes, so the ${tenorYears(instrument)}-year schedule runs live. Terms and payments are otherwise exactly as on a real calendar.`}</InfoTip>
                 </span>
               ) : null}
               {locked ? (
@@ -212,11 +214,15 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
                 </span>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1">Mint <ChainRef value={instrument.mint} kind="address" label="bond mint" /></span>
-              <span className="inline-flex items-center gap-1">Issuer <ChainRef value={instrument.issuer} kind="address" label="issuer" /></span>
-              <span>Token-2022 · Solana {svc.source.cluster}</span>
-            </div>
+            <Disclosure title="Instrument details" contentClassName="mt-2">
+              <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                <div className="flex items-center gap-2"><dt className="text-muted-foreground">Mint</dt><dd><ChainRef value={instrument.mint} kind="address" label="bond mint" /></dd></div>
+                <div className="flex items-center gap-2"><dt className="text-muted-foreground">Issuer</dt><dd><ChainRef value={instrument.issuer} kind="address" label="issuer" /></dd></div>
+                <div className="flex gap-2"><dt className="text-muted-foreground">Settlement</dt><dd>{settlementCurrency(instrument.settlementSymbol).label} · {instrument.settlementDecimals} decimals · devnet</dd></div>
+                <div className="flex gap-2"><dt className="text-muted-foreground">Transfer rules</dt><dd>{instrument.allowlist ? "Allowlist" : "Open"} + ex-date lock hook</dd></div>
+                <div className="flex gap-2"><dt className="text-muted-foreground">Token</dt><dd>Token-2022 · Solana {svc.source.cluster}</dd></div>
+              </dl>
+            </Disclosure>
           </div>
           <button type="button" className={cn(primaryButton, "h-11 self-start whitespace-nowrap px-6 lg:self-auto")} onClick={onNew}>
             <Plus className="size-4" aria-hidden="true" /> New corporate action
@@ -226,14 +232,12 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
         <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
           <Panel className="px-5 py-5 sm:px-6">
             <h2 className="sr-only">Terms</h2>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3">
               <Term label="Face value" value={money(instrument.faceValue)} sub="per unit" />
               <Term label="Coupon" value={formatBps(instrument.couponBps)} sub={instrument.frequency === 2 ? "Semi-annual" : `${instrument.frequency}× a year`} />
               <Term label="Issued" value={when(instrument.issueTs)} sub={`${formatUnits(instrument.issuedUnits)} units`} />
               <Term label="Maturity" value={when(instrument.maturityTs)} sub={formatRelative(instrument.maturityTs, now)} />
               <Term label="Outstanding" value={`${formatUnits(instrument.supply)} units`} sub={`${money(instrument.supply * instrument.faceValue)} face`} />
-              <Term label="Settlement" value={settlementCurrency(instrument.settlementSymbol).label} sub={`${instrument.settlementDecimals} decimals · devnet`} />
-              <Term label="Transfer rules" value={instrument.allowlist ? "Allowlist" : "Open"} sub="+ ex-date lock hook" />
               <Term label="Actions" value={String(instrument.actionCount)} sub={`${actions.filter((a) => a.status !== "Settled" && a.status !== "Cancelled").length} open`} />
             </dl>
             <div className="mt-6 border-t pt-4">
@@ -375,8 +379,9 @@ function SimulationBar({ actions, now }: { actions: CorporateAction[]; now: numb
   };
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-dashed px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-      <p className="min-w-0 text-muted-foreground">
-        <span className="font-medium text-foreground">Simulated ledger</span> · clock {formatDateTime(now)}. Same rules as the program; time moves when you advance it.
+      <p className="flex min-w-0 flex-wrap items-center gap-1 text-muted-foreground">
+        <span className="font-medium text-foreground">Simulated ledger</span> · clock {formatDateTime(now)}
+        <InfoTip label="About the simulated ledger">Same rules as the program; time moves when you advance it.</InfoTip>
         {error ? <span role="alert" className="block text-red-600 dark:text-red-400">{error}</span> : null}
       </p>
       <div className="flex shrink-0 flex-wrap gap-2">

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { formatBps, formatDate, formatDateTime, formatSettlement } from "@/lib/markets/format";
 import type { BondActionView, BondOffering, BondPayment, BondPosition, BondVote, CalendarEntry, NextCoupon, SettlementBalance } from "@/lib/markets/investor";
 import { cn } from "@/lib/utils";
+import { Disclosure, InfoTip } from "@/components/markets/disclosure";
 
 const unitsLabel = (n: string | number) => `${n} unit${String(n) === "1" ? "" : "s"}`;
 
@@ -23,9 +24,9 @@ export const frequencyLabel = (f: number) => FREQUENCY[f] ?? `${f}× a year`;
 
 export function TestFundsNote({ className, children }: { className?: string; children?: React.ReactNode }) {
   return (
-    <p className={cn("flex items-start gap-2 text-xs leading-5 text-muted-foreground", className)}>
-      <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-      <span>{children ?? "Solana devnet test tokens. No real money is paid or received."}</span>
+    <p className={cn("flex items-center gap-1 text-xs leading-5 text-muted-foreground", className)}>
+      <span>Devnet test funds</span>
+      <InfoTip label="About test funds">{children ?? "Solana devnet test tokens. No real money is paid or received."}</InfoTip>
     </p>
   );
 }
@@ -363,14 +364,16 @@ export function ActionCard({ action, offering }: { action: BondActionView; offer
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold">{action.title}</p>
-          <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-            <span className="whitespace-nowrap">Record {shortDateTime.format(action.recordTs * 1000)}</span> ·{" "}
-            <span className="whitespace-nowrap">{action.kind === "Vote" ? "closes" : "pays"} {shortDateTime.format(action.paymentTs * 1000)} UTC</span>
-          </p>
         </div>
         <ActionStatusBadge action={action} />
       </div>
-      <ActionStepper action={action} />
+      <Disclosure title="Timeline" className="-mt-3" contentClassName="space-y-3 pt-2">
+        <p className="text-xs tabular-nums text-muted-foreground">
+          <span className="whitespace-nowrap">Record {shortDateTime.format(action.recordTs * 1000)}</span> ·{" "}
+          <span className="whitespace-nowrap">{action.kind === "Vote" ? "closes" : "pays"} {shortDateTime.format(action.paymentTs * 1000)} UTC</span>
+        </p>
+        <ActionStepper action={action} />
+      </Disclosure>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t pt-4">
         <div className="min-w-0 flex-1">
           <ActionOutcome action={action} offering={offering} />
