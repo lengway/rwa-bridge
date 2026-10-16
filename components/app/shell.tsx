@@ -22,7 +22,6 @@ const tabs = [
 ];
 
 const accountLinks = [
-  { href: "/issuers", label: "Issuer console" },
   { href: "/assets", label: "Assets" },
   { href: "/profile", label: "Account" },
 ];
