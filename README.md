@@ -1,5 +1,20 @@
 # Plain
 
+> **Superteam Kazakhstan × KASE side track: Plain Markets.** `plain_markets` is an on-chain program
+> (Solana devnet) for bond corporate actions: record-date lock through a Token-2022 transfer hook,
+> Merkle snapshot, funded paying vault, coupon push/pull, partial and final redemption with burn,
+> and bondholder votes. The track's example bond (face 1,000, 10%, semi-annual, 2 years) ran its
+> whole life on an accelerated demonstration calendar. A holder of 10 bonds received 500 per
+> coupon and 10,500 at maturity; the bond ended Redeemed with a supply of 0.
+>
+> - Technical overview (architecture, record-date logic, formulas, flows, implemented vs
+>   simulated, every transaction): [KASE_TECHNICAL_OVERVIEW.md](KASE_TECHNICAL_OVERVIEW.md)
+> - Issuer console: https://plain.lengway.me/issuers?mint=3HCWCuDMKJxyY5AM5kNx99FUGJCeKcSK88yeSZpouCoC
+> - Public verifier, final redemption: https://plain.lengway.me/verify/2SrQuFgDxd36yH3NgNzkei12n2mEkb1kiwDzvW31WHyu
+> - Program: [`H87kwrjtpNKxqbydmjW7ytnX7Jum7RramAaiyc82XMVm`](https://explorer.solana.com/address/H87kwrjtpNKxqbydmjW7ytnX7Jum7RramAaiyc82XMVm?cluster=devnet)
+>
+> Devnet only. The settlement token is a test USD (the fiat leg is simulated). Not affiliated with KASE.
+
 Plain is a Solana Devnet-only app whose enabled Earn route supplies and redeems
 Devnet USDC through one pinned Kamino Lend reserve. The server prepares and
 simulates an unsigned transaction; the user's connected wallet signs and sends
