@@ -1,8 +1,9 @@
 /** Display helpers for Plain Markets. Dates are shown in UTC, like a settlement calendar. */
+import { settlementCurrency } from "./currency";
 
 const groups = new Intl.NumberFormat("en-US");
 
-/** Settlement base units → "$50,000.00" (keeps sub-cent digits when present). */
+/** Settlement base units → "$50,000.00" / "₸35,000.00" (keeps sub-cent digits when present). */
 export function formatSettlement(value: bigint, decimals = 6, symbol = "USD") {
   const negative = value < BigInt(0);
   const abs = negative ? -value : value;
@@ -10,7 +11,7 @@ export function formatSettlement(value: bigint, decimals = 6, symbol = "USD") {
   const whole = abs / scale;
   let frac = (abs % scale).toString().padStart(decimals, "0");
   frac = frac.replace(/0+$/, "").padEnd(2, "0");
-  const prefix = /USD/i.test(symbol) ? "$" : "";
+  const prefix = settlementCurrency(symbol).sign ?? "";
   const suffix = prefix ? "" : ` ${symbol}`;
   return `${negative ? "−" : ""}${prefix}${groups.format(whole)}.${frac}${suffix}`;
 }

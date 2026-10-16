@@ -36,7 +36,7 @@ import { ALLOCATION_MEMO, parseAllocationMemo, type IssueState } from "./investo
 import { formatSettlement } from "./format";
 import { toHex } from "./merkle";
 import { decodeHoldings, hex32, parseSnapshotMemo, parseSnapshotPart, parseTermsMemo, snapshotFromMemo, SNAPSHOT_MEMO, TERMS_MEMO, type TermsDocument } from "./publication";
-import { CIRCLE_DEVNET_USDC_ADDRESS } from "./purchase";
+import { settlementSymbolForMint } from "./currency";
 import { readRegister } from "./register";
 import type {
   ActionDraft,
@@ -397,7 +397,7 @@ export class DevnetLedger implements MarketsLedger {
       issuer: a.issuer.toBase58(),
       payingAgent: a.payingAgent.toBase58(),
       settlementMint: a.settlementMint.toBase58(),
-      settlementSymbol: a.settlementMint.toBase58() === CIRCLE_DEVNET_USDC_ADDRESS ? "USDC" : this.config.settlementSymbol,
+      settlementSymbol: settlementSymbolForMint(a.settlementMint.toBase58(), this.config.settlementSymbol),
       settlementDecimals: a.settlementDecimals,
       name: a.name,
       symbol: a.symbol,

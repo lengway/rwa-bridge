@@ -6,6 +6,7 @@ import { CalendarClock, ChevronRight, FastForward, Loader2, Lock, Plus, RotateCc
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatBps, formatDate, formatDateTime, formatRelative, formatTime, formatSettlement, formatUnits } from "@/lib/markets/format";
+import { settlementCurrency } from "@/lib/markets/currency";
 import { ACCELERATED_YEAR_SECONDS, couponDates, isAccelerated, tenorYears } from "@/lib/markets/calendar";
 import { KIND_LABEL, couponPeriods, progress, stageLabel, upcomingEvents } from "@/lib/markets/lifecycle";
 import type { MarketsPublicConfig } from "@/lib/markets/devnet-service";
@@ -231,7 +232,7 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
               <Term label="Issued" value={when(instrument.issueTs)} sub={`${formatUnits(instrument.issuedUnits)} units`} />
               <Term label="Maturity" value={when(instrument.maturityTs)} sub={formatRelative(instrument.maturityTs, now)} />
               <Term label="Outstanding" value={`${formatUnits(instrument.supply)} units`} sub={`${money(instrument.supply * instrument.faceValue)} face`} />
-              <Term label="Settlement" value={instrument.settlementSymbol === "USDC" ? "Circle USDC" : "Test USD"} sub={`${instrument.settlementDecimals} decimals · devnet`} />
+              <Term label="Settlement" value={settlementCurrency(instrument.settlementSymbol).label} sub={`${instrument.settlementDecimals} decimals · devnet`} />
               <Term label="Transfer rules" value={instrument.allowlist ? "Allowlist" : "Open"} sub="+ ex-date lock hook" />
               <Term label="Actions" value={String(instrument.actionCount)} sub={`${actions.filter((a) => a.status !== "Settled" && a.status !== "Cancelled").length} open`} />
             </dl>
