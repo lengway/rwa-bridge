@@ -16,6 +16,7 @@
     "markets:demo": "tsx scripts/markets-demo.ts",
     "markets:seed": "tsx scripts/markets-seed.ts",
     "markets:kase": "tsx scripts/markets-kase-showcase.ts",
+    "markets:kzt": "tsx scripts/markets-kzt-demo.ts",
     "markets:investor-e2e": "tsx scripts/markets-investor-e2e.ts"
   },
   "dependencies": {
