@@ -6,6 +6,7 @@ import { IssuerError } from "@/lib/markets/devnet-issuer";
 import { allocationLimits } from "@/lib/markets/investor-server";
 import { issuerQueue as queue } from "@/lib/markets/issuer-queue";
 import { EXECUTOR_OPS, type ExecutorOp } from "@/lib/markets/devnet-service";
+import { notifyAfterIssuerOp } from "@/lib/markets/notify-server";
 import { marketsServer } from "@/lib/markets/server";
 import type { ActionDraft, TxResult } from "@/lib/markets/service";
 
@@ -72,6 +73,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/markets/[op
       }
     };
     const result = await idempotent(`${op}:${key}`, raw, () => queue(task));
+    // Investor emails (MARKETS_NOTIFY_EMAILS=on): after confirmation, async, deduped, never fails the op.
+    notifyAfterIssuerOp(op, body, result);
     return NextResponse.json(result, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (error instanceof GuardError || error instanceof IssuerError) return fail(error.message, error.status);
