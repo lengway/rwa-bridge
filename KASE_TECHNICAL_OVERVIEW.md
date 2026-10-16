@@ -224,6 +224,20 @@ vector suites. Node tests: `npm test`.
 | Settlement mint with a hook, fee or non-transferable extension | `InvalidSettlementMint` |
 | DvP purchase with underpayment, a wrong vault, a foreign ATA, over a cap, outside the window, during the lock | rejected; 8 offering tests plus 12 smart-wallet intent and receipt tests |
 
+## Market-infrastructure interoperability: ISO 20022
+
+Custodians, CSDs and paying agents exchange corporate-action data as ISO 20022 `seev` messages. Every coupon or redemption can be exported in that format from the **ISO 20022** menu, both in the issuer console (action detail) and on the public verifier `/verify/[actionId]`. The XML is built in the browser from the same public program accounts the verifier reads, so no secrets or private keys are involved. Code: `lib/markets/iso20022.ts` (pure functions); tests: `tests/markets-iso20022.test.ts`.
+
+| Message | Built from | Contents |
+|---|---|---|
+| `seev.031.001.13` Corporate Action Notification, one per action | `CorporateAction` + `Instrument` accounts | Event type, MAND, record date, payment date, coupon rate (`IntrstRateUsdForPmt`), redemption price, currency, the per-unit amount and the total entitlement |
+| `seev.036.001.13` Corporate Action Movement Confirmation, one per paid holder | `ClaimReceipt` accounts | Holder wallet, snapshot units, cash credited (`PstngAmt`), units debited by a redemption (`PstngQty`), posting date, payment tx signature (`AcctSvcrTxId`) |
+
+- **Event types.** Coupon → `INTR`. Final redemption → `REDM` (with the last coupon rate when it is included). Partial redemption → `PCAL`, because the program burns units pro rata at an unchanged face per unit, which reduces each position. `PRED` is for pool-factor reductions, which the program does not do. Votes are not exported.
+- **Identifiers are real, not invented.** No ISIN exists, so the security is `OthrId` = bond mint with the proprietary type `SOLANA-TOKEN-2022-MINT`. Holders are identified by wallet address (`SOLANA-WALLET`). The event id is `<SYMBOL>-CA-<seq>`, and the CorporateAction account is the official event id. The narrative field lists the CorporateAction, Instrument and mint accounts, the announce tx, `terms_hash`, the merkle root, the snapshot hash and the slot, so every figure can be traced back to chain.
+- **Currency.** The test USD (and Circle devnet USDC) is reported as `USD`, and a test tenge would be reported as `KZT`. Each message states that the amounts are a devnet test token. Amounts use 2 decimals, and the track example (10 units × 1,000 × 10% ÷ 2) comes out as `500.00`. Unknown tokens fall back to `XTS`, the ISO code reserved for testing.
+- **Limits.** The structure follows the SR2023 message definitions with a minimal field subset. It is well-formed XML with the official namespaces (tested with a parser and `xmllint`), but it is **not validated against the XSDs**, has no Business Application Header and is not sent over SWIFT. Base58 ids longer than Max35Text are truncated in the length-limited fields, and the full values appear in the narrative. A multi-holder seev.036 download is one file: a `<Batch>` envelope (namespace `urn:plain:markets:iso20022-batch:1`, not ISO) that holds one ISO `Document` per holder.
+
 ## Implemented vs simulated
 
 | Part | Status |
