@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Download, FlaskConical, Link2, Loader2, RefreshCw, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { downloadText } from "@/lib/markets/csv";
+import { Iso20022Export } from "./iso20022-export";
 import { formatDate, formatDateTime, formatSettlement, formatUnits, shortAddress } from "@/lib/markets/format";
 import { KIND_LABEL, stageLabel } from "@/lib/markets/lifecycle";
 import { isPaymentAction } from "@/lib/markets/math";
@@ -195,6 +196,7 @@ function Verifier({ actionId }: { actionId: string }) {
                     <Download className="size-4" aria-hidden="true" /> Snapshot JSON
                   </button>
                 ) : null}
+                <Iso20022Export action={report.action} instrument={report.instrument} sheet={report.entitlements} source={svc.source} />
                 <button type="button" className={pillButton} onClick={() => setNonce((n) => n + 1)}>
                   <RefreshCw className="size-4" aria-hidden="true" /> Run again
                 </button>

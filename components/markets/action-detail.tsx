@@ -13,11 +13,13 @@ import type { CorporateAction, EntitlementRow, EntitlementSheet, Instrument, TxR
 import { useLedgerQuery, useMarkets } from "./markets-provider";
 import { ActionTimeline, DateRail } from "./action-timeline";
 import { EntitlementTable } from "./entitlement-table";
+import { Iso20022Export } from "./iso20022-export";
 import { ChainRef, ErrorNote, KindIcon, Panel, Skeleton, Stat, StatusPill, pillButton, primaryButton } from "./primitives";
 
 export function ActionDetail({ action, instrument, now }: { action: CorporateAction; instrument: Instrument; now: number }) {
   const sheetQuery = useLedgerQuery(`sheet:${action.id}`, (svc) => svc.getEntitlements(action.id));
   const sheet = sheetQuery.data ?? null;
+  const svc = useMarkets();
   const step = nextStep(action, instrument, sheet);
   const money = (v: bigint) => formatSettlement(v, instrument.settlementDecimals, instrument.settlementSymbol);
 
@@ -66,15 +68,18 @@ export function ActionDetail({ action, instrument, now }: { action: CorporateAct
                 : "Preview from the live register. Final figures are fixed when the snapshot is posted at the record date."}
             </p>
           </div>
-          {sheet ? (
-            <button
-              type="button"
-              className={pillButton}
-              onClick={() => downloadText(`${instrument.symbol}-action-${action.seq}-${isoDate(action.paymentTs)}.csv`, entitlementsCsv(instrument, action, sheet))}
-            >
-              <Download className="size-4" aria-hidden="true" /> Export CSV
-            </button>
-          ) : null}
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {sheet ? (
+              <button
+                type="button"
+                className={pillButton}
+                onClick={() => downloadText(`${instrument.symbol}-action-${action.seq}-${isoDate(action.paymentTs)}.csv`, entitlementsCsv(instrument, action, sheet))}
+              >
+                <Download className="size-4" aria-hidden="true" /> Export CSV
+              </button>
+            ) : null}
+            <Iso20022Export action={action} instrument={instrument} sheet={sheet} source={svc.source} />
+          </div>
         </div>
         {sheetQuery.error ? (
           <div className="p-5"><ErrorNote error={sheetQuery.error} /></div>
