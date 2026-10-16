@@ -176,7 +176,8 @@ function InstrumentHeader({ instrument, actions, now, onNew, onSelect }: { instr
   const svc = useMarkets();
   const money = (v: bigint) => formatSettlement(v, instrument.settlementDecimals, instrument.settlementSymbol);
   const next = upcomingEvents(actions, now)[0];
-  const locked = now < instrument.lockUntil;
+  // A redeemed bond keeps its (final, endless) lock; there is nothing left to transfer.
+  const locked = instrument.status !== "Redeemed" && now < instrument.lockUntil;
   const periods = couponPeriods(instrument);
   const accelerated = isAccelerated(instrument);
   // Accelerated calendars show times: a whole schedule fits in one day.
