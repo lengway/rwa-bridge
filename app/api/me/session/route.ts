@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getVerifiedEmailFromRequest } from "@/lib/auth-server";
 import { notifyWelcome } from "@/lib/receipt-notifications";
 import { linkEmailWallet } from "@/lib/devnet-ledger";
+import { rememberInvestorContact } from "@/lib/markets/notify-server";
 import { isValidWalletAddress } from "@/lib/devnet-route";
 
 export async function POST(request: Request) {
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
     if (!(await linkEmailWallet(email, body.walletAddress))) {
       return NextResponse.json({ error: "A different Solana wallet is already linked to this email." }, { status: 409 });
     }
+    await rememberInvestorContact(email, body.walletAddress);
   }
   const welcomeScheduled = await notifyWelcome(request);
   return NextResponse.json({ ok: true, welcomeScheduled });
