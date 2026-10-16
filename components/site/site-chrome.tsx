@@ -83,3 +83,34 @@ export function SiteFooter() {
     </footer>
   );
 }
+
+const issuerLinks = [
+  { href: "/issuers", label: "Console" },
+  { href: "https://github.com/lengway/rwa-bridge/blob/main/KASE_TECHNICAL_OVERVIEW.md", label: "Technical overview", external: true },
+  { href: "/", label: "Plain for investors" },
+];
+
+/** Issuer workspace chrome: a separate B2B surface, never linked from the investor app. */
+export function IssuerHeader() {
+  return (
+    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-full focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:shadow">Skip to content</a>
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-3">
+          <BrandMark />
+          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">for Issuers</span>
+        </div>
+        <nav aria-label="Issuer workspace" className="hidden md:block">
+          <ul className="flex items-center gap-1 text-sm text-muted-foreground">
+            {issuerLinks.map(({ href, label, external }) => (
+              <li key={href}>
+                <Link href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})} className="rounded-full px-3 py-2 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50">{label}</Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <span className="inline-flex h-9 items-center rounded-full border px-4 text-sm text-muted-foreground">Issuer workspace · devnet</span>
+      </div>
+    </header>
+  );
+}

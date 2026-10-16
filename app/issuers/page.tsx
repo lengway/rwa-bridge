@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ConsoleSkeleton, IssuerConsole } from "@/components/markets/issuer-console";
 import { MarketsFootnote } from "@/components/markets/footnote";
-import { SiteFooter, SiteHeader } from "@/components/site/site-chrome";
+import { IssuerHeader, SiteFooter } from "@/components/site/site-chrome";
 import { marketsPublicConfig } from "@/lib/markets/server";
 
 async function ConfiguredConsole() {
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function IssuersPage() {
   return (
     <>
-      <SiteHeader />
+      <IssuerHeader />
       <main id="main" className="flex-1">
         <Suspense fallback={<ConsoleSkeleton />}>
           <ConfiguredConsole />
